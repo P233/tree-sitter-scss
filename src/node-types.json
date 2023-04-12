@@ -68,10 +68,6 @@
           "named": true
         },
         {
-          "type": "interpolation_bracket",
-          "named": true
-        },
-        {
           "type": "number",
           "named": true
         },
@@ -85,6 +81,122 @@
         },
         {
           "type": "variable_name",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "list",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "hex_color",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "operator",
+          "named": true
+        },
+        {
+          "type": "plain_value",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "variable_name",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "map",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "map_entry",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "map_entry",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "hex_color",
+          "named": true
+        },
+        {
+          "type": "map",
+          "named": true
+        },
+        {
+          "type": "map_key",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "operator",
+          "named": true
+        },
+        {
+          "type": "plain_value",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "variable_name",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "map_key",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "interpolation",
           "named": true
         }
       ]
@@ -124,151 +236,6 @@
         }
       ]
     }
-  },
-  {
-    "type": "sass_list",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "call_expression",
-          "named": true
-        },
-        {
-          "type": "comma",
-          "named": true
-        },
-        {
-          "type": "hex_color",
-          "named": true
-        },
-        {
-          "type": "number",
-          "named": true
-        },
-        {
-          "type": "operator",
-          "named": true
-        },
-        {
-          "type": "plain_value",
-          "named": true
-        },
-        {
-          "type": "sass_list",
-          "named": true
-        },
-        {
-          "type": "sass_map",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "variable_name",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "sass_map",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "sass_map_entry",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "sass_map_entry",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "call_expression",
-          "named": true
-        },
-        {
-          "type": "comma",
-          "named": true
-        },
-        {
-          "type": "delimiter",
-          "named": true
-        },
-        {
-          "type": "hex_color",
-          "named": true
-        },
-        {
-          "type": "number",
-          "named": true
-        },
-        {
-          "type": "operator",
-          "named": true
-        },
-        {
-          "type": "plain_value",
-          "named": true
-        },
-        {
-          "type": "sass_list",
-          "named": true
-        },
-        {
-          "type": "sass_map",
-          "named": true
-        },
-        {
-          "type": "sass_map_key",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "variable_name",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "sass_map_key",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "interpolation",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "slash",
-    "named": true,
-    "fields": {}
   },
   {
     "type": "string",
@@ -313,19 +280,19 @@
           "named": true
         },
         {
-          "type": "comma",
-          "named": true
-        },
-        {
-          "type": "delimiter",
-          "named": true
-        },
-        {
           "type": "flag",
           "named": true
         },
         {
           "type": "hex_color",
+          "named": true
+        },
+        {
+          "type": "list",
+          "named": true
+        },
+        {
+          "type": "map",
           "named": true
         },
         {
@@ -341,19 +308,7 @@
           "named": true
         },
         {
-          "type": "sass_list",
-          "named": true
-        },
-        {
-          "type": "sass_map",
-          "named": true
-        },
-        {
           "type": "string",
-          "named": true
-        },
-        {
-          "type": "terminator",
           "named": true
         },
         {
@@ -378,6 +333,10 @@
   },
   {
     "type": "#",
+    "named": false
+  },
+  {
+    "type": "#{",
     "named": false
   },
   {
@@ -413,6 +372,10 @@
     "named": false
   },
   {
+    "type": ",",
+    "named": false
+  },
+  {
     "type": "-",
     "named": false
   },
@@ -426,6 +389,14 @@
   },
   {
     "type": "//",
+    "named": false
+  },
+  {
+    "type": ":",
+    "named": false
+  },
+  {
+    "type": ";",
     "named": false
   },
   {
@@ -465,14 +436,6 @@
     "named": true
   },
   {
-    "type": "comma",
-    "named": true
-  },
-  {
-    "type": "delimiter",
-    "named": true
-  },
-  {
     "type": "false",
     "named": false
   },
@@ -486,10 +449,6 @@
   },
   {
     "type": "function_paren",
-    "named": true
-  },
-  {
-    "type": "interpolation_bracket",
     "named": true
   },
   {
@@ -513,15 +472,15 @@
     "named": true
   },
   {
-    "type": "terminator",
-    "named": true
-  },
-  {
     "type": "true",
     "named": false
   },
   {
     "type": "unit",
     "named": true
+  },
+  {
+    "type": "}",
+    "named": false
   }
 ]

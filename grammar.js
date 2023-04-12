@@ -3,6 +3,8 @@ module.exports = grammar({
 
   extras: $ => [/\s/, $.block_comment, $.inline_comment],
 
+  conflicts: $ => [[$.list, $.map]],
+
   rules: {
     // --------------------------------------------
     // Root
@@ -29,13 +31,7 @@ module.exports = grammar({
     // },
 
     variable_declaration: $ => {
-      return seq(
-        $.variable_name,
-        $.delimiter,
-        optional(choice($._variable_value, $.sass_map)),
-        optional($.flag),
-        $.terminator
-      );
+      return seq($.variable_name, ":", $._variable_value, optional($.flag), ";");
     },
 
     // --------------------------------------------
@@ -54,29 +50,17 @@ module.exports = grammar({
     // Fundamental combinations
     // --------------------------------------------
 
-    interpolation: $ => {
-      return seq(
-        alias("#{", $.interpolation_bracket),
-        optional($._interpolation_value),
-        alias("}", $.interpolation_bracket)
-      );
-    },
+    interpolation: $ => seq("#{", $._interpolation_value, "}"),
 
     block_comment: $ => seq("/*", repeat(choice(/./, $.interpolation)), "*/"),
 
-    number: $ => {
-      return seq(/-?\d*\.?\d+/, optional(alias(/[a-zA-Z%]+/, $.unit)));
-    },
+    number: $ => seq(/-?\d*\.?\d+/, optional(alias(/[a-zA-Z%]+/, $.unit))),
 
     string: $ => {
       return choice(
         seq("'", repeat(choice(/./, $.interpolation)), "'"),
         seq('"', repeat(choice(/./, $.interpolation)), '"')
       );
-    },
-
-    sass_list: $ => {
-      return choice(seq("(", optional($._sass_list_value), ")"), seq("[", optional($._sass_list_value), "]"));
     },
 
     // parameters: $ => seq(),
@@ -96,23 +80,30 @@ module.exports = grammar({
     property_declaration: $ => {
       return seq(
         alias(repeat1(choice(/[\w-]/, $.interpolation)), $.property_name),
-        $.delimiter,
-        optional($._property_value),
+        ":",
+        $._property_value,
         optional($.flag),
-        $.terminator
+        ";"
       );
     },
 
-    sass_map: $ => {
-      return seq("(", repeat1($.sass_map_entry), ")");
+    list: $ => {
+      return choice(
+        seq("(", repeat(seq($._list_value, optional(","))), ")"),
+        seq("[", repeat(seq($._list_value, optional(","))), "]")
+      );
     },
 
-    sass_map_entry: $ => {
+    map: $ => {
+      return seq("(", repeat($.map_entry), ")");
+    },
+
+    map_entry: $ => {
       return seq(
-        alias(repeat1(choice(/[\w-]/, $.interpolation)), $.sass_map_key),
-        $.delimiter,
-        choice($._sass_map_value, $.sass_map),
-        optional($.comma)
+        alias(repeat1(choice(/[\w-]/, $.interpolation)), $.map_key),
+        ":",
+        choice($.map, repeat($._map_value)),
+        optional(",")
       );
     },
 
@@ -134,8 +125,8 @@ module.exports = grammar({
           // $.interpolation,
           $.call_expression,
           $.plain_value,
-          $.comma,
-          $.slash
+          ",",
+          "/"
         )
       );
     },
@@ -147,47 +138,42 @@ module.exports = grammar({
           $.string,
           $.operator,
           $.hex_color,
-          $.sass_list,
+          $.map,
+          $.list,
           $.variable_name,
           // $.interpolation,
           $.call_expression,
           $.plain_value,
-          $.comma
+          ","
         )
       );
     },
 
-    _sass_map_value: $ => {
-      return repeat1(
-        choice(
-          $.number,
-          $.string,
-          $.operator,
-          $.hex_color,
-          $.sass_list,
-          $.variable_name,
-          // $.interpolation,
-          $.call_expression,
-          $.plain_value
-        )
+    _list_value: $ => {
+      return choice(
+        $.number,
+        $.string,
+        $.operator,
+        $.hex_color,
+        // $.list,
+        $.variable_name,
+        // $.interpolation,
+        $.call_expression,
+        $.plain_value
       );
     },
 
-    _sass_list_value: $ => {
-      return repeat1(
-        choice(
-          $.number,
-          $.string,
-          $.operator,
-          $.hex_color,
-          $.sass_map,
-          $.sass_list,
-          $.variable_name,
-          // $.interpolation,
-          $.call_expression,
-          $.plain_value,
-          $.comma
-        )
+    _map_value: $ => {
+      return choice(
+        $.number,
+        $.string,
+        $.operator,
+        $.hex_color,
+        // $.list,
+        $.variable_name,
+        // $.interpolation,
+        $.call_expression,
+        $.plain_value
       );
     },
 
@@ -207,14 +193,6 @@ module.exports = grammar({
 
     plain_value: () => /[a-zA-Z_-][\w-]*/,
 
-    flag: () => /!\w+/,
-
-    comma: () => ",",
-
-    slash: () => "/",
-
-    delimiter: () => ":",
-
-    terminator: () => ";"
+    flag: () => /!\w+/
   }
 });
