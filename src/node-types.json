@@ -1,5 +1,52 @@
 [
   {
+    "type": "arguments",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "hex_color",
+          "named": true
+        },
+        {
+          "type": "interpolation",
+          "named": true
+        },
+        {
+          "type": "map",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "operator",
+          "named": true
+        },
+        {
+          "type": "plain_value",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "variable_name",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "block_comment",
     "named": true,
     "fields": {},
@@ -31,10 +78,6 @@
           "named": true
         },
         {
-          "type": "function_paren",
-          "named": true
-        },
-        {
           "type": "module_dot",
           "named": true
         },
@@ -46,9 +89,62 @@
     }
   },
   {
+    "type": "class_selector",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "interpolation",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "declaration_block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "property_declaration",
+          "named": true
+        },
+        {
+          "type": "rule_set",
+          "named": true
+        },
+        {
+          "type": "variable_declaration",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "hex_color",
     "named": true,
     "fields": {}
+  },
+  {
+    "type": "id_selector",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "interpolation",
+          "named": true
+        }
+      ]
+    }
   },
   {
     "type": "inline_comment",
@@ -73,45 +169,6 @@
         },
         {
           "type": "operator",
-          "named": true
-        },
-        {
-          "type": "string",
-          "named": true
-        },
-        {
-          "type": "variable_name",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "list",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "call_expression",
-          "named": true
-        },
-        {
-          "type": "hex_color",
-          "named": true
-        },
-        {
-          "type": "number",
-          "named": true
-        },
-        {
-          "type": "operator",
-          "named": true
-        },
-        {
-          "type": "plain_value",
           "named": true
         },
         {
@@ -223,6 +280,57 @@
     "fields": {}
   },
   {
+    "type": "property_declaration",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "call_expression",
+          "named": true
+        },
+        {
+          "type": "flag",
+          "named": true
+        },
+        {
+          "type": "hex_color",
+          "named": true
+        },
+        {
+          "type": "interpolation",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "operator",
+          "named": true
+        },
+        {
+          "type": "plain_value",
+          "named": true
+        },
+        {
+          "type": "property_name",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "variable_name",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "property_name",
     "named": true,
     "fields": {},
@@ -232,6 +340,48 @@
       "types": [
         {
           "type": "interpolation",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "rule_set",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "declaration_block",
+          "named": true
+        },
+        {
+          "type": "selectors",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "selectors",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "class_selector",
+          "named": true
+        },
+        {
+          "type": "id_selector",
+          "named": true
+        },
+        {
+          "type": "tag_selector",
           "named": true
         }
       ]
@@ -261,6 +411,10 @@
       "required": false,
       "types": [
         {
+          "type": "rule_set",
+          "named": true
+        },
+        {
           "type": "variable_declaration",
           "named": true
         }
@@ -288,7 +442,7 @@
           "named": true
         },
         {
-          "type": "list",
+          "type": "interpolation",
           "named": true
         },
         {
@@ -380,6 +534,10 @@
     "named": false
   },
   {
+    "type": "...",
+    "named": false
+  },
+  {
     "type": "/",
     "named": false
   },
@@ -432,10 +590,6 @@
     "named": false
   },
   {
-    "type": "arguments",
-    "named": true
-  },
-  {
     "type": "false",
     "named": false
   },
@@ -445,10 +599,6 @@
   },
   {
     "type": "function_name",
-    "named": true
-  },
-  {
-    "type": "function_paren",
     "named": true
   },
   {
@@ -472,12 +622,20 @@
     "named": true
   },
   {
+    "type": "tag_selector",
+    "named": true
+  },
+  {
     "type": "true",
     "named": false
   },
   {
     "type": "unit",
     "named": true
+  },
+  {
+    "type": "{",
+    "named": false
   },
   {
     "type": "}",

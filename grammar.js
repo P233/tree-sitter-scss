@@ -3,14 +3,17 @@ module.exports = grammar({
 
   extras: $ => [/\s/, $.block_comment, $.inline_comment],
 
-  conflicts: $ => [[$.list, $.map]],
+  conflicts: $ => [
+    [$.list, $.map],
+    [$.property_declaration, $.operator]
+  ],
 
   rules: {
     // --------------------------------------------
     // Root
     // --------------------------------------------
 
-    stylesheet: $ => repeat(choice($.variable_declaration)),
+    stylesheet: $ => repeat(choice($.rule_set, $.variable_declaration)),
 
     // --------------------------------------------
     // At-rule statements
@@ -24,11 +27,11 @@ module.exports = grammar({
     // Integrated combinations
     // --------------------------------------------
 
-    // rule_set: $ => seq($.selectors, optional(seq("{", optional($.declaration_block), "}"))),
+    rule_set: $ => seq($.selectors, "{", optional($.declaration_block), "}"),
 
-    // declaration_block: $ => {
-    //   return repeat1(choice($.property_declaration));
-    // },
+    declaration_block: $ => {
+      return repeat1(choice($.property_declaration, $.variable_declaration, $.rule_set));
+    },
 
     variable_declaration: $ => {
       return seq($.variable_name, ":", $._variable_value, optional($.flag), ";");
@@ -38,13 +41,15 @@ module.exports = grammar({
     // Selectors
     // --------------------------------------------
 
-    // id_selector: $ => seq(/#[a-zA-Z]/, repeat1(choice(/[\w-]/, $.interpolation))),
+    tag_selector: () => /[a-z]+/,
 
-    // class_selector: $ => seq(/\.[a-zA-Z]/, repeat1(choice(/[\w-]/, $.interpolation))),
+    id_selector: $ => seq(/#[a-zA-Z]/, repeat1(choice(/[\w-]/, $.interpolation))),
 
-    // selectors: $ => {
-    //   return prec.left(2, repeat1(choice($.id_selector, $.class_selector)));
-    // },
+    class_selector: $ => seq(/\.[a-zA-Z]/, repeat1(choice(/[\w-]/, $.interpolation))),
+
+    selectors: $ => {
+      return repeat1(choice($.tag_selector, $.id_selector, $.class_selector));
+    },
 
     // --------------------------------------------
     // Fundamental combinations
@@ -63,17 +68,22 @@ module.exports = grammar({
       );
     },
 
-    // parameters: $ => seq(),
+    parameters: $ => {
+      return seq(
+        "(",
+        repeat1(seq($.variable_name, optional(":"), optional($._variable_value), optional(","))),
+        optional(seq($.variable_name, "...")),
+        ")"
+      );
+    },
 
-    arguments: $ => "1",
+    arguments: $ => seq("(", repeat1($._variable_value), optional(seq($.variable_name, "...")), ")"),
 
     call_expression: $ => {
       return seq(
         optional(seq(alias(/[a-zA-Z][\w-]+/, $.module_name), alias(".", $.module_dot))),
         alias(/[a-zA-Z][\w-]+/, $.function_name),
-        alias("(", $.function_paren),
-        $.arguments,
-        alias(")", $.function_paren)
+        $.arguments
       );
     },
 
@@ -120,13 +130,12 @@ module.exports = grammar({
         choice(
           $.number,
           $.string,
+          $.operator,
           $.hex_color,
           $.variable_name,
-          // $.interpolation,
+          $.interpolation,
           $.call_expression,
-          $.plain_value,
-          ",",
-          "/"
+          $.plain_value
         )
       );
     },
@@ -139,12 +148,11 @@ module.exports = grammar({
           $.operator,
           $.hex_color,
           $.map,
-          $.list,
+          // $.list,
           $.variable_name,
-          // $.interpolation,
+          $.interpolation,
           $.call_expression,
-          $.plain_value,
-          ","
+          $.plain_value
         )
       );
     },
