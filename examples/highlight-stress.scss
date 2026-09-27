@@ -1,0 +1,1483 @@
+// SCSS highlighting review matrix: inspect token boundaries and syntax contexts.
+// Preview: pnpm dev examples/highlight-stress.scss
+// Compile: sass --no-source-map examples/highlight-stress.scss /tmp/highlight-stress.css
+//
+// Review protocol:
+// - Each Rxx.yy or Exx.yy entry is an independent acceptance criterion.
+// - [*] marks a focus case requiring a dedicated capture/boundary check.
+// - [MODERN] marks syntax requiring a recent Sass/CSS implementation.
+// - [LEGACY] marks compatibility syntax, not a recommendation for new stylesheets.
+// - [EVAL] marks a Sass evaluation oracle; verify compiler output, not capture colors.
+// - [MANUAL] marks disabled input; activate it separately before judging coverage.
+// - Record PASS / FAIL / NOT CHECKED per criterion using AST and capture ranges.
+// - Judge semantic roles, not a prescribed theme color or capture naming scheme.
+// - A shared color does not prove a shared capture; inspect both independently.
+// - A compile pass validates Sass acceptance, not CSS validity or browser support.
+// - The active body targets Dart Sass 1.105.0 and should compile without warnings.
+// - This is a manual review fixture, not test/highlight caret assertions.
+// - Isolate a failing section with its required definitions/imports.
+// - Preserve intentional spacing, escapes, continuations, and compact rules.
+// - Non-English identifiers and string data are intentional Unicode test inputs.
+//
+// Coverage boundary: representative lexical, structural, contextual, and editing
+// cases are included. Arbitrary nesting, every Unicode/encoding combination,
+// future syntax, host dialects, and all edit sequences cannot be exhausted by
+// one file. Disabled examples and manual procedures are not active coverage.
+//
+// Capture inventory exercised by the active body (mirrors queries/highlights.scm; update together):
+// comment / tag / attribute / property / variable / module / function /
+// constant / number / type / constant.builtin / keyword / operator / string /
+// string.escape / punctuation.bracket / punctuation.delimiter / punctuation.special.
+//
+// References:
+// https://sass-lang.com/documentation/syntax/
+// https://sass-lang.com/documentation/interpolation/
+// https://sass-lang.com/documentation/style-rules/declarations/
+// https://sass-lang.com/documentation/at-rules/
+// https://sass-lang.com/documentation/syntax/special-functions/
+// https://sass-lang.com/documentation/values/strings/
+// https://sass-lang.com/documentation/values/calculations/
+
+// === 01 Module directives ================================================
+// R01.01: Keep @charset, its quoted encoding, and its semicolon separate.
+// R01.02: [*] Recognize @use/@forward, resource strings, and as/show/hide clauses independently.
+// R01.03: Preserve export prefixes and wildcards in exported-* and list-*.
+// R01.04: Distinguish module aliases, the as * wildcard, and filtered member names.
+// R01.05: Keep filter commas within the directive; review external with configurations in E01.
+@charset "UTF-8";
+@forward "sass:math" as exported-*;
+@forward "sass:string" show quote, unquote;
+@forward "sass:list" as list-* hide list-zip;
+// R01.06: [*] Recognize post-prefix function and $variable names in a show filter.
+@forward "sass:math" as fwd-* show fwd-div, $fwd-pi;
+// R01.07: Accept a variable declaration before @use without treating it as emitted CSS.
+$stress-before-use: 1 !default;
+@use "sass:math";
+@use "sass:map";
+@use "sass:list";
+@use "sass:string" as str;
+@use "sass:color";
+@use "sass:selector";
+@use "sass:meta";
+@use "sass:selector" as *;
+// R01.08: [*] Preserve escapes within namespace aliases and their identifier boundaries.
+@use "sass:math" as stress-\6d ath;
+
+// === 02 Variables, flags, and scope ======================================
+// R02.01: [*] Include the $ sigil in declarations and references.
+// R02.02: Keep hyphenated/underscored names intact, including leading _ and -.
+// R02.03: [*] Recognize !default and !global independently, including combined flags.
+// R02.04: Preserve variable captures across local declarations, reassignment, and global writes.
+$stress-gap: 1.25rem !default;
+$stress_gap: 1.5rem;
+$stress-accent: #c6538c !default;
+$stress-enabled: true !default;
+$stress-disabled: false;
+$stress-nothing: null;
+$stress-side: inline-start;
+$stress-name: "card";
+$stress-empty: "";
+$stress-global-count: 0;
+$stress-diagnostics: false !default;
+$stress-private: 1;
+$_stress-internal: 2;
+$-stress-hidden: 3;
+$stress-flag-order: null;
+$stress-flag-order: 1 !default !global;
+
+.stress-scope {
+  $stress-gap: 2rem;
+  $stress-global-count: $stress-global-count + 1 !global;
+  gap: $stress-gap;
+  z-index: $stress-global-count;
+}
+
+// === 03 Comments and documentation comments ==============================
+// R03.01: [*] Keep silent // comments intact, including apparent code and interpolation.
+// R03.02: Keep /// documentation tags and backticks within the comment context.
+// R03.03: Close block comments only at their terminator, regardless of quoted punctuation.
+// R03.04: Distinguish the /*! preservation marker from declaration priority.
+// R03.05: [*] Expose interpolation boundaries and expressions inside emitted block comments.
+// R03.06: Resume normal captures after empty and star-heavy block comments.
+// $undefined: #fff; @include fake(); #{not-executed} " } ] /*
+/// SassDoc sample: @param {Number} $size - `@return` remains documentation text.
+/// TODO FIXME NOTE: https://example.test/a//b remains comment text.
+/** Resume selector captures immediately after this block comment. */
+.stress-after-comment { color: #abc; }
+/* A multiline block comment:
+ * .fake:hover { $fake: 1px; }
+ * Literal delimiters " ' // } ] @mixin do not terminate this comment.
+ */
+/*! Preserve this comment in compressed output; ! is not declaration priority. */
+/* Result: #{1 + 2}; nested call: #{str.to-upper-case($stress-name)}. */
+/**/ .stress-empty-comment { color: red; } /****/
+
+// === 04 Numbers and units ================================================
+// R04.01: Separate numeric magnitudes from adjacent units, including newer CSS units.
+// R04.02: Distinguish signed/leading-dot fractions from selectors and binary operators.
+// R04.03: Keep e/E and exponent signs within scientific notation.
+// R04.04: Preserve compound-unit expressions even when their results cannot be emitted as CSS.
+// R04.05: Distinguish percent units from modulo and placeholder-selector punctuation.
+$stress-numbers: 0, -0, +0, 42, -42, +42, .5, -.5, +.5, 0.125, 1e3, 1E+3, 2.5e-3;
+$stress-lengths: 1px, 1cm, 1mm, 1Q, 1in, 1pt, 1pc, 1em, 1rem, 1ex, 1ch;
+$stress-new-units: 1cap, 1ic, 1lh, 1rlh, 1rcap, 1rch, 1rex, 1ric;
+$stress-viewports: 1vw, 1vh, 1vi, 1vb, 1vmin, 1vmax, 1svh, 1lvh, 1dvh, 1dvw;
+$stress-containers: 1cqw, 1cqh, 1cqi, 1cqb, 1cqmin, 1cqmax;
+$stress-other-units: 50%, 1deg, 1grad, 1rad, 1turn, 1s, 1ms, 1Hz, 1kHz, 1dpi, 1dpcm, 1dppx, 1fr;
+$stress-compound-unit: math.div(12px * 3px, 2s);
+.stress-numbers {
+  opacity: .5;
+  margin: (-.5rem) (+.25rem) 0 1e-2px;
+  rotate: -0.25turn;
+  animation-duration: 125ms;
+  image-resolution: 2dppx;
+  grid-template-columns: 1fr minmax(0, 2fr);
+}
+
+// === 05 Hex colors, IDs, and interpolation ===============================
+// R05.01: Capture 3/4/6/8-digit hex colors completely, regardless of letter case.
+// R05.02: Treat #abc as an ID in selectors and as a color in ordinary values.
+// R05.03: Keep hash text within quoted strings in the string context.
+// R05.04: [*] Preserve interpolation inside both ID selectors and strings.
+#abc, #aabbcc, #stress-#{$stress-name} {
+  color: #abc;
+  outline-color: #abcd;
+  border-color: #aAbBcC;
+  background-color: #aAbBcCdD;
+  caret-color: transparent;
+  text-decoration-color: currentColor;
+  content: "#abc #abcd #{$stress-name}";
+}
+
+// === 06 Strings, escapes, and continuation ===============================
+// R06.01: [*] Preserve quote delimiters, escaped quotes, and escaped backslashes.
+// R06.02: [*] Capture hexadecimal escapes through their optional terminating whitespace.
+// R06.03: Treat an escaped interpolation opener as literal string content.
+// R06.04: Recognize real interpolation following an escaped backslash.
+// R06.05: Keep a backslash-newline continuation inside the same string.
+// R06.06: Keep comment markers, brackets, punctuation, and Unicode data inside strings.
+$stress-double: "double \"quote\", single 'quote', backslash \\";
+$stress-single: 'single \'quote\', double "quote", backslash \\';
+$stress-escape: "\41 \000041 \1F9EA \a \00000a end";
+$stress-literal-interpolation: "\#{not-a-variable}";
+$stress-real-interpolation: "\\#{$stress-name}";
+$stress-continuation: "first\
+second";
+.stress-strings {
+  content: "中文 äö 🧪 ;:{}[]() @use // /* literal */";
+  quotes: "«" "»" "‹" "›";
+  font-family: "A, B: C; D", 'System UI', sans-serif;
+  --quoted-json: '{"comment":"//","brace":"}","hash":"#abc"}';
+}
+
+// === 07 Nested and interpolated syntax ===================================
+// R07.01: [*] Balance string/interpolation/call/map delimiters independently.
+// R07.02: [*] Recognize interpolation at identifier starts, middles, and ends.
+// R07.03: Preserve variable, module, function, and number roles within interpolation.
+// R07.04: Treat a fully interpolated selector as selector syntax when interpolation closes.
+// R07.05: Preserve an interpolated function name and its following argument list.
+$stress-nested-label: "outer #{str.to-upper-case("inner #{$stress-name}")} end";
+$stress-data: (theme: (accent: $stress-accent, label: "A:B;C"));
+.stress-#{$stress-name}-#{$stress-side} {
+  margin-#{$stress-side}: $stress-gap;
+  #{$stress-side}: 0;
+  --stress-#{$stress-name}: #{map.get($stress-data, theme, accent)};
+  content: "before #{meta.inspect((key: "#{$stress-name}", nested: (1, 2)))} after";
+  animation-name: stress-#{$stress-name};
+  background-image: linear-#{"gradient"}(90deg, red, blue);
+}
+#{".stress-entire-selector"} { color: $stress-accent; }
+
+// === 08 Constants and keyword-shaped identifiers =========================
+// R08.01: [*] Recognize true/false/null as complete Sass literals.
+// R08.02: Do not split trueish, falsehood, null-value, notebook, orange, or android into keywords.
+// R08.03: Keep quoted keyword spellings within the string context.
+// R08.04: Classify CSS identifiers and named colors within their declaration-value context.
+$stress-booleans: true, false, null;
+$stress-identifiers: trueish, falsehood, null-value, notebook, orange, android;
+$stress-keyword-strings: "true", 'false', "null", "and", "or", "not";
+.stress-constants {
+  display: block;
+  position: relative;
+  visibility: inherit;
+  color: initial;
+  border-color: unset;
+  background: revert;
+  outline: revert-layer;
+}
+
+// === 09 Operators and slash contexts =====================================
+// R09.01: [*] Recognize complete comparison tokens: ==, !=, <, <=, >, >=.
+// R09.02: Distinguish word operators from substrings of identifiers.
+// R09.03: Preserve grouping, binary arithmetic, unary negation, and modulo boundaries.
+// R09.04: Distinguish Sass division calls from CSS slash separators and slash-list construction.
+// R09.05: Keep URL protocol slashes within url() instead of opening a silent comment.
+$stress-arithmetic: ((12 + 3) * 2 - 4) % 5;
+$stress-comparisons: (1 == 1), (1 != 2), (1 < 2), (1 <= 1), (2 > 1), (2 >= 2);
+$stress-logic: not false and (true or false);
+$stress-negative: -$stress-private;
+$stress-division: math.div(12px, 3);
+$stress-slash-list: list.slash(16, 9);
+.stress-slashes {
+  aspect-ratio: 16 / 9;
+  font: italic 16px / 1.5 "Inter", sans-serif;
+  grid-column: 1 / -1;
+  border-radius: 10px 20px / 30px 40px;
+  color: rgb(10 20 30 / 40%);
+  width: calc(100% - 2 * #{$stress-gap});
+  background-image: url(https://example.test/assets/a.svg);
+}
+
+// === 10 Lists, maps, grouping, and trailing commas =======================
+// R10.01: [*] Accept empty parentheses/brackets without inventing missing elements.
+// R10.02: Distinguish singleton comma lists from grouped expressions.
+// R10.03: Preserve nested space/comma/bracketed list structure.
+// R10.04: [*] Treat map-entry colons as map syntax, including non-string/composite keys.
+// R10.05: Keep punctuation within quoted map keys and values in string context.
+// R10.06: Accept trailing commas without consuming closing parentheses.
+$stress-empty-list: ();
+$stress-empty-brackets: [];
+$stress-one-item: (one,);
+$stress-grouped: (1 + 2);
+$stress-space-list: solid 1px red;
+$stress-comma-list: alpha, beta, gamma;
+$stress-bracketed: [alpha beta] [gamma, delta];
+$stress-map: (
+  "quoted:key": ("semi;colon": "brace}inside", "url": "https://example.test"),
+  unquoted-key: [1px 2px],
+  42: true,
+  false: null,
+  (a b): (nested: (deep: "value")),
+);
+.stress-map-output {
+  content: meta.inspect($stress-map);
+  padding: list.nth([1px 2px 3px], 2);
+}
+
+// === 11 Namespaces, members, and named arguments =========================
+// R11.01: [*] Separate module names, member-access dots, and $variable members.
+// R11.02: [*] Separate module names from called function names.
+// R11.03: [*] Treat named-argument variables/colons as arguments, not property declarations.
+// R11.04: Preserve positional/named arguments and nested calls within module calls.
+// R11.05: Recognize unknown plain-CSS function calls without classifying their names as properties.
+$stress-pi: math.$pi;
+$stress-epsilon: math.$epsilon;
+$stress-namespaced-call: math.div($number1: 12px, $number2: 3);
+$stress-builtins: str.length("🧪"), list.length((1, 2)), map.has-key($stress-map, 42);
+.stress-functions {
+  color: color.adjust($stress-accent, $lightness: 5%, $space: hsl);
+  width: math.max(10px, 20px);
+  content: str.slice("abcdef", $start-at: 2, $end-at: 4);
+  filter: stress-custom-filter(1, var(--stress-amount, 2));
+}
+
+// === 12 Function definitions and argument expansion ======================
+// R12.01: [*] Recognize @function, its declared name, parameter list, and body boundaries.
+// R12.02: [*] Distinguish parameter names from default values.
+// R12.03: [*] Keep ... separate from variables, decimal points, and member-access dots.
+// R12.04: Preserve list expansion and keyword-map expansion at call sites.
+// R12.05: Accept trailing argument commas without losing closing delimiters.
+// R12.06: Recognize @return and nested calls, including first-class function invocation.
+/// @param {Number} $base - Include $ in the parameter capture.
+@function stress-scale($base, $factor: 2, $extras...) {
+  $result: $base * $factor;
+  @each $extra in $extras {
+    $result: $result + $extra;
+  }
+  @return $result;
+}
+@function stress-map-get($source, $keys...) {
+  @return map.get($source, $keys...);
+}
+$stress-args: (2px, 3, 1px, 2px);
+$stress-scaled: stress-scale($stress-args...);
+$stress-keyword-args: (base: 3px, factor: 4);
+$stress-scaled-keywords: stress-scale($stress-keyword-args...);
+$stress-trailing-call: stress-scale(2px, 3,);
+$stress-indirect: meta.call(meta.get-function("stress-scale"), 2px, 4);
+
+// === 13 Mixin definitions and includes ===================================
+// R13.01: [*] Distinguish mixin declaration names from include targets.
+// R13.02: Accept omitted and empty parentheses where each form is permitted.
+// R13.03: Preserve positional, named, default, and expanded mixin arguments.
+// R13.04: Keep rest-keyword capture within the argument context.
+// R13.05: [*] Recognize module-qualified includes as mixin calls despite function-like parentheses.
+@mixin stress-reset {
+  margin: 0;
+  padding: 0;
+}
+@mixin stress-empty() {
+  box-sizing: border-box;
+}
+@mixin stress-ring($width: 2px, $ink: $stress-accent, $extras...) {
+  outline: $width solid $ink;
+  @each $key, $value in meta.keywords($extras) {
+    --stress-#{$key}: #{$value};
+  }
+}
+.stress-mixins {
+  @include stress-reset;
+  @include stress-empty();
+  @include stress-ring($ink: #abc, $width: 3px, $offset: 2px);
+  @include stress-ring((1px, #def)...);
+  @include meta.apply(meta.get-mixin("stress-empty"));
+}
+
+// === 14 Content blocks and using parameters ==============================
+// R14.01: [*] Recognize @content with and without argument lists.
+// R14.02: [*] Treat using parameters as bindings for the include content block.
+// R14.03: Balance content, media, selector, and interpolation blocks independently.
+// R14.04: Accept an include without a content block when its mixin permits it.
+@mixin stress-at-sizes($sizes...) {
+  @each $size in $sizes {
+    @media (min-width: $size) {
+      @content ($size, "wide");
+    }
+  }
+}
+.stress-content {
+  @include stress-at-sizes(30rem, 60rem) using ($breakpoint, $label) {
+    max-width: $breakpoint;
+    &::before { content: "#{$label}: #{$breakpoint}"; }
+  }
+}
+@mixin stress-optional-content {
+  @if meta.content-exists() { @content; }
+}
+.stress-content-empty { @include stress-optional-content; }
+
+// === 15 Branches, loops, destructuring, and ranges =======================
+// R15.01: [*] Recognize @if/@else if/@else without extending directive captures into expressions.
+// R15.02: [*] Recognize in/from/through/to in loop-header contexts.
+// R15.03: Keep range endpoints numeric, including the first 1 after from.
+// R15.04: Preserve multiple @each bindings and nested iteration values.
+// R15.05: Distinguish inclusive through and exclusive to ranges.
+// R15.06: Keep @while conditions, body assignments, and closing delimiters separate.
+@if $stress-enabled and not $stress-disabled {
+  .stress-branch { display: block; }
+} @else if $stress-nothing == null {
+  .stress-branch { display: grid; }
+} @else {
+  .stress-branch { display: none; }
+}
+@each $name, $value in (compact: .5rem, comfortable: 1rem) {
+  .stress-density-#{$name} { padding: $value; }
+}
+@each $name, $glyph, $size in (ok, "✓", 1rem), (close, "×", 1.25rem) {
+  .stress-icon-#{$name}::before { content: $glyph; font-size: $size; }
+}
+@for $index from 1 through 3 {
+  .stress-inclusive-#{$index} { order: $index; }
+}
+@for $index from 1 to 3 {
+  .stress-exclusive-#{$index} { z-index: $index; }
+}
+$stress-counter: 3;
+@while $stress-counter > 0 {
+  .stress-count-#{$stress-counter} { opacity: math.div($stress-counter, 3); }
+  $stress-counter: $stress-counter - 1;
+}
+
+// === 16 Diagnostic directives ============================================
+// R16.01: [*] Recognize @debug, @warn, and @error independently of their expressions.
+// R16.02: Preserve interpolation and calls within diagnostic expressions.
+// R16.03: Review inactive-branch syntax; enabling this branch intentionally raises an error.
+@if $stress-diagnostics {
+  @debug meta.type-of($stress-map);
+  @warn "sample warning: #{$stress-name}";
+  @error "intentional failure: #{meta.inspect($stress-map)}";
+}
+
+// === 17 Selector roles, combinators, and namespaces ======================
+// R17.01: Distinguish type/class/ID/universal tokens within compound selectors.
+// R17.02: [*] Preserve descendant, child, next-sibling, and subsequent-sibling combinators.
+// R17.03: Keep selector-list commas outside individual selector tokens.
+// R17.04: [*] Recognize named, wildcard, and empty namespace prefixes around |.
+// R17.05: Treat the namespace URL as an at-rule value, not selector text.
+article.stress-card#stress-root,
+.stress-container > .stress-child + .stress-next ~ .stress-later,
+.stress-container .stress-descendant,
+* > .stress-universal {
+  color: $stress-accent;
+}
+@namespace svg url("http://www.w3.org/2000/svg");
+svg|a, *|a, |a, svg|* { fill: currentColor; }
+
+// === 18 Attribute selectors ==============================================
+// R18.01: [*] Distinguish attribute-selector names from declaration property names.
+// R18.02: Recognize existence tests and =, ~=, |=, ^=, $=, *= match operators.
+// R18.03: Keep ] within quoted values from terminating the selector.
+// R18.04: [*] Recognize i/s flags after attribute values.
+// R18.05: Preserve unquoted values, namespaces, and interpolated names/values.
+[data-stress],
+[data-stress="a]b"],
+[data-stress~="token"],
+[lang|="en"],
+[data-stress^="prefix" i],
+[data-stress$="suffix" s],
+[data-stress*="middle"],
+[data-stress=unquoted],
+[svg|href="#shape"],
+[data-#{$stress-name}="#{str.to-upper-case($stress-name)}"] {
+  outline-color: blue;
+}
+
+// === 19 Pseudo selectors and nested selector arguments ===================
+// R19.01: [*] Distinguish pseudo-class colons, pseudo-element double colons, and declaration colons.
+// R19.02: Keep state pseudo-classes within selector context.
+// R19.03: [*] Recognize An+B, odd/even, and of selector lists in nth functions.
+// R19.04: Preserve nested :is/:where/:not/:has lists and relative combinators.
+// R19.05: Treat :lang/:dir arguments according to their pseudo-class context.
+// R19.06: [*] Preserve functional pseudo-elements and shadow-DOM selector arguments.
+// R19.07: Accept legacy single-colon pseudo-elements without inventing declarations.
+.stress-state:hover:focus-visible,
+.stress-state:active:focus-within,
+.stress-input:disabled,
+.stress-input:enabled:checked,
+.stress-input:required:invalid,
+.stress-input:optional:valid,
+.stress-input:read-only:placeholder-shown,
+.stress-input:read-write:indeterminate,
+.stress-link:any-link:visited,
+.stress-item:first-child:last-of-type:only-child,
+.stress-item:nth-child(2n + 1 of .stress-item, :not([hidden])),
+.stress-item:nth-last-child(-n + 3),
+.stress-item:nth-of-type(odd),
+.stress-item:nth-last-of-type(even),
+.stress-card:is(.active, #stress-selected):where(:not([hidden])),
+.stress-card:has(> img, + .stress-caption),
+.stress-text:lang(zh, "en-US"):dir(rtl),
+.stress-empty:empty,
+.stress-target:target {
+  color: rebeccapurple;
+}
+.stress-pseudo::before,
+.stress-pseudo::after,
+.stress-pseudo::first-letter,
+.stress-pseudo::first-line,
+.stress-pseudo::selection,
+.stress-input::placeholder,
+.stress-file::file-selector-button,
+.stress-list::marker,
+.stress-dialog::backdrop,
+.stress-shadow::part(label),
+.stress-slot::slotted(span),
+.stress-text::highlight(search-result),
+:host(.stress-host),
+:host-context(.dark) {
+  color: currentColor;
+}
+.stress-legacy:before { content: "legacy"; }
+
+// === 20 Parent selectors, suffixes, and reversed nesting =================
+// R20.01: [*] Recognize & in selectors and as a SassScript parent-selector value.
+// R20.02: Keep BEM-style suffixes attached to the parent selector.
+// R20.03: Preserve repeated parents in sibling selectors and pseudo-class arguments.
+// R20.04: Recognize ancestor-before-parent and leading relative combinator forms.
+// R20.05: Preserve selector-function calls within @at-root interpolation.
+.stress-parent {
+  $stress-parent-selector: &;
+  &__title { font-weight: bold; }
+  &--active, &.is-active { opacity: 1; }
+  &:not(&--disabled) { cursor: pointer; }
+  & + & { margin-inline-start: 1rem; }
+  [dir="rtl"] & { text-align: right; }
+  &:is(&) { isolation: isolate; }
+  > .stress-direct-child { padding: 1px; }
+  @at-root #{selector.append($stress-parent-selector, "__detached")} { display: block; }
+}
+
+// === 21 Placeholders and extension =======================================
+// R21.01: [*] Treat % as a placeholder sigil in selector context, not a unit or operator.
+// R21.02: Preserve interpolation in placeholder names and @extend targets.
+// R21.03: [*] Recognize @extend and !optional as separate syntax.
+%stress-shared, %stress-#{$stress-name} { box-sizing: border-box; }
+.stress-extended {
+  @extend %stress-shared;
+  @extend %stress-#{$stress-name};
+  @extend .stress-does-not-exist !optional;
+}
+
+// === 22 Nested properties and omitted final semicolons ===================
+// R22.01: [*] Distinguish nested property blocks from nested selector rules.
+// R22.02: Accept nested properties with and without base shorthand values.
+// R22.03: Keep vendor prefixes within property identifiers.
+// R22.04: Distinguish declaration !important from Sass assignment flags.
+// R22.05: [*] Accept an omitted final semicolon without consuming the rule's closing brace.
+.stress-properties {
+  font: {
+    family: "Inter", sans-serif;
+    size: 1rem;
+    weight: 600;
+  }
+  border: 1px solid {
+    color: $stress-accent;
+    radius: .5rem;
+  }
+  margin: auto { block: 1rem; }
+  -webkit-appearance: none;
+  color: red !important;
+  .stress-no-final-semicolon { color: blue }
+}
+
+// === 23 Unicode and escaped identifiers ==================================
+// R23.01: [*] Preserve Unicode variables, classes, IDs, and custom-property identifiers.
+// R23.02: Keep astral characters within identifiers/strings despite multibyte offsets.
+// R23.03: [*] Treat hexadecimal escape terminator spaces as escape syntax, not combinators.
+// R23.04: Keep escaped colons/slashes/brackets/equals signs within selector identifiers.
+// R23.05: Preserve escaped property spellings as complete identifiers.
+$颜色: #c6538c;
+$välit: 1rem;
+.按钮, .café, .äö, .🧪, .\31 0-columns, .hover\:text-red:hover,
+.w-1\/2, .\[data-state\=open\], #\31 23 {
+  --颜色: #{$颜色};
+  margin: $välit;
+  c\6flor: red;
+  content: "界🧪" + " #{$stress-name}";
+}
+
+// === 24 Raw custom-property values =======================================
+// R24.01: [*] Keep $stress-accent raw outside interpolation in a literal custom-property value.
+// R24.02: [*] Enter SassScript only at an explicit interpolation in that raw-value context.
+// R24.03: Preserve keyword-shaped words and apparent arithmetic as raw CSS tokens.
+// R24.04: Balance raw braces/brackets without interpreting punctuation inside quoted strings.
+// R24.05: Accept interpolated names, empty raw values, and embedded comments.
+// R24.06: Recognize trailing !important as declaration priority outside the raw payload.
+:root {
+  --stress-literal: $stress-accent;
+  --stress-evaluated: #{$stress-accent};
+  --stress-words: true false null and or not;
+  --stress-formula: 1 + 2 * 3;
+  --stress-payload: { key: "value;}", nested: [one, two] };
+  --stress-font: #{meta.inspect("A B")};
+  --stress-#{$stress-name}-gap: #{$stress-gap};
+  --stress-empty: ;
+  --stress-comment: alpha /* comment inside raw value */ beta;
+}
+.stress-custom-properties {
+  color: var(--stress-evaluated, var(--missing, #abc));
+  font-family: var(--stress-font, "A, B", sans-serif);
+  --stress-with-priority: red !important;
+}
+
+// === 25 URLs and data payloads ===========================================
+// R25.01: [*] Keep // inside absolute/protocol-relative unquoted url() arguments as URL text.
+// R25.02: Preserve relative paths, fragments, queries, and base64/data-URI punctuation.
+// R25.03: Keep quoted comment markers as string text and real comments as comments.
+// R25.04: Recognize interpolation in quoted URLs without terminating their argument.
+// R25.05: Distinguish a url() expression from a string merely containing a URL.
+.stress-urls {
+  background-image: url(https://example.test/a//b.svg?x=1&y=2#fragment);
+  mask-image: url(//example.test/mask.svg);
+  list-style-image: url(../icons/check.svg);
+  cursor: url("data:image/svg+xml,%3Csvg%3E%3C/svg%3E"), auto;
+  background: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB);
+  filter: url(#stress-filter);
+  content: "url(https://example.test) // still a string /* still a string */";
+  border-image-source: url("/assets/#{$stress-name}.svg?text=a;b");
+  --stress-url-text: "https://example.test/a//b";
+}
+
+// === 26 CSS calculations and structured values ===========================
+// R26.01: [MODERN] Preserve nested CSS calculations and their operator/argument boundaries.
+// R26.02: Keep var/env identifiers and environment indices inside their function context.
+// R26.03: Distinguish grid line brackets from Sass bracketed lists by context.
+// R26.04: [MODERN] Preserve attr() type syntax and fallback commas.
+// R26.05: Preserve transform/easing/shape/image-set argument boundaries.
+// R26.06: Recognize calculation constants such as pi inside calculations.
+.stress-css-values {
+  width: clamp(20rem, calc(50vw - 2rem), 80rem);
+  height: min(100dvh, max(20rem, 50vh));
+  padding-top: env(safe-area-inset-top, 0px);
+  left: env(viewport-segment-left 1 0, 0px);
+  grid-template-columns: [start] repeat(3, [column] minmax(0, 1fr)) [end];
+  grid-template-areas: "head head" "nav main" "foot foot";
+  content: attr(data-label, "fallback");
+  width: attr(data-width type(<length>), 10px);
+  transform: translate3d(1px, -2px, 0) rotate(.25turn) scale(1.25);
+  transition: opacity 150ms ease-in-out, transform .2s steps(4, jump-end);
+  animation-timing-function: linear(0, .25 25%, .75 75%, 1);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  background-image: image-set(url("a.avif") type("image/avif") 1x, url("a.png") 2x);
+  width: calc(100% / 3);
+  opacity: calc(sin(pi / 4));
+}
+
+// === 27 Modern color functions ===========================================
+// R27.01: [MODERN] Preserve space-separated channels and slash-separated alpha components.
+// R27.02: [MODERN] Keep color-space identifiers within color-function argument context.
+// R27.03: [MODERN] Preserve color-mix methods, hue modifiers, and percentages.
+// R27.04: [MODERN] Preserve relative-color from syntax and channel expressions.
+// R27.05: Keep gradient stops and transparent hex colors within their function context.
+.stress-modern-colors {
+  color: rgb(10 20 30 / .5);
+  color: hsl(210deg 50% 40% / 75%);
+  color: hwb(90 10% 20% / .8);
+  color: lab(60% 20 30 / .9);
+  color: lch(60% 40 30deg);
+  color: oklab(60% .1 .2);
+  color: oklch(60% .2 250 / .75);
+  color: color(display-p3 1 .2 .1 / .9);
+  color: color-mix(in oklch longer hue, red 30%, blue);
+  color: light-dark(#111, #eee);
+  color: rgb(from var(--stress-evaluated) r g b / .5);
+  color: oklch(from var(--stress-evaluated) calc(l + .1) c h);
+  background: repeating-linear-gradient(45deg, #0000 0 10px, #0008 10px 20px);
+}
+
+// === 28 Plain-CSS import directives ======================================
+// R28.01: Distinguish CSS @import from Sass module-loading directives.
+// R28.02: Preserve quoted/url() resources and following media conditions.
+// R28.03: [MODERN] Keep layer/supports modifiers within the import prelude.
+// R28.04: Review remote-looking URLs as source text without fetching their resources.
+@import "stress-print.css" print;
+@import url("https://example.test/stress.css") screen and (min-width: 40rem);
+@import url("stress-layer.css") layer(stress.vendor) supports(display: grid);
+
+// === 29 Media queries ====================================================
+// R29.01: Recognize media types and only/not/and in query contexts.
+// R29.02: Distinguish feature-test colons from declaration colons.
+// R29.03: [MODERN] Preserve chained range comparisons and feature names.
+// R29.04: [*] Recognize interpolation in media types and feature values.
+// R29.05: Balance nested media/supports blocks within selector rules.
+@media screen and (min-width: 40rem), print and (orientation: landscape) {
+  .stress-media { display: grid; }
+}
+@media not print {
+  .stress-media { color: #111; }
+}
+@media only screen and (hover: hover) and (pointer: fine) {
+  .stress-media:hover { text-decoration: underline; }
+}
+@media (30rem <= width < 80rem) and (prefers-reduced-motion: no-preference) {
+  .stress-media { animation: stress-card 1s ease both; }
+}
+$stress-media-kind: screen;
+@media #{$stress-media-kind} and (min-width: #{30 * 1rem}) {
+  .stress-media-interpolated { display: block; }
+}
+.stress-nested-media {
+  @media (prefers-color-scheme: dark) {
+    color: white;
+    @supports (display: grid) { display: grid; }
+  }
+}
+
+// === 30 Feature queries ==================================================
+// R30.01: Recognize declaration tests and parenthesized @supports conditions.
+// R30.02: Keep not/and/or scoped to the supports condition.
+// R30.03: [MODERN] Preserve selector() arguments and font-format() tests within the prelude.
+@supports (display: grid) and (not (display: subgrid)) {
+  .stress-supports { display: grid; }
+}
+@supports selector(:has(> img)) or (font-format(woff2)) {
+  .stress-supports:has(img) { isolation: isolate; }
+}
+
+// === 31 Container queries ================================================
+// R31.01: [MODERN] Separate container names from range conditions.
+// R31.02: [MODERN] Preserve style() custom-property tests and their values.
+// R31.03: Distinguish container-shorthand slashes from division.
+.stress-container-owner { container: stress-layout / inline-size; }
+@container stress-layout (inline-size >= 30rem) {
+  .stress-container-child { grid-template-columns: 1fr 1fr; }
+}
+@container style(--stress-mode: dark) {
+  .stress-container-child { color: white; }
+}
+
+// === 32 Layers, scopes, starting styles, and view transitions ============
+// R32.01: [MODERN] Recognize dotted layer names and named/anonymous block forms.
+// R32.02: [MODERN] Preserve @scope root/limit selectors and the to delimiter.
+// R32.03: [MODERN] Recognize :scope in the scoped body.
+// R32.04: [MODERN] Preserve @starting-style and @view-transition block boundaries.
+// R32.05: [MODERN] Keep functional view-transition pseudo-elements in selector context.
+@layer stress.reset, stress.components, stress.utilities;
+@layer stress.components {
+  .stress-layer { color: red; }
+  @layer nested { .stress-layer { color: blue; } }
+}
+@layer { .stress-anonymous-layer { display: block; } }
+@scope (.stress-scope-root) to (.stress-scope-stop) {
+  :scope > .stress-scoped { color: teal; }
+}
+@starting-style { .stress-entering { opacity: 0; } }
+@view-transition { navigation: auto; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .3s; }
+
+// === 33 Descriptors, Unicode ranges, counters, and pages =================
+// R33.01: [MODERN] Recognize @property descriptors and keep <angle> within its quoted string.
+// R33.02: Preserve @font-face source lists, weight ranges, and descriptors.
+// R33.03: [*] Treat U+ ranges/wildcards as Unicode-range syntax, not arithmetic.
+// R33.04: Keep nested font-feature rules and palette descriptors within their blocks.
+// R33.05: Preserve counter-style symbols, including Unicode strings.
+// R33.06: Distinguish page names/pseudos and page-margin rules from ordinary selectors.
+@property --stress-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@font-face {
+  font-family: "Stress Sans";
+  src: local("Stress Sans"), url("stress.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+  unicode-range: U+0020-007E, U+00A0-00FF, U+4??;
+}
+@font-feature-values "Stress Sans" {
+  @styleset { stress-alternate: 1 2; }
+}
+@font-palette-values --stress-palette {
+  font-family: "Stress Color";
+  base-palette: 1;
+  override-colors: 0 #c6538c, 1 #00f;
+}
+@counter-style stress-marker {
+  system: cyclic;
+  symbols: "✓" "→" "•";
+  suffix: " ";
+}
+@page stress-report:left {
+  size: A4 portrait;
+  margin: 2cm;
+  @top-center { content: "page " counter(page); }
+  @bottom-right { content: counter(page) " / " counter(pages); }
+}
+
+// === 34 Keyframes ========================================================
+// R34.01: Recognize from/to as keyframe selectors in this context.
+// R34.02: [*] Preserve integer/fractional percentages and comma-separated stop lists.
+// R34.03: Keep interpolated animation names separate from keyframe bodies.
+// R34.04: Accept prefixed keyframe directives and property identifiers.
+@keyframes stress-#{$stress-name} {
+  from { opacity: 0; transform: translateY(1rem); }
+  25%, 50.5% { opacity: .5; }
+  to { opacity: 1; transform: translateY(0); }
+}
+@-webkit-keyframes stress-prefixed {
+  0% { -webkit-transform: scale(.9); }
+  100% { -webkit-transform: scale(1); }
+}
+
+// === 35 Root extraction ==================================================
+// R35.01: [*] Recognize @at-root followed by a selector and rule block.
+// R35.02: [*] Preserve with/without filters without inventing property declarations.
+// R35.03: Balance filter, media, and rule delimiters across nested @at-root blocks.
+.stress-at-root-owner {
+  @at-root .stress-root-output { display: block; }
+  @media screen {
+    @at-root (without: media) { .stress-without-media { color: blue; } }
+    @at-root (with: rule) { color: red; }
+  }
+}
+
+// === 36 Modern conditional values and CSS functions ======================
+// R36.01: [MODERN] Treat if() semicolons as branch separators, not declaration terminators.
+// R36.02: [MODERN] Parse sass() conditions as SassScript and style() conditions as CSS tests.
+// R36.03: [MODERN] Distinguish --prefixed CSS @function from Sass function definitions.
+// R36.04: [MODERN] Preserve typed custom parameters, defaults, and returns clauses.
+// R36.05: [MODERN] Treat result as a raw-value context with explicit Sass interpolation.
+// R36.06: Review legacy three-argument if() separately in E02.
+.stress-modern-if {
+  border-radius: if(sass($stress-enabled): .5rem; else: 0);
+  color: if(style(--stress-mode: dark): white; else: black);
+}
+@function --stress-css-color(--ink <color>: teal) returns <color> {
+  result: var(--ink, #{$stress-accent});
+}
+.stress-css-function { color: --stress-css-color(tomato); }
+
+// === 37 Whitespace, comments, and dense input ============================
+// R37.01: Preserve adjacent token roles around comments at legal whitespace positions.
+// R37.02: Keep a value open across a line comment and the following newline.
+// R37.03: Preserve boundaries without optional whitespace between delimiters.
+// R37.04: Balance consecutive closing delimiters after nested calls/strings/interpolation.
+// R37.05: Resume ordinary captures in the rule following a compact expression.
+.stress-comment-gap/* selector gap */>.stress-child {
+  color/* before colon */:/* after colon */red/* before semicolon */;
+  padding: 1px/* between values */ 2px;
+  font-family: "A", // Continue the same value on the next line.
+    "B", sans-serif;
+}
+.stress-dense{color:#abc;background:rgb(1 2 3 / .5);content:"#{str.to-upper-case("#{1 + 2}")}";}
+.stress-after-dense { color: #def; }
+
+// === 38 Identical spellings in different roles ===========================
+// R38.01: Classify red/math/if/from/to by selector/property/value/string context.
+// R38.02: Avoid global keyword matching within class/ID/custom-property names.
+// R38.03: Keep apparent member access and flags within quoted strings as string content.
+math.red#if, from.to {
+  --if: "@if";
+  --math: "math.$pi";
+  animation-name: from;
+  color: red;
+  content: "red math if from to true false null !important";
+}
+
+// === 39 Combined component scenario ======================================
+// R39.01: Preserve captures across layers, selectors, mixins, maps, and custom properties.
+// R39.02: Keep pseudo selectors and interpolated strings independently scoped.
+// R39.03: Balance container/supports/relative-selector blocks without leaking captures.
+// R39.04: Recognize the final nested media query and its !important declaration independently.
+@layer stress.components {
+  .stress-card[data-state="ready"] {
+    --stress-card-ink: #{map.get($stress-data, theme, accent)};
+    @include stress-ring($ink: var(--stress-card-ink));
+    display: grid;
+    gap: clamp(.5rem, 2cqi, $stress-gap);
+
+    & > .stress-card__title:is(:hover, :focus-visible)::before {
+      content: "#{$stress-nested-label} / #{stress-scale(2, 3)}";
+      color: color-mix(in srgb, var(--stress-card-ink) 60%, transparent);
+    }
+
+    @container stress-layout (width >= 40rem) {
+      @supports selector(:has(> img)) {
+        &:has(> img:not([hidden])) {
+          grid-template-columns: [media] minmax(0, 1fr) [body] 2fr;
+          > img { aspect-ratio: 4 / 3; object-fit: cover; }
+        }
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      &, &::before { animation: none !important; }
+    }
+  }
+}
+
+// === 40 Escaped Sass identifiers and semantic keywords ===================
+// R40.01: [*] Preserve variable-name escapes and their terminating whitespace.
+$stress-escaped-\67 ap: 2px;
+// R40.02: [*] Keep escaped function/parameter names intact and recognize unescaped references.
+@function stress-escaped-\73 cale($stress-\76 alue) {
+  @return $stress-value;
+}
+// R40.03: [*] Recognize escaped mixin definitions and their normalized include targets.
+@mixin stress-escaped-\72 eset { padding: $stress-escaped-gap; }
+// R40.04: [*] Classify escaped literal spellings by their semantic value, not raw text alone.
+$stress-escaped-literals: tr\75 e, n\75 ll, r\65 d;
+// R40.05: Keep differently cased TRUE/False/NULL as identifiers rather than Sass literals.
+$stress-case-sensitive-literals: TRUE, False, NULL;
+.stress-escaped-api {
+  width: stress-escaped-scale($stress-escaped-gap);
+  @include stress-escaped-reset;
+  // R40.06: [*] Preserve escapes in function members and namespaced variable members.
+  height: math.d\69 v(6px, 2);
+  opacity: math.$\70 i;
+  margin: stress-math.div(6px, 2);
+}
+
+// === 41 Accepted tokens versus resulting CSS validity ====================
+// R41.01: [*] Distinguish noncolor hash strings from hexadecimal colors.
+$stress-hash-strings: #foo, #abcdfoo, #ggg;
+// R41.02: Recognize bare % as an unquoted string in this value position.
+$stress-bare-percent: %;
+// R41.03: Accept !important as a Sass value, distinct from declaration priority.
+$stress-priority-value: !important;
+// R41.04: Preserve unknown units and scientific notation followed by unknown units.
+$stress-unknown-units: 1furlong, 1e3foo;
+.stress-accepted-tokens {
+  // R41.05: [*] Parse 1.2.3 as adjacent values, not as a single valid numeric token.
+  // Sass emits 1.2 0.3; that output is not a valid opacity value.
+  opacity: 1.2.3;
+  color: #ggg;
+  // R41.06: [*] Accept an empty var() fallback without requiring another argument.
+  width: var(--missing,);
+  // R41.07: [*] Close adjacent interpolations independently without inventing a separator.
+  content: #{1 + 1}#{2 + 2};
+  // R41.08: Keep parenthesized unary negation separate from a preceding list element.
+  margin: 1 (-2);
+}
+// R41.09: Keep an unknown attribute flag outside its quoted value even if Sass accepts it.
+// This q flag is a CSS-validity probe, not an assertion of browser acceptance.
+.stress-unknown-flag[data-x="x" q] { color: red; }
+
+// === 42 Escape lengths, empty values, and comment termination ============
+// R42.01: [*] Distinguish a continuing hex digit from a whitespace-terminated escape.
+$stress-greedy-escape: "\41B";
+$stress-terminated-escape: "\41 B";
+// R42.02: [*] End a hex escape after six digits even when another hex digit follows.
+$stress-six-digit-escape: "\000041B";
+// R42.03: Consume only the escape terminator; preserve additional whitespace as string data.
+$stress-extra-space: "\41  B";
+// R42.04: Preserve accepted null/surrogate/out-of-range escape syntax and its full extent.
+// Sass normalizes these invalid scalar values; token acceptance is not scalar preservation.
+$stress-replacement-escapes: "\0 \D800 \110000";
+// R42.05: Keep strings balanced when interpolation produces empty values.
+$stress-empty-interpolation: "left#{null}middle#{""}right";
+// R42.06: Keep escaped $ and @ inside strings without opening variable/directive syntax.
+$stress-escaped-sigils: "\$stress-name \@include";
+// R42.07: A backslash at the end of a silent comment does not continue that comment.
+// This silent comment ends at the newline despite the trailing backslash: \
+.stress-after-backslash-comment { color: green; }
+// R42.08: Block comments do not nest; close at the first terminator after an inner opener.
+/* Outer comment containing an apparent nested opener: /* inner text */
+.stress-after-apparent-nesting { color: blue; }
+
+// === 43 URL parsing switches and special function bodies =================
+$stress-path: "../icons";
+.stress-special-functions {
+  // R43.01: [*] Enter SassScript for interpolation within an otherwise unquoted URL.
+  background-image: url(#{$stress-path}/a.svg);
+  // R43.02: [*] Recognize the SassScript URL form with variables and string arithmetic.
+  mask-image: url($stress-path + "/b.svg");
+  // R43.03: Keep escaped spaces/parentheses inside an unquoted URL argument.
+  cursor: url(a\ b\(c\).svg), auto;
+  // R43.04: Accept an empty URL and uppercase URL spelling without comment leakage.
+  list-style-image: url();
+  border-image-source: URL(https://example.test/x);
+  // R43.05: [*] Preserve the literal # before interpolation in element() arguments.
+  background: element(##{$stress-name});
+  background: -moz-element(#abc);
+  // R43.06: [LEGACY] Keep expression() contents in its special raw-expression context.
+  // This fixture tests source syntax and is not applied as a page stylesheet.
+  width: expression(document.body.clientWidth > 600 ? "600px" : "auto");
+  // R43.07: [LEGACY] Preserve the progid prefix, member dots, and named raw arguments.
+  filter: progid:DXImageTransform.Microsoft.Alpha(Opacity=50);
+}
+
+// === 44 Generic, interpolated, and escaped at-rules ======================
+$stress-rule-name: stress-custom;
+// R44.01: [*] Preserve interpolation in an at-rule name, then resume its raw prelude.
+@#{$stress-rule-name} token(foo: bar) {
+  .stress-unknown-rule { color: red; }
+}
+// R44.02: Accept an unknown semicolon-terminated rule with balanced prelude delimiters.
+@stress-token raw [a, b] (c: d);
+// R44.03: Accept empty unknown at-rule blocks without a missing declaration.
+@stress-empty {}
+// R44.04: [*] Keep the escaped at-rule name intact and classify it as @media, as Sass does.
+@m\65 dia screen { .stress-escaped-rule { color: red; } }
+// R44.05: [MODERN] Recognize position-try names and descriptors in the at-rule block.
+@position-try --stress-below { position-area: block-end; }
+
+// === 45 Raw-value switches and return to declaration context =============
+$stress-property-name: --stress-dynamic;
+.stress-context-switches {
+  // R45.01: [*] A fully interpolated property name uses SassScript for its value.
+  // This remains true when the resulting property name begins with --.
+  #{$stress-property-name}: $stress-accent;
+  // R45.02: [*] A literal -- prefix selects raw custom-property parsing instead.
+  --stress-literal-again: $stress-accent;
+  // R45.03: [*] Recognize interpolation within a quoted raw value and its escaped alternative.
+  --stress-quoted: "#{$stress-accent}";
+  --stress-escaped: "\#{$stress-accent}";
+  color: red;
+  & > .stress-context-child { color: green; }
+  // R45.04: [*] Resume declarations after a nested selector closes.
+  background: blue;
+  @media screen { color: purple; }
+  // R45.05: [*] Resume declarations after a nested conditional rule closes.
+  border-color: black;
+  // R45.06: Keep null/empty values reviewable even when Sass omits their declarations.
+  outline-color: null;
+  box-shadow: str.unquote("");
+}
+
+// === 46 Calculation constants and conditional-expression boundaries ======
+.stress-calculation-context {
+  // R46.01: [MODERN] Preserve adjacent calculation terms with an unresolved var() operand.
+  width: calc(1 var(--plus-two));
+  // R46.02: [*] Parse Sass function arguments within a CSS calculation correctly.
+  height: calc(100% - stress-scale(2px, 2));
+  // R46.03: [MODERN] Recognize e/infinity/-infinity/NaN as calculation constants here.
+  stress-e: calc(e);
+  stress-infinity: calc(infinity);
+  stress-negative-infinity: calc(-infinity);
+  stress-nan: calc(NaN);
+  // R46.04: [MODERN] Combine sass() and media() conditions without merging their grammars.
+  padding: if(sass(true) and media(width >= 40rem): 1px; else: 2px);
+  // R46.05: [MODERN] Preserve an unselected branch without evaluating its undefined variable.
+  margin: if(not sass(true): $stress-undefined-lazy; else: 1px);
+  // R46.06: [MODERN] Accept a conditional without else; its null result omits the declaration.
+  outline-width: if(sass(false): 1px);
+  // R46.07: [MODERN] Accept multiple CSS conditions and a trailing branch semicolon.
+  display: if(supports(display: grid): grid; style(--wide: yes): flex; else: block;);
+}
+
+// === 47 Empty signatures, content expansion, and lexical scope ===========
+// R47.01: [*] Accept a defaulted map/list parameter followed by a trailing declaration comma.
+@function stress-default($value: (x: [one,]),) { @return $value; }
+$stress-default-value: stress-default();
+// R47.02: [*] Accept empty @content() and using () parameter lists.
+@mixin stress-empty-content() { @content(); }
+.stress-empty-content {
+  @include stress-empty-content() using () { color: teal; }
+}
+// R47.03: [*] Preserve rest expansion into @content and defaults in using parameters.
+@mixin stress-forward-content($values...) { @content($values...); }
+.stress-forwarded-content {
+  @include stress-forward-content(1px, 2px) using ($a, $b: 0) { padding: $a $b; }
+  @include stress-forward-content(3px) using ($a, $b: 0) { margin: $a $b; }
+}
+// R47.04: [EVAL] Resolve content-block variables in the caller scope; emit "caller" below.
+$stress-content-label: "caller";
+@mixin stress-content-scope {
+  $stress-content-label: "mixin";
+  @content;
+}
+.stress-content-scope {
+  @include stress-content-scope { content: $stress-content-label; }
+}
+// R47.05: Preserve hyphen/underscore alias spellings for callable identifiers.
+@function stress_alias_function($value) { @return $value; }
+$stress-alias-result: stress-alias-function(2px);
+// R47.06: Accept empty rule bodies without requiring declarations or semicolons.
+.stress-empty-rule {}
+// R47.07: Accept a required parameter after an optional one when supplied by name.
+@function stress-required-after-optional($a: 1, $b) { @return $b; }
+$stress-required-value: stress-required-after-optional($b: 2);
+
+// === 48 Descending loops, empty collections, and flow scope ==============
+// R48.01: [*] Preserve descending inclusive bounds without treating signs as name fragments.
+@for $i from 2 through -1 { .stress-descending-#{$i} { order: $i; } }
+// R48.02: Parse empty exclusive ranges even though their bodies are never emitted.
+@for $i from 1 to 1 { .stress-empty-range { order: $i; } }
+// R48.03: Parse empty-list loops without inventing iteration values.
+@each $item in () { .stress-empty-loop { content: $item; } }
+// R48.04: Preserve destructuring when short tuples bind remaining variables to null.
+@each $a, $b, $c in (one, two), (three,) {
+  .stress-short-tuple-#{$a} { content: meta.inspect(($a, $b, $c)); }
+}
+// R48.05: Recognize reverse flag ordering against an already declared global variable.
+$stress-reverse-flags: null;
+$stress-reverse-flags: 2 !global !default;
+// R48.06: Preserve assignments updating an existing flow-control variable.
+$stress-flow-value: 1;
+@if true { $stress-flow-value: 2; }
+.stress-flow-result { z-index: $stress-flow-value; }
+// R48.07: Preserve singleton bracketed lists and maps inside bracketed lists.
+$stress-single-bracket: [one,];
+$stress-map-in-brackets: [(a: 1), (b: (2, 3))];
+
+// === 49 Truthiness, strings, and remaining expression contexts ===========
+// R49.01: [EVAL] Treat 0, empty strings, and empty collections as truthy Sass values.
+$stress-truthiness: not 0, not "", not (), not false, not null;
+// R49.02: [EVAL] Verify that and/or can return operand values rather than booleans.
+$stress-value-logic: (null or 3px), (false and 4px), (0 and 5px), ("" or "fallback");
+// R49.03: Recognize string concatenation with mixed quoted and unquoted operands.
+$stress-string-sum: "left" + right;
+// R49.04: Distinguish unary plus from a signed literal and binary addition.
+$stress-unary-plus: +$stress-private;
+// R49.05: Preserve nested unary/binary operator boundaries and operand order.
+$stress-unary-group: -(-$stress-private) + (+2);
+// R49.06: Keep !important case/whitespace forms within declaration priority.
+.stress-priority-forms {
+  color: red !IMPORTANT;
+  outline-color: blue ! important;
+}
+// Evaluation outputs for R49.01/R49.02; token review still checks the source expressions.
+.stress-evaluation-output {
+  --truthiness: #{meta.inspect($stress-truthiness)};
+  --value-logic: #{meta.inspect($stress-value-logic)};
+}
+
+// === 50 Selector-or-declaration ambiguity and raw text ===================
+$stress-tag: a;
+.stress-ambiguity {
+  // R50.01: [*] Treat a nested type selector with a pseudo-class as a rule, not a declaration.
+  a:hover { color: red; }
+  // R50.02: [*] Let colon spacing decide: font:bold opens a rule; font: bold nests properties.
+  // Sass accepts the unknown :bold pseudo-class; that selector is not valid CSS.
+  font:bold { color: blue; }
+  font: bold { family: serif; }
+  // R50.03: [*] Separate an interpolated pseudo-class selector from an interpolated property.
+  #{$stress-tag}:hover { color: green; }
+  #{$stress-side}: 0;
+  // R50.04: Recognize a hyphenated custom-element type selector in a nested position.
+  stress-widget { display: block; }
+  // R50.05: [*] Keep // inside a raw custom-property value as value text, not a silent comment.
+  --stress-raw-slashes: alpha // beta;
+  --stress-raw-url: https://example.test/a//b;
+  // R50.06: Keep semicolons inside raw braces from terminating the custom property.
+  --stress-raw-block: { a: b; c: d };
+}
+
+// === 51 Hyphens, signs, whitespace, and adjacency ========================
+.stress-hyphen-boundaries {
+  // R51.01: [*] End a unit before -digit: 1px-2px and 1-2 are subtractions, not units or signs.
+  margin-top: 1px-2px;
+  margin-bottom: 1-2;
+  // R51.02: Treat whitespace before a signed operand as a list separator, not subtraction.
+  margin: 1px -2px;
+  padding: $stress-private -1px;
+  // R51.03: Keep -digit inside an identifier that began before the hyphen.
+  grid-area: stress-area-1;
+  // R51.04: Separate binary minus from the negative operand that follows it.
+  z-index: 1 - -2;
+  // R51.05: [*] Parse - directly before interpolation as part of an unquoted identifier.
+  // It evaluates to a string, not a negated number: -#{3px} + 1px is -3px1px.
+  margin-left: -#{$stress-gap};
+  // R51.06: Join interpolation with following identifier text; px here is not a number's unit.
+  width: #{1 + 2}px;
+  // R51.07: [*] Whitespace before ( makes a two-item list, not a function call.
+  transform: translate (1px);
+}
+
+// === 52 Prefixed, dashed, hacked, and case-variant names =================
+.stress-prefixed-names {
+  // R52.01: [*] Treat vendor-prefixed values as identifiers, not unary negation of a name.
+  display: -webkit-box;
+  width: -moz-fit-content;
+  // R52.02: Recognize vendor-prefixed function names; -webkit-calc() keeps its raw body.
+  background-image: -webkit-linear-gradient(top, red, blue);
+  min-width: -webkit-calc(1px + 2px);
+  // R52.03: [MODERN] Treat dashed identifiers in ordinary values as identifiers, not properties.
+  anchor-name: --stress-anchor;
+  position-anchor: --stress-anchor;
+  top: anchor(--stress-anchor bottom);
+  // R52.04: [*] Classify CALC() as a calculation but RGB() as a plain CSS function call.
+  // Calculation names are case-insensitive (CALC() evaluates to 3px); built-in names are not.
+  max-width: CALC(1px + 2px);
+  color: RGB(1 2 3);
+  // R52.05: Recognize the Sass-specific two-argument rgba() color form.
+  background-color: rgba(#abc, .5);
+  // R52.06: [LEGACY] Keep IE star and underscore property hacks within the property name.
+  *zoom: 1;
+  _height: 1px;
+}
+
+// === 53 Interpolation spacing, comments, and empty statements ============
+.stress-interpolation-spacing {
+  // R53.01: [*] Keep } inside a string inside interpolation from closing the interpolation.
+  content: "#{"}"}";
+  // R53.02: [*] Accept whitespace, newlines, and comments inside interpolation delimiters.
+  // A newline inside a string's interpolation is legal, unlike a raw newline in string text.
+  content: "#{ $stress-name }";
+  content: "#{
+    $stress-name
+  }";
+  content: "#{/* comment */ $stress-name}";
+  // R53.03: [*] Recognize interpolation and empty strings in single-quoted strings.
+  content: '#{$stress-name}';
+  content: '';
+}
+// R53.04: Keep whitespace inside selector interpolation from becoming a descendant combinator.
+.stress-spaced-#{ $stress-name } { color: teal; }
+// R53.05: [*] Keep silent comments inside multiline maps, argument lists, and selector lists.
+$stress-commented-map: (
+  alpha: 1, // Trailing comment after an entry.
+  // Comment on its own line between entries.
+  beta: 2,
+);
+.stress-comment-list-a, // Comment inside a selector list.
+.stress-comment-list-b {
+  z-index: map.get($stress-commented-map, beta);
+  @include stress-ring(
+    3px, // Comment between arguments.
+    $ink: teal,
+  );
+}
+// R53.06: Accept stray semicolons between declarations and after a rule block.
+.stress-empty-statements { color: red;; background: blue; };
+
+// === 54 Parent, pseudo, and interpolated selector forms ==================
+.stress-parent-forms {
+  // R54.01: [*] Keep interpolated suffixes attached to the parent selector.
+  &-#{$stress-name} { color: red; }
+  &__#{$stress-name}--active { color: blue; }
+  // R54.02: [*] Recognize & inside interpolation as a SassScript parent-selector value.
+  @at-root #{&}__detached { color: green; }
+  // R54.03: Attach an attribute selector directly to the parent selector.
+  &[data-state] { color: teal; }
+  // R54.04: [*] Recognize the block form of @at-root containing several rules.
+  @at-root {
+    .stress-root-a { order: 1; }
+    .stress-root-b { order: 2; }
+  }
+}
+// R54.05: Recognize a comma-separated @extend target list.
+.stress-multi-extend { @extend .stress-root-a, .stress-root-b; }
+// R54.06: [*] Keep vendor prefixes within pseudo-class and pseudo-element names.
+// R54.07: [*] Recognize compact An+B forms without interpreting them as ordinary Sass arithmetic.
+// R54.08: [*] Preserve interpolation in pseudo-class names and An+B arguments.
+$stress-nth: 3;
+.stress-pseudo-forms::-webkit-scrollbar,
+.stress-pseudo-forms:-moz-focusring,
+.stress-pseudo-forms::-moz-selection,
+.stress-pseudo-forms:nth-child(2n+1),
+.stress-pseudo-forms:nth-child(-n+3),
+.stress-pseudo-forms:nth-child(+5),
+.stress-pseudo-forms:nth-child(#{$stress-nth}n + 1),
+.stress-pseudo-forms:#{"hover"} {
+  color: purple;
+}
+// R54.09: [*] Treat interpolation after a type-selector prefix as part of the type name.
+@for $level from 1 through 2 {
+  h#{$level}.stress-heading { font-size: 1rem * $level; }
+}
+
+// === 55 Control-flow layout, keyword bindings, and expansion =============
+// R55.01: [*] Attach @else if/@else to the preceding @if across newlines.
+@if $stress-disabled {
+  .stress-newline-branch { order: 1; }
+}
+@else if not $stress-disabled {
+  .stress-newline-branch { order: 2; }
+}
+@else {
+  .stress-newline-branch { order: 3; }
+}
+// R55.02: Attach @else to the preceding @if across an intervening comment.
+@if $stress-enabled { .stress-comment-branch { order: 1; } } // Comment between branches.
+@else { .stress-comment-branch { order: 2; } }
+// R55.03: [*] Treat keyword-spelled variable names as variables, not literals or operators.
+.stress-keyword-bindings {
+  $true: 1;
+  $null: 2;
+  $not: 3;
+  $and: 4;
+  $or: 5;
+  z-index: $true + $null + $not + $and + $or;
+}
+// R55.04: [*] Separate keyword-named loop variables ($in, $to) from loop keywords.
+$stress-loop-start: 1;
+$stress-loop-end: 2;
+@each $in in (alpha, beta) { .stress-each-#{$in} { content: "#{$in}"; } }
+@for $to from $stress-loop-start through $stress-loop-end { .stress-for-#{$to} { order: $to; } }
+// R55.05: End loop-bound expressions at to/through, including arithmetic bounds.
+@for $index from $stress-loop-start to $stress-loop-end + 1 {
+  .stress-bound-#{$index} { order: $index; }
+}
+// R55.06: Treat keyword-spelled map keys as keys, not loop or include-clause keywords.
+$stress-keyword-keys: (from: 1, to: 2, in: 3, through: 4, using: 5);
+.stress-keyword-keys { order: map.get($stress-keyword-keys, through); }
+// R55.07: [*] Expand a positional list and a keyword map in the same call.
+.stress-double-expansion { @include stress-ring((3px,)..., (ink: #def, offset: 1px)...); }
+// R55.08: [*] Distinguish interpolated keyframe percentages from placeholder selectors.
+@keyframes stress-generated {
+  @for $step from 0 through 2 {
+    #{$step * 50}% { opacity: $step * .5; }
+  }
+}
+
+// === 56 Value keywords, math functions, and compact slashes ==============
+.stress-value-functions {
+  // R56.01: [*] Treat from/at inside gradients as value keywords, not Sass loop or scope syntax.
+  background-image: conic-gradient(from 90deg at 50% 50%, red, blue);
+  mask-image: radial-gradient(circle at center, #000, #0000);
+  // R56.02: [*] Keep compact slashes as CSS separators, not division or comment openers.
+  font: 12px/1.5 sans-serif;
+  grid-area: 1/2/3/4;
+  aspect-ratio: 16/9;
+  // R56.03: [MODERN] Preserve rounding-strategy keywords and CSS math functions Sass evaluates.
+  width: round(nearest, 1.5px, 1px);
+  height: mod(7px, 3px);
+  inset: abs(-1px);
+  // R56.04: Recognize an uppercase calculation constant inside calc().
+  min-width: calc(PI * 1px);
+  // R56.05: Treat whitespace inside an unquoted url() as padding, not URL text.
+  background: url( spaced.png );
+}
+
+// === 57 At-rule prelude variants =========================================
+// R57.01: [*] Recognize boolean media features without a colon or value.
+@media (hover) { .stress-media-variant { order: 1; } }
+// R57.02: [MODERN] Recognize or and a leading not before parenthesized media conditions.
+@media (hover) or (pointer: coarse) { .stress-media-variant { order: 2; } }
+@media not (hover) { .stress-media-variant { order: 3; } }
+// R57.03: Keep vendor-prefixed media feature names intact.
+@media screen and (-webkit-min-device-pixel-ratio: 2) { .stress-media-variant { order: 4; } }
+// R57.04: [*] Recognize a leading not, SassScript values, and full interpolation in @supports.
+$stress-supports-display: grid;
+$stress-supports-condition: "(display: grid)";
+@supports not (display: grid) { .stress-supports-variant { order: 1; } }
+@supports (display: $stress-supports-display) { .stress-supports-variant { order: 2; } }
+@supports #{$stress-supports-condition} { .stress-supports-variant { order: 3; } }
+// R57.05: [MODERN] Preserve a nested not within a container condition.
+@container (width > 30rem) and (not (height < 10rem)) { .stress-container-variant { order: 1; } }
+// R57.06: Recognize a page pseudo-class without a page name.
+@page :first { margin: 1cm; }
+// R57.07: [MODERN] Accept @scope without a scoping prelude.
+@scope { .stress-scope-variant { order: 1; } }
+// R57.08: Recognize a comma-separated plain-CSS import list and an unquoted url() import.
+@import "stress-a.css", "stress-b.css";
+@import url(stress-theme.css);
+// R57.09: Recognize a default @namespace declaration without a prefix.
+@namespace url("http://www.w3.org/1999/xhtml");
+
+// === 58 Recovery sentinel ================================================
+// R58.01: Recover type/class/ID/property/value captures after preceding complex sections.
+// R58.02: Keep number/unit/function/string-escape/interpolation boundaries distinct.
+// R58.03: If the sentinel fails, isolate it and trace the earliest preceding ERROR/MISSING node.
+article.stress-final#stress-final-id {
+  color: #abc;
+  width: 12px;
+  margin: calc(12px / 2);
+  content: "sentinel #{$stress-name}\a done";
+}
+
+// === E Manual fixtures and editing procedures ============================
+// [MANUAL] Disabled code checks comment boundaries only until explicitly activated.
+// Copy one case to a temporary .scss file and remove its leading //.
+// Supply referenced definitions/imports or companion files as described below.
+// Run malformed cases individually, followed by a .sentinel rule when practical.
+// Review ERROR/MISSING ranges, recovery, and completion after repair.
+// Unterminated strings/comments may legitimately consume the remaining input.
+// Parser acceptance does not establish Sass evaluation or CSS validity.
+
+// E01 [MANUAL] Module configuration and forwarding
+// E01.01: [*] Capture with-clause variable keys, values, commas, and parentheses.
+// E01.02: [*] Preserve !default within forwarded configuration values.
+// E01.03: Preserve prefixed variables in show filters, including their $ sigils.
+// E01.04: Configure only on first load; run E01a and E01b separately.
+// Companion _fixture-tokens.scss: $gap: 1rem !default; $accent: #abc !default;
+// E01a: Forward configured members, then access the module without reconfiguration.
+// @forward "./fixture-tokens" as token-* show $token-gap, $token-accent with (
+//   $gap: 1rem !default,
+//   $accent: #c6538c,
+// );
+// @use "./fixture-tokens" as tokens;
+// .stress-module-config { gap: tokens.$gap; color: tokens.$accent; }
+// E01b: Configure the module directly in a fresh file.
+// @use "./fixture-tokens" as tokens with ($gap: 2rem, $accent: #abc);
+// .stress-module-config { gap: tokens.$gap; color: tokens.$accent; }
+// E01.05: [*] Recognize namespaced member assignment as a variable write, not a selector.
+// Append this to E01b after its @use; the fixture module owns a writable $gap variable.
+// tokens.$gap: 3rem;
+// .stress-module-reassignment { gap: tokens.$gap; }
+// E01.06: [*] Preserve a module-qualified include with a map-valued $with argument.
+// E01c: Run in a separate file, with the @use before all style rules.
+// Companion _fixture-css.scss: $gap: 1rem !default; .loaded { gap: $gap; }
+// @use "sass:meta";
+// .stress-loaded { @include meta.load-css("./fixture-css", $with: ("gap": 2rem)); }
+
+// E02 [MANUAL] Legacy Sass forms
+// E02.01: Recognize a legacy Sass import with a supplied companion partial.
+// E02.02: Preserve slash-division grouping even when a deprecation is emitted.
+// E02.03: Recognize global built-ins and legacy if() without treating warnings as parse errors.
+// @import "legacy-partial";
+// $stress-old-division: (12px / 2);
+// .stress-legacy-api { color: lighten(#c6538c, 10%); width: if(true, 1px, 2px); }
+
+// E03 [MANUAL] Host-specific CSS Modules syntax
+// E03.01: Preserve :global/:local without assuming Sass module semantics.
+// E03.02: Preserve :export and composes/from for a host-dialect review.
+// :global(.external) .local, :local(.local) { color: red; }
+// :export { spacing: 1rem; }
+// .local { composes: external from "./external.module.scss"; }
+
+// E04 [MANUAL] Additional CSS selector syntax
+// E04.01: Distinguish || from namespace | and attribute |=.
+// Dart Sass 1.105.0 rejects ||; expect a bounded ERROR, not accepted syntax.
+// table || td { color: red; }
+
+// E05 [MANUAL] Incomplete declarations
+// E05.01: Bound a missing-value error and resume at the next declaration.
+// .broken { color: ; width: 1px; } .sentinel { color: green; }
+// E05.02: Bound a missing-colon error and resume at the next declaration.
+// .broken { color red; width: 1px; } .sentinel { color: green; }
+// E05.03: Detect a missing separator without hiding the next property name.
+// .broken { color: red width: 1px; } .sentinel { color: green; }
+
+// E06 [MANUAL] Unbalanced delimiters
+// E06.01: Recover captures after restoring the missing string terminator.
+// .broken { content: "unterminated; }
+// E06.02: Recover the outer string after repairing an incomplete interpolation.
+// .broken { content: "before #{$stress-name after"; }
+// E06.03: Bound an unclosed call and recover after its closing parenthesis is restored.
+// .broken { width: calc(100% - 1rem; } .sentinel { color: green; }
+// E06.04: Report crossed bracket/parenthesis delimiters in a raw value.
+// .broken { --payload: [one (two]; } .sentinel { color: green; }
+
+// E07 [MANUAL] Character-by-character editing states
+// E07.01: Handle a bare variable sigil without a crash or stale token extent.
+// .broken { color: $; } .sentinel { color: green; }
+// E07.02: Handle a bare hash without claiming a complete color token.
+// .broken { color: #; } .sentinel { color: green; }
+// E07.03: Handle empty interpolation without swallowing the next rule.
+// .broken { color: #{}; } .sentinel { color: green; }
+// E07.04: Handle a partial directive and recover after completing it.
+// Dart Sass 1.105.0 accepts @inc as an unknown at-rule; an ERROR is not required.
+// .broken { @inc } .sentinel { color: green; }
+// E07.05: Handle an unfinished parent pseudo selector.
+// .broken { &: {} } .sentinel { color: green; }
+// E07.06: Bound a -- property-name editing state without overextending it.
+// Dart Sass 1.105.0 accepts -- with an empty value, although CSS reserves that name.
+// .broken { --: ; } .sentinel { color: green; }
+// E07.07: Distinguish unfinished ! from a complete priority/assignment flag.
+// .broken { color: red !; } .sentinel { color: green; }
+// E07.08: Distinguish two dots from the completed ... expansion token.
+// @include stress-ring($args..);
+
+// E08 [MANUAL] Malformed tokens and delimiters
+// E08.01: Reject invalid hex lengths rather than accepting only a valid prefix.
+// .broken { color: #12; }
+// .broken { color: #12345; }
+// E08.02: Bound an incomplete numeric exponent.
+// .broken { width: 1e+; }
+// E08.03: Bound an extra closing brace and recover at the next rule.
+// .broken { color: red; }} .sentinel { color: green; }
+// E08.04: Reject a raw newline in a string and restore captures after repair.
+// .broken { content: "bad
+// next line"; } .sentinel { color: green; }
+
+// E09 [MANUAL] Evaluation errors and contextual restrictions
+// E09.01: Preserve variable syntax even when name resolution fails.
+// .broken { color: $undefined-variable; }
+// E09.02: Preserve arithmetic syntax even when units are incompatible.
+// .broken { width: 1px + 1s; }
+// E09.03: Preserve include syntax when the mixin is undefined.
+// .broken { @include undefined-mixin(); }
+// E09.04: Preserve extension syntax when the required target is absent.
+// .broken { @extend .missing-target; }
+// E09.05: Distinguish a misplaced @return from a valid function return.
+// @return 1;
+// E09.06: Identify a parent selector used without a parent rule.
+// Dart Sass 1.105.0 emits a top-level & unchanged, as in CSS nesting; it is not an error.
+// &.orphan-parent { color: red; }
+// E09.07: Identify @use within a nested block as a contextual restriction.
+// .broken { @use "sass:math"; }
+// E09.08: Do not treat & in the middle of a compound selector as an ordinary identifier.
+// .broken { && { color: red; } }
+
+// E10 [MANUAL] Incremental parsing and file representation
+// E10.01: Delete/restore a section 06 escaped-quote backslash; compare with a fresh parse.
+// E10.02: Delete/restore a section 07 interpolation closing brace; compare capture ranges.
+// E10.03: Wrap/unwrap section 24's raw variable in interpolation; verify the context switch.
+// E10.04: Change 12px to 12 and back; remove/restore the unit capture without stale ranges.
+// E10.05: Move #abc among a color, ID, string, and comment; verify its role after each edit.
+// E10.06: Edit multibyte text before section 23's emoji; verify byte/character offsets.
+// E10.07: Test CRLF, CR-only, UTF-8 BOM, and missing-final-newline copies independently.
+// E10.08: Test real Tab/form-feed whitespace; literal escape spellings are not substitutes.
+// E10.09: Compare incremental/full-parse AST and captures after every edit and undo.
+
+// E11 [MANUAL] Duplicate entries and invalid argument signatures
+// E11.01: Preserve map syntax while reporting duplicate evaluated keys separately.
+// $stress-duplicate-map: (same: 1, same: 2);
+// Equivalent-color keys also collide during evaluation: (red: 1, #f00: 2).
+// E11.02: Identify duplicate named arguments without merging their source ranges.
+// @function stress-duplicate-call($a) { @return $a; }
+// .broken { width: stress-duplicate-call($a: 1px, $a: 2px); }
+// E11.03: Reject positional arguments after named arguments.
+// @function stress-argument-order($a, $b) { @return $a; }
+// .broken { width: stress-argument-order($a: 1px, 2px); }
+// E11.04: Reject multiple rest parameters while retaining both ellipsis token extents.
+// @mixin stress-invalid-rest($a..., $b...) {}
+
+// E12 [MANUAL] Incomplete interpolation in distinct contexts
+// E12.01: Bound an incomplete interpolated selector and recover after its brace is restored.
+// .stress-#{1 + 2 { color: red; } .sentinel { color: green; }
+// E12.02: Bound an incomplete interpolated property name independently from its value.
+// .broken { margin-#{1 + 2: 1px; } .sentinel { color: green; }
+// E12.03: Bound an incomplete interpolated at-rule name independently from its prelude.
+// @#{"media" screen { .broken { color: red; } }
+
+// E13 [MANUAL] Module ordering and flag diagnostics
+// E13.01: Reject @use after an emitted style rule; declarations/@forward before it are allowed.
+// .before-module { color: red; }
+// @use "sass:math";
+// E13.02: Distinguish Sass flag case sensitivity from CSS !important case handling.
+// $stress-uppercase-flag: 1 !DEFAULT;
+// E13.03: Preserve duplicate flags even when the targeted Sass version emits a deprecation.
+// Dart Sass 1.105.0 accepts this with a warning; do not label it a current syntax error.
+// $stress-duplicate-flag: 1 !default !default;
+// E13.04: Preserve module syntax when a loader reports repeated configuration.
+// Use E01's companion module, but execute this case in its own file.
+// @use "./fixture-tokens" as first with ($gap: 1rem);
+// @use "./fixture-tokens" as second with ($gap: 2rem);
+
+// E14 [MANUAL] Unterminated block comment
+// E14.01: Test alone; preserve comment extent through EOF until the terminator is restored.
+// /* intentionally unclosed comment
