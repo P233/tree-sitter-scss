@@ -1,0 +1,17 @@
+// Runnable SCSS subset: variables, rules, values, calls, and interpolation.
+$base-color: #c6538c !default;
+$spacing: 1.5rem;
+$side: left;
+$name: "SCSS";
+
+.card, #demo {
+  color: $base-color;
+  padding: $spacing;
+  margin-#{$side}: calc(12px / 2);
+  content: "Hello #{$name}!";
+  background: url("https://example.com/image.png");
+
+  .title {
+    font-weight: bold;
+  }
+}

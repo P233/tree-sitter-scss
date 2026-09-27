@@ -1,19 +1,10 @@
-try {
-  module.exports = require("../../build/Release/tree_sitter_SCSS_binding");
-} catch (error1) {
-  if (error1.code !== 'MODULE_NOT_FOUND') {
-    throw error1;
-  }
-  try {
-    module.exports = require("../../build/Debug/tree_sitter_SCSS_binding");
-  } catch (error2) {
-    if (error2.code !== 'MODULE_NOT_FOUND') {
-      throw error2;
-    }
-    throw error1
-  }
-}
+const { readFileSync } = require("node:fs");
+const { join } = require("node:path");
 
-try {
-  module.exports.nodeTypeInfo = require("../../src/node-types.json");
-} catch (_) {}
+const root = join(__dirname, "../..");
+const binding = require("node-gyp-build")(root);
+binding.name = "scss";
+binding.nodeTypeInfo = require("../../src/node-types.json");
+binding.HIGHLIGHTS_QUERY = readFileSync(join(root, "queries/highlights.scm"), "utf8");
+
+module.exports = binding;

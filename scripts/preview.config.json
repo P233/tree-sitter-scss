@@ -1,0 +1,22 @@
+{
+  "parser-directories": ["."],
+  "theme": {
+    "attribute": "#8250df",
+    "comment": "#57606a",
+    "constant": "#0550ae",
+    "constant.builtin": "#cf222e",
+    "function": "#8250df",
+    "keyword": "#cf222e",
+    "module": "#953800",
+    "number": "#0550ae",
+    "operator": "#cf222e",
+    "property": "#0550ae",
+    "punctuation": "#57606a",
+    "punctuation.special": "#cf222e",
+    "string": "#0a3069",
+    "string.escape": "#cf222e",
+    "tag": "#116329",
+    "type": "#953800",
+    "variable": "#953800"
+  }
+}

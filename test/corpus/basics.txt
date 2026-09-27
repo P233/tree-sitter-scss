@@ -1,0 +1,78 @@
+==================
+A property is not a selector
+==================
+body { color: red; }
+---
+(stylesheet
+  (rule_set
+    (selectors (tag_selector))
+    (declaration_block
+      (property_declaration (property_name) (plain_value)))))
+
+==================
+Complete selector names
+==================
+.foo bar, #x {}
+---
+(stylesheet
+  (rule_set
+    (selectors (class_selector) (tag_selector) (id_selector))))
+
+==================
+Variables, booleans, and units
+==================
+$base-color: #abc !default;
+$enabled: true;
+$size: 2px;
+---
+(stylesheet
+  (variable_declaration (variable_name) (hex_color) (flag))
+  (variable_declaration (variable_name) (boolean))
+  (variable_declaration (variable_name) (number (unit))))
+
+==================
+URLs and comments in strings
+==================
+$url: "https://example.com /* literal */";
+---
+(stylesheet
+  (variable_declaration (variable_name) (string (string_content))))
+
+==================
+Interpolated property and string
+==================
+.card { margin-#{$side}: 1px; content: "hello #{$name}"; }
+---
+(stylesheet
+  (rule_set
+    (selectors (class_selector))
+    (declaration_block
+      (property_declaration
+        (property_name (interpolation (variable_name)))
+        (number (unit)))
+      (property_declaration
+        (property_name)
+        (string (string_content) (interpolation (variable_name)))))))
+
+==================
+Lists, maps, and named arguments
+==================
+$map: ("small": 1);
+$list: [1, 2];
+$value: math.div($number: 4, $divisor: 2);
+---
+(stylesheet
+  (variable_declaration
+    (variable_name)
+    (map (map_entry (string (string_content)) (number))))
+  (variable_declaration
+    (variable_name)
+    (list (number) (number)))
+  (variable_declaration
+    (variable_name)
+    (call_expression
+      (module_name)
+      (function_name)
+      (arguments
+        (named_argument (variable_name) (number))
+        (named_argument (variable_name) (number))))))

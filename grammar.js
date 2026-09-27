@@ -1,206 +1,113 @@
+const IDENTIFIER = /[-_a-zA-Z][-_a-zA-Z0-9]*/;
+
 module.exports = grammar({
   name: "scss",
 
   extras: $ => [/\s/, $.block_comment, $.inline_comment],
-
-  conflicts: $ => [
-    [$.list, $.map],
-    [$.property_declaration, $.operator]
-  ],
+  word: $ => $._identifier,
 
   rules: {
-    // --------------------------------------------
-    // Root
-    // --------------------------------------------
-
     stylesheet: $ => repeat(choice($.rule_set, $.variable_declaration)),
 
-    // --------------------------------------------
-    // At-rule statements
-    // --------------------------------------------
-
-    // root at-rules
-
-    // nestable at-rules
-
-    // --------------------------------------------
-    // Integrated combinations
-    // --------------------------------------------
-
     rule_set: $ => seq($.selectors, "{", optional($.declaration_block), "}"),
+    declaration_block: $ => repeat1(choice($.property_declaration, $.variable_declaration, $.rule_set)),
 
-    declaration_block: $ => {
-      return repeat1(choice($.property_declaration, $.variable_declaration, $.rule_set));
-    },
+    variable_declaration: $ => seq(field("name", $.variable_name), ":", $._value, repeat($.flag), ";"),
 
-    variable_declaration: $ => {
-      return seq($.variable_name, ":", $._variable_value, optional($.flag), ";");
-    },
+    property_declaration: $ => seq(field("name", $.property_name), ":", $._value, optional($.flag), ";"),
+    property_name: $ => $._interpolated_identifier,
 
-    // --------------------------------------------
-    // Selectors
-    // --------------------------------------------
+    selectors: $ => commaSep1(repeat1(choice($.tag_selector, $.id_selector, $.class_selector))),
+    tag_selector: $ => $._identifier,
+    id_selector: $ => seq("#", $._selector_name),
+    class_selector: $ => seq(".", $._selector_name),
+    _selector_name: $ =>
+      seq(token.immediate(IDENTIFIER), repeat(seq($.interpolation, optional(token.immediate(IDENTIFIER))))),
+    _interpolated_identifier: $ =>
+      choice(
+        seq($._identifier, repeat(seq($.interpolation, optional(token.immediate(IDENTIFIER))))),
+        seq($.interpolation, repeat(choice(token.immediate(IDENTIFIER), $.interpolation)))
+      ),
 
-    tag_selector: () => /[a-z]+/,
+    interpolation: $ => seq("#{", $._value, "}"),
 
-    id_selector: $ => seq(/#[a-zA-Z]/, repeat1(choice(/[\w-]/, $.interpolation))),
+    // Comments are lexical tokens: extras must not recursively enter their bodies.
+    block_comment: () => token(seq("/*", /[^*]*\*+([^/*][^*]*\*+)*/, "/")),
+    inline_comment: () => token(seq("//", /[^\r\n]*/)),
 
-    class_selector: $ => seq(/\.[a-zA-Z]/, repeat1(choice(/[\w-]/, $.interpolation))),
-
-    selectors: $ => {
-      return repeat1(choice($.tag_selector, $.id_selector, $.class_selector));
-    },
-
-    // --------------------------------------------
-    // Fundamental combinations
-    // --------------------------------------------
-
-    interpolation: $ => seq("#{", $._interpolation_value, "}"),
-
-    block_comment: $ => seq("/*", repeat(choice(/./, $.interpolation)), "*/"),
-
-    number: $ => seq(/-?\d*\.?\d+/, optional(alias(/[a-zA-Z%]+/, $.unit))),
-
-    string: $ => {
-      return choice(
-        seq("'", repeat(choice(/./, $.interpolation)), "'"),
-        seq('"', repeat(choice(/./, $.interpolation)), '"')
-      );
-    },
-
-    parameters: $ => {
-      return seq(
-        "(",
-        repeat1(seq($.variable_name, optional(":"), optional($._variable_value), optional(","))),
-        optional(seq($.variable_name, "...")),
-        ")"
-      );
-    },
-
-    arguments: $ => seq("(", repeat1($._variable_value), optional(seq($.variable_name, "...")), ")"),
-
-    call_expression: $ => {
-      return seq(
-        optional(seq(alias(/[a-zA-Z][\w-]+/, $.module_name), alias(".", $.module_dot))),
-        alias(/[a-zA-Z][\w-]+/, $.function_name),
-        $.arguments
-      );
-    },
-
-    property_declaration: $ => {
-      return seq(
-        alias(repeat1(choice(/[\w-]/, $.interpolation)), $.property_name),
-        ":",
-        $._property_value,
-        optional($.flag),
-        ";"
-      );
-    },
-
-    list: $ => {
-      return choice(
-        seq("(", repeat(seq($._list_value, optional(","))), ")"),
-        seq("[", repeat(seq($._list_value, optional(","))), "]")
-      );
-    },
-
-    map: $ => {
-      return seq("(", repeat($.map_entry), ")");
-    },
-
-    map_entry: $ => {
-      return seq(
-        alias(repeat1(choice(/[\w-]/, $.interpolation)), $.map_key),
-        ":",
-        choice($.map, repeat($._map_value)),
-        optional(",")
-      );
-    },
-
-    // --------------------------------------------
-    // Value helpers
-    // --------------------------------------------
-
-    _interpolation_value: $ => {
-      return repeat1(choice($.number, $.string, $.operator, $.variable_name, $.call_expression));
-    },
-
-    _property_value: $ => {
-      return repeat1(
-        choice(
-          $.number,
-          $.string,
-          $.operator,
-          $.hex_color,
-          $.variable_name,
-          $.interpolation,
-          $.call_expression,
-          $.plain_value
+    number: $ => seq(/[+-]?(?:\d*\.\d+|\d+)(?:[eE][+-]?\d+)?/, optional(alias(token.immediate(/[a-zA-Z%]+/), $.unit))),
+    string: $ =>
+      choice(
+        seq(
+          '"',
+          repeat(
+            choice(
+              alias(token.immediate(prec(1, /[^"\\#\r\n]+/)), $.string_content),
+              alias(token.immediate("#"), $.string_content),
+              $.escape_sequence,
+              $.interpolation
+            )
+          ),
+          token.immediate('"')
+        ),
+        seq(
+          "'",
+          repeat(
+            choice(
+              alias(token.immediate(prec(1, /[^'\\#\r\n]+/)), $.string_content),
+              alias(token.immediate("#"), $.string_content),
+              $.escape_sequence,
+              $.interpolation
+            )
+          ),
+          token.immediate("'")
         )
-      );
-    },
+      ),
+    escape_sequence: () => token.immediate(seq("\\", choice(/[^\r\n]/, /\r?\n/))),
 
-    _variable_value: $ => {
-      return repeat1(
-        choice(
-          $.number,
-          $.string,
-          $.operator,
-          $.hex_color,
-          $.map,
-          // $.list,
-          $.variable_name,
-          $.interpolation,
-          $.call_expression,
-          $.plain_value
-        )
-      );
-    },
+    arguments: $ =>
+      seq(token.immediate("("), optional(commaSep1(choice($.named_argument, $._space_value))), optional(","), ")"),
+    named_argument: $ => seq(field("name", $.variable_name), ":", $._space_value),
+    call_expression: $ =>
+      seq(
+        optional(seq(alias($._identifier, $.module_name), ".")),
+        field("name", alias($._identifier, $.function_name)),
+        field("arguments", $.arguments)
+      ),
 
-    _list_value: $ => {
-      return choice(
+    list: $ => choice(seq("(", optional($._value), ")"), seq("[", optional($._value), "]")),
+    map: $ => seq("(", commaSep1($.map_entry), optional(","), ")"),
+    map_entry: $ => seq(field("key", $._space_value), ":", field("value", $._space_value)),
+
+    _value: $ => seq(commaSep1($._space_value), optional(",")),
+    _space_value: $ => repeat1($._value_atom),
+    _value_atom: $ =>
+      choice(
         $.number,
         $.string,
         $.operator,
         $.hex_color,
-        // $.list,
+        $.map,
+        $.list,
         $.variable_name,
-        // $.interpolation,
+        $.interpolation,
         $.call_expression,
+        $.boolean,
+        $.null,
         $.plain_value
-      );
-    },
-
-    _map_value: $ => {
-      return choice(
-        $.number,
-        $.string,
-        $.operator,
-        $.hex_color,
-        // $.list,
-        $.variable_name,
-        // $.interpolation,
-        $.call_expression,
-        $.plain_value
-      );
-    },
-
-    // --------------------------------------------
-    // Essential elements
-    // --------------------------------------------
-
-    inline_comment: () => seq("//", /.*/),
+      ),
 
     operator: () => choice("+", "-", "*", "/", "%", "==", "!=", "<", "<=", ">", ">=", "not", "or", "and"),
-
-    variable_name: () => seq("$", /\w+/),
-
+    variable_name: () => token(seq("$", IDENTIFIER)),
     boolean: () => choice("true", "false"),
-
-    hex_color: () => seq("#", /[0-9a-fA-F]{3,8}/),
-
-    plain_value: () => /[a-zA-Z_-][\w-]*/,
-
-    flag: () => /!\w+/
+    null: () => "null",
+    hex_color: () => token(seq("#", /(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})/)),
+    plain_value: $ => $._identifier,
+    flag: () => /![-\w]+/,
+    _identifier: () => IDENTIFIER
   }
 });
+
+function commaSep1(rule) {
+  return seq(rule, repeat(seq(",", rule)));
+}

@@ -1,0 +1,43 @@
+body {
+  margin: 0;
+  background: #f6f8fa;
+  color: #24292f;
+  font:
+    15px/1.6 system-ui,
+    sans-serif;
+}
+.preview {
+  max-width: 76rem;
+  margin: 2.5rem auto;
+  padding: 0 1.5rem;
+}
+.preview h1 {
+  margin-bottom: 0;
+  font-size: 1.6rem;
+}
+.preview-path {
+  margin-top: 0.25rem;
+  overflow-wrap: anywhere;
+}
+.preview-status {
+  color: #116329;
+}
+.preview-error {
+  color: #a40e26;
+}
+.preview pre {
+  overflow: auto;
+  padding: 1.25rem;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  background: #ffffff;
+  font:
+    14px/1.7 ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+  tab-size: 2;
+}
+.preview summary {
+  cursor: pointer;
+}

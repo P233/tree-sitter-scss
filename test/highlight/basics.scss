@@ -1,0 +1,22 @@
+$base-color: #abc;
+// <- variable
+//           ^ constant
+
+.card {
+// ^ attribute
+  color: $base-color;
+// ^ property
+//       ^ variable
+  width: 12px;
+//       ^ number
+//         ^ type
+  content: "hello #{$name}";
+//          ^ string
+//                ^ punctuation.special
+//                  ^ variable
+//                       ^ punctuation.special
+}
+
+$url: "https://example.com /* literal */";
+//     ^ string
+//           ^ !comment

@@ -1,0 +1,35 @@
+{
+  "grammars": [
+    {
+      "name": "scss",
+      "camelcase": "Scss",
+      "scope": "source.scss",
+      "path": ".",
+      "file-types": ["scss"],
+      "highlights": "queries/highlights.scm"
+    }
+  ],
+  "metadata": {
+    "version": "1.0.0",
+    "license": "MIT",
+    "description": "SCSS grammar for tree-sitter",
+    "authors": [
+      {
+        "name": "P233"
+      }
+    ],
+    "links": {
+      "repository": "https://github.com/P233/tree-sitter-scss"
+    }
+  },
+  "bindings": {
+    "c": false,
+    "go": false,
+    "java": false,
+    "node": true,
+    "python": false,
+    "rust": true,
+    "swift": false,
+    "zig": false
+  }
+}

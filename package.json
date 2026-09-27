@@ -1,18 +1,60 @@
 {
   "name": "tree-sitter-scss",
   "version": "1.0.0",
-  "description": "",
+  "description": "SCSS grammar for tree-sitter",
   "main": "bindings/node",
   "scripts": {
-    "parse": "./node_modules/.bin/tree-sitter generate && ./node_modules/.bin/tree-sitter parse ./test/test.scss -t"
+    "install": "node-gyp-build",
+    "generate": "node scripts/grammar.js",
+    "build": "node scripts/grammar.js --build",
+    "parse": "tree-sitter parse --config-path test/config.json --grammar-path . examples/basic.scss",
+    "highlight": "tree-sitter highlight --config-path test/config.json --grammar-path . examples/basic.scss",
+    "test": "pnpm generate && pnpm build && pnpm test:parser && pnpm test:node",
+    "lint": "eslint grammar.js eslint.config.js bindings/node/*.js scripts/*.js",
+    "format": "prettier --write \"**/*.js\" \"*.json\" \"*.yaml\" \"*.md\" \".github/workflows/*.yml\" \"scripts/*.json\" \"scripts/*.css\" \"test/config.json\"",
+    "check:generated": "node scripts/grammar.js --check",
+    "test:parser": "tree-sitter test --config-path test/config.json --grammar-path .",
+    "test:node": "node --test --test-concurrency=1 bindings/node/*_test.js scripts/*_test.js",
+    "test:rust": "cargo test",
+    "check": "pnpm lint && pnpm format:check && pnpm check:generated && pnpm build && pnpm test:parser && pnpm test:node && pnpm test:rust && cargo fmt --check && pnpm preview",
+    "preview": "node scripts/preview.js",
+    "dev": "node scripts/preview.js --watch",
+    "format:check": "prettier --check \"**/*.js\" \"*.json\" \"*.yaml\" \"*.md\" \".github/workflows/*.yml\" \"scripts/*.json\" \"scripts/*.css\" \"test/config.json\""
   },
   "keywords": [],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "nan": "^2.17.0"
+    "node-addon-api": "^8.9.2",
+    "node-gyp-build": "^4.8.4"
   },
   "devDependencies": {
-    "tree-sitter-cli": "^0.20.7"
+    "eslint": "10.11.0",
+    "node-gyp": "12.2.0",
+    "prettier": "3.9.9",
+    "tree-sitter": "0.25.1",
+    "tree-sitter-cli": "0.27.0"
+  },
+  "repository": "github:P233/tree-sitter-scss",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "files": [
+    "grammar.js",
+    "tree-sitter.json",
+    "binding.gyp",
+    "bindings/node/index.js",
+    "bindings/node/binding.cc",
+    "queries",
+    "src"
+  ],
+  "peerDependencies": {
+    "tree-sitter": "^0.25.0"
+  },
+  "peerDependenciesMeta": {
+    "tree-sitter": {
+      "optional": true
+    }
   }
 }
