@@ -1,0 +1,164 @@
+@use "sass:math" as math;
+// <- keyword.import
+//   ^ string
+//               ^ keyword.import
+//                  ^ module
+
+@forward "sass:math" as fwd-* show fwd-div, $fwd-pi;
+// <- keyword.import
+//                      ^ module
+//                          ^ module
+//                            ^ keyword.import
+//                                 ^ function
+//                                          ^ variable
+
+@mixin ring($size: 2px, $args...) { @content($size); }
+// <- keyword
+//     ^ function
+//          ^ variable.parameter
+//                 ^ number
+//                  ^ type
+//                           ^ operator
+//                                  ^ keyword
+
+.x { @include ring(1px) using ($value) { color: red; } }
+//   ^ keyword
+//            ^ function
+//                      ^ keyword
+//                             ^ variable.parameter
+//                                       ^ property
+
+@for $i from 1 through 3 { .item-#{$i} { order: $i; } }
+// <- keyword.repeat
+//   ^ variable
+//      ^ keyword.repeat
+//             ^ keyword.repeat
+//                               ^ punctuation.special
+
+.x:hover::before, & > [data-x="ok" i], svg|a, %shared {}
+// ^ attribute
+//        ^ attribute
+//                ^ tag
+//                  ^ operator
+//                     ^ attribute
+//                            ^ string
+//                                 ^ keyword
+//                                     ^ module
+//                                            ^ punctuation.delimiter
+//                                             ^ attribute
+
+$x: math.$pi;
+//  ^ module
+//       ^ variable
+
+$x: true, tr\75 e, falsehood, #abcdfoo, #abc;
+//  ^ constant.builtin
+//        ^ constant
+//        ^ !constant.builtin
+//                 ^ constant
+//                            ^ constant
+//                                      ^ constant
+
+.x { --raw: $ink true 1+2; --live: #{$ink}; }
+//   ^ variable
+//          ^ string
+//               ^ constant
+//               ^ !constant.builtin
+//                    ^ number
+//                     ^ operator
+//                                 ^ punctuation.special
+//                                   ^ variable
+
+.x { --raw: alpha // beta; color: red; }
+//                ^ string
+//                         ^ property
+
+.x { image: url(https://test/a//b); width: 1px; }
+//          ^ function
+//              ^ string
+//                            ^ string
+//                                  ^ property
+
+/* Result: #{1 + 2}; */ .x {}
+// <- comment
+//         ^ punctuation.special
+//           ^ number
+//             ^ operator
+//                       ^ attribute
+
+.x { font:bold {} font: bold { family: serif; } }
+//   ^ tag
+//        ^ attribute
+//                ^ property
+//                             ^ property
+
+@keyframes spin { from {} 50% {} to {} }
+// <- keyword.directive
+//         ^ constant
+//                ^ keyword
+//                        ^ number
+//                          ^ type
+//                               ^ keyword
+
+.x { color: if(sass(true): red; else: blue;); }
+//          ^ function
+//             ^ function
+//                  ^ constant.builtin
+//                              ^ keyword.conditional
+//                                    ^ constant
+
+@function --ink(--value <color>: teal) returns <color> { result: $ink; }
+// <- keyword
+//        ^ function
+//              ^ variable.parameter
+//                      ^ punctuation.bracket
+//                       ^ type
+//                                     ^ keyword
+//                                                       ^ property
+//                                                               ^ string
+
+.x { width: expression(document.body > 2 ? "yes" : "no"); }
+//          ^ function
+//                     ^ string
+//                                   ^ operator
+//                                     ^ number
+//                                            ^ string
+
+@supports (display: grid) { .x {} }
+// <- keyword.directive
+//         ^ property
+
+.x:nth-child(2n+1 of .item):lang(zh) {}
+//           ^ number
+//                ^ keyword
+//                               ^ constant
+
+.x { width: calc(PI); opacity: sin(pi); custom: PI; }
+//               ^ constant.builtin
+//                                 ^ constant.builtin
+//                                              ^ constant
+
+@m\65 dia screen { .x {} }
+// <- keyword.directive
+
+.x:lang(zh) { width: calc(PI); opacity: sin(pi); }
+// ^ attribute
+//                   ^ function
+//                                      ^ function
+
+$x: true.$value, not.foo(1);
+//  ^ module
+//       ^ variable
+//               ^ module
+//                   ^ function
+
+@\6D ixin ring($x) {}
+// <- keyword.directive
+//        ^ function
+//             ^ string
+
+$x: \6E ull, \true;
+//  ^ constant
+//  ^ !constant.builtin
+//           ^ constant
+//           ^ !constant.builtin

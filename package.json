@@ -1,7 +1,7 @@
 {
   "name": "tree-sitter-scss",
   "version": "1.0.0",
-  "description": "SCSS grammar for tree-sitter",
+  "description": "Shared CSS and SCSS grammar for tree-sitter",
   "main": "bindings/node",
   "scripts": {
     "install": "node-gyp-build",
@@ -16,13 +16,20 @@
     "test:parser": "tree-sitter test --config-path test/config.json --grammar-path .",
     "test:node": "node --test --test-concurrency=1 bindings/node/*_test.js scripts/*_test.js",
     "test:rust": "cargo test",
-    "check": "pnpm lint && pnpm format:check && pnpm check:generated && pnpm build && pnpm test:parser && pnpm test:node && pnpm test:rust && cargo fmt --check && pnpm preview",
+    "check": "pnpm lint && pnpm format:check && pnpm check:generated && pnpm build && pnpm test:parser && pnpm test:node && pnpm test:rust && cargo fmt --check && pnpm check:package && pnpm preview",
     "preview": "node scripts/preview.js",
     "dev": "node scripts/preview.js --watch",
-    "format:check": "prettier --check \"**/*.js\" \"*.json\" \"*.yaml\" \"*.md\" \".github/workflows/*.yml\" \"scripts/*.json\" \"scripts/*.css\" \"test/config.json\""
+    "format:check": "prettier --check \"**/*.js\" \"*.json\" \"*.yaml\" \"*.md\" \".github/workflows/*.yml\" \"scripts/*.json\" \"scripts/*.css\" \"test/config.json\"",
+    "check:package": "node scripts/check-package.js"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "tree-sitter",
+    "css",
+    "scss",
+    "parser",
+    "syntax-highlighting"
+  ],
+  "author": "P233",
   "license": "MIT",
   "dependencies": {
     "node-addon-api": "^8.9.2",

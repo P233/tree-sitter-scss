@@ -1,0 +1,73 @@
+@media (width >= 700px) and (color) {}
+//      ^ property
+//                           ^ property
+
+@media (orientation = landscape) {}
+//      ^ property
+//                    ^ constant
+//                    ^ !property
+
+col || td:state(checked)::scroll-button(left) {}
+// <- tag
+//  ^ operator
+//              ^ constant
+//                                      ^ constant
+
+@supports SeLeCtOr(:has(> .foo)) {}
+//        ^ function
+//                         ^ attribute
+
+.a { \2d\2d x: {a:b;}; color:red; }
+//   ^ property
+//              ^ property
+//                     ^ property
+
+@function --foo(--a type(<number> | <percentage>)) returns <length>+ {}
+//                  ^ function
+//                        ^ type
+//                                                          ^ type
+//                                                                 ^ operator
+
+.a { value: 1foo1bar 1foo- 1%foo; }
+//          ^ number
+//           ^ type
+//                   ^ number
+//                    ^ type
+//                         ^ number
+//                           ^ constant
+
+.a { value: #颜色; }
+//          ^ constant
+
+.a { value: #ab\63; }
+//          ^ constant
+
+.a { @include media(">phone") { color: red; } }
+//            ^ function
+
+@if $a {} @elseif $b {}
+//        ^ keyword.conditional
+
+$types: text url color;
+//           ^ constant
+
+.a { b: url(fn($u)); }
+//      ^ function
+//          ^ function
+
+lib.$color: blue;
+// <- module
+//  ^ variable
+
+@media (--small) and (--x > 10px) {}
+//      ^ variable
+//                    ^ variable
+
+@supports at-rule(@starting-style) {}
+//        ^ function
+//                ^ keyword.directive
+
+:active-view-transition-type(slide, forwards) {}
+//                           ^ constant
+//                                  ^ constant
+//                                  ^ !tag

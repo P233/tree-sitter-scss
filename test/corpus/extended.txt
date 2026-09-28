@@ -1,0 +1,168 @@
+==================
+Raw custom properties and explicit interpolation
+==================
+.x { --raw: $ink; --live: #{$ink}; }
+---
+(stylesheet (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name (dashed_name)) (raw_value (raw_text))) (property_declaration (property_name (dashed_name)) (raw_value (interpolation (variable_name)))))))
+
+==================
+Nested selector versus nested property
+==================
+.x { font:bold {} font: bold { family: serif; } width: 2px }
+---
+(stylesheet (rule_set (selectors (class_selector)) (declaration_block (rule_set (selectors (compound_selector (tag_selector) (pseudo_selector (pseudo_name))))) (property_declaration (nested_property (property_name) (plain_value) (declaration_block (property_declaration (property_name) (plain_value))))) (property_declaration (property_name) (number (unit))))))
+
+==================
+Modules and callable definitions
+==================
+@use "sass:math"; @function double($x: 1) { @return $x * 2; } @include reset;
+---
+(stylesheet (use_statement (string (string_content))) (function_definition (function_name) (parameters (parameter (variable_name) (number))) (declaration_block (value_statement (variable_name) (operator) (number)))) (include_statement (function_name)))
+
+==================
+Attached branches
+==================
+@if true {} @else if false {} @else {}
+---
+(stylesheet (if_statement (boolean) (else_clause (boolean)) (else_clause)))
+
+==================
+Typed CSS functions
+==================
+@function --ink(--value <color>: teal) returns <color> { result: $ink; }
+---
+(stylesheet (function_definition (function_name) (parameters (parameter (parameter_name) (type_annotation (type_name)) (plain_value))) (type_annotation (type_name)) (declaration_block (property_declaration (property_name) (raw_value (raw_text))))))
+
+==================
+Keyframe roles
+==================
+@keyframes spin { from {} 50% {} to {} }
+---
+(stylesheet (keyframes_statement (keyframes_name) (declaration_block (rule_set (selectors (tag_selector))) (rule_set (selectors (keyframe_selector (number (unit))))) (rule_set (selectors (tag_selector))))))
+
+==================
+Nth formulas
+==================
+.x:nth-child(2n+1 of .item) {}
+---
+(stylesheet (rule_set (selectors (compound_selector (class_selector) (pseudo_selector (pseudo_name) (nth_arguments (nth_formula) (selectors (class_selector))))))))
+
+==================
+Keyword-shaped namespaces
+==================
+@mixin ring {} $x: null, true.$value, not.foo(1);
+---
+(stylesheet (mixin_definition (function_name)) (variable_declaration (variable_name) (null) (member_expression (module_name) (variable_name)) (call_expression (module_name) (function_name) (arguments (number)))))
+
+==================
+Declaration priority outside raw payloads
+==================
+.a { --ink: blue!important; color: red !
+important; --empty: !/**/important; }
+---
+(stylesheet (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name (dashed_name)) (raw_value (plain_value)) (important)) (property_declaration (property_name) (plain_value) (important)) (property_declaration (property_name (dashed_name)) (important (block_comment))))))
+
+==================
+Quoted keyframe names retain interpolation
+==================
+@keyframes "fade-#{$state}" { from {} } @keyframes 'none' { to {} }
+---
+(stylesheet (keyframes_statement (string (string_content) (interpolation (variable_name))) (declaration_block (rule_set (selectors (tag_selector))))) (keyframes_statement (string (string_content)) (declaration_block (rule_set (selectors (tag_selector))))))
+
+==================
+Query groups contain complete declarations, not Sass maps
+==================
+@supports ((display:grid) and (font-family:foo,bar)) {}
+---
+(stylesheet (query_statement (query_group (query_group (feature_query (property_name) (plain_value))) (operator) (query_group (feature_query (property_name) (plain_value) (plain_value))))))
+
+==================
+Style query values are not function argument lists
+==================
+@container style(--x:a,b) { .a {} }
+---
+(stylesheet (query_statement (call_expression (function_name) (query_group (feature_query (property_name (dashed_name)) (raw_value (plain_value) (plain_value))))) (declaration_block (rule_set (selectors (class_selector))))))
+
+==================
+Unknown statements preserve attribute selectors and enclosing blocks
+==================
+@future { thing(a:b); [a=b] { x:y } } .after {}
+---
+(stylesheet (at_rule (at_keyword) (declaration_block (raw_statement (plain_value) (raw_group (plain_value) (plain_value))) (rule_set (selectors (attribute_selector (attribute_name) (attribute_operator) (plain_value))) (declaration_block (property_declaration (property_name) (plain_value)))))) (rule_set (selectors (class_selector))))
+
+==================
+Empty media query list
+==================
+@media {} .next {}
+---
+(stylesheet (query_statement) (rule_set (selectors (class_selector))))
+
+==================
+Keyword-shaped mixin names and spaced include arguments
+==================
+.a { @include media(">phone") { color: red; } @include calc (1, $b: 2); @include not; @include lib.url(); }
+---
+(stylesheet (rule_set (selectors (class_selector)) (declaration_block (include_statement (function_name) (arguments (string (string_content))) (declaration_block (property_declaration (property_name) (plain_value)))) (include_statement (function_name) (arguments (number) (named_argument (variable_name) (number)))) (include_statement (function_name)) (include_statement (module_name) (function_name) (arguments)))))
+
+==================
+Final statements may omit semicolons
+==================
+@mixin m { @content } .a { @include m { b: c; } @extend .b } @function f() { @return 1 } @debug 1
+---
+(stylesheet (mixin_definition (function_name) (declaration_block (content_statement))) (rule_set (selectors (class_selector)) (declaration_block (include_statement (function_name) (declaration_block (property_declaration (property_name) (plain_value)))) (extend_statement (selectors (class_selector))))) (function_definition (function_name) (parameters) (declaration_block (value_statement (number)))) (value_statement (number)))
+
+==================
+Module variable assignments
+==================
+lib.$color: blue !default; .a { lib.$size: 1px; a.b {} }
+---
+(stylesheet (variable_declaration (module_name) (variable_name) (plain_value) (flag)) (rule_set (selectors (class_selector)) (declaration_block (variable_declaration (module_name) (variable_name) (number (unit))) (rule_set (selectors (compound_selector (tag_selector) (class_selector)))))))
+
+==================
+Special call names as plain words
+==================
+$types: text url color; $m: (url: 1, element: 2); .a { b: url(a.png) url#{$x}; }
+---
+(stylesheet (variable_declaration (variable_name) (plain_value) (plain_value) (plain_value)) (variable_declaration (variable_name) (map (map_entry (plain_value) (number)) (map_entry (plain_value) (number)))) (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (url (function_name) (url_value (raw_text))) (plain_value (interpolation (variable_name)))))))
+
+==================
+Dashed query features
+==================
+@container style(--x) and style(--y > 1) {} @media (--small) and (color) {}
+---
+(stylesheet (query_statement (call_expression (function_name) (query_group (plain_value (dashed_name)))) (operator) (call_expression (function_name) (query_group (plain_value (dashed_name)) (operator) (number)))) (query_statement (query_group (plain_value (dashed_name))) (operator) (query_group (plain_value))))
+
+==================
+Content names, single-equals arguments, and url() calls
+==================
+@mixin m { @content($b: 2); } .a { filter: alpha(opacity=50); background: url(fn($u)); }
+---
+(stylesheet (mixin_definition (function_name) (declaration_block (content_statement (arguments (named_argument (variable_name) (number)))))) (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (call_expression (function_name) (arguments (argument (plain_value) (operator) (number))))) (property_declaration (property_name) (url (function_name) (call_expression (function_name) (arguments (variable_name))))))))
+
+==================
+Deprecated elseif clauses
+==================
+@if $a {} @elseif $b {} @else {}
+---
+(stylesheet (if_statement (variable_name) (else_clause (variable_name)) (else_clause)))
+
+==================
+Interpolation continues a name only when adjacent
+==================
+.a { b: bold #{$s}; c: #{$a}#{$b} #{$c}; d: calc(#{$x} - #{$y}); } .w #{$v} {} @x #{$y};
+---
+(stylesheet (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (plain_value) (interpolation (variable_name))) (property_declaration (property_name) (plain_value (interpolation (variable_name)) (interpolation (variable_name))) (interpolation (variable_name))) (property_declaration (property_name) (call_expression (function_name) (arguments (argument (interpolation (variable_name)) (operator) (interpolation (variable_name)))))))) (rule_set (selectors (complex_selector (class_selector) (tag_selector (interpolation (variable_name)))))) (at_rule (at_keyword) (interpolation (variable_name))))
+
+==================
+At-rule support queries name one at-keyword
+==================
+@supports at-rule(@starting-style) {} @supports not at-rule(@container) and (display: grid) {} .a { width: if(supports(at-rule(@scope)): 1px; else: 2px); }
+---
+(stylesheet (query_statement (call_expression (function_name) (query_group (at_keyword)))) (query_statement (operator) (call_expression (function_name) (query_group (at_keyword))) (operator) (query_group (feature_query (property_name) (plain_value)))) (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (conditional (function_name) (conditional_branch (call_expression (function_name) (query_group (call_expression (function_name) (query_group (at_keyword))))) (number (unit))) (conditional_branch (number (unit))))))))
+
+==================
+View transition type arguments are values
+==================
+:active-view-transition-type(slide, forwards) {} html:ACTIVE-VIEW-TRANSITION-TYPE(back) {}
+---
+(stylesheet (rule_set (selectors (pseudo_selector (pseudo_name) (selector_arguments (plain_value) (plain_value))))) (rule_set (selectors (compound_selector (tag_selector) (pseudo_selector (pseudo_name) (selector_arguments (plain_value)))))))

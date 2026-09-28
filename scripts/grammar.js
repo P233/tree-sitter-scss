@@ -1,36 +1,46 @@
-const { execFileSync } = require("node:child_process");
+const { execFileSync, spawnSync } = require("node:child_process");
 const { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const { dirname, join } = require("node:path");
 
 const root = join(__dirname, "..");
+// Child processes run from the checkout with bounded, captured output.
+const childOptions = {
+  cwd: root,
+  encoding: "utf8",
+  timeout: 30_000,
+  maxBuffer: 16 * 1024 * 1024,
+  stdio: ["ignore", "pipe", "pipe"]
+};
+// States past Tree-sitter's small-state threshold become dense symbol-width rows, which dominate parser size.
+const LARGE_STATE_BUDGET = 525;
 const executable = join(
   dirname(require.resolve("tree-sitter-cli/package.json")),
   process.platform === "win32" ? "tree-sitter.exe" : "tree-sitter"
 );
 
-function runTreeSitter(args) {
-  return execFileSync(executable, args, {
-    cwd: root,
-    encoding: "utf8",
-    timeout: 30_000,
-    maxBuffer: 16 * 1024 * 1024,
-    stdio: ["ignore", "pipe", "pipe"]
+function runTreeSitter(args, { reportWarnings = false } = {}) {
+  const result = spawnSync(executable, args, {
+    ...childOptions,
+    // The CLI keys compiled libraries by grammar name, so keep worktrees isolated.
+    env: { ...process.env, TREE_SITTER_LIBDIR: join(root, "build/tree-sitter") }
   });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    const reason = result.signal || `exit status ${result.status}`;
+    throw Object.assign(new Error(`tree-sitter ${args[0]} failed with ${reason}`), { stderr: result.stderr });
+  }
+  // Successful generation still reports grammar warnings, such as unnecessary conflicts.
+  if (reportWarnings && result.stderr) process.stderr.write(result.stderr);
+  return result.stdout;
 }
 
 function build() {
-  return execFileSync(process.execPath, [require.resolve("node-gyp/bin/node-gyp.js"), "rebuild"], {
-    cwd: root,
-    encoding: "utf8",
-    timeout: 30_000,
-    maxBuffer: 16 * 1024 * 1024,
-    stdio: ["ignore", "pipe", "pipe"]
-  });
+  return execFileSync(process.execPath, [require.resolve("node-gyp/bin/node-gyp.js"), "rebuild"], childOptions);
 }
 
 function generate(output) {
-  return runTreeSitter(["generate", "--abi", "14", ...(output ? ["--output", output] : [])]);
+  return runTreeSitter(["generate", "--abi", "14", ...(output ? ["--output", output] : [])], { reportWarnings: true });
 }
 
 function generatedDifferences(expected, actual, relative = "") {
@@ -44,6 +54,23 @@ function generatedDifferences(expected, actual, relative = "") {
   });
 }
 
+function largeStateCount(directory) {
+  const match = readFileSync(join(directory, "parser.c"), "utf8").match(/^#define LARGE_STATE_COUNT (\d+)$/m);
+  if (!match) throw new Error(`LARGE_STATE_COUNT is missing from ${join(directory, "parser.c")}.`);
+  return Number(match[1]);
+}
+
+function checkLargeStates(directory, budget = LARGE_STATE_BUDGET) {
+  const count = largeStateCount(directory);
+  if (count > budget) {
+    throw new Error(
+      `Generated parser has ${count} large parse states, over the budget of ${budget}. ` +
+        "Look for a rule or token choice that became valid in many states before raising the budget."
+    );
+  }
+  return count;
+}
+
 function checkGenerated() {
   const output = mkdtempSync(join(tmpdir(), "scss-generated-"));
   try {
@@ -52,6 +79,7 @@ function checkGenerated() {
     if (differences.length) {
       throw new Error(`Generated files are stale: ${differences.join(", ")}. Run pnpm generate.`);
     }
+    return checkLargeStates(output);
   } finally {
     rmSync(output, { recursive: true, force: true });
   }
@@ -62,8 +90,10 @@ if (require.main === module) {
     if (process.argv.includes("--build")) {
       build();
     } else if (process.argv.includes("--check")) {
-      checkGenerated();
-      console.log("Generated files match grammar.js (ABI 14).");
+      const largeStates = checkGenerated();
+      console.log(
+        `Generated files match grammar.js (ABI 14); ${largeStates}/${LARGE_STATE_BUDGET} large parse states.`
+      );
     } else {
       generate();
     }
@@ -73,4 +103,13 @@ if (require.main === module) {
   }
 }
 
-module.exports = { root, runTreeSitter, generate, build, generatedDifferences, checkGenerated };
+module.exports = {
+  root,
+  childOptions,
+  runTreeSitter,
+  generate,
+  build,
+  generatedDifferences,
+  checkLargeStates,
+  checkGenerated
+};

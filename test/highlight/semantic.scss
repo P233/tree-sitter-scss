@@ -1,0 +1,84 @@
+.x:LANG(en) { width: sqrt(pi); }
+// ^ attribute
+//      ^ constant
+//                   ^ function
+//                        ^ constant.builtin
+//                           ^ punctuation.delimiter
+
+@keyframes "fa\64 e" { from { opacity: 0; } }
+//          ^ string
+//            ^ string.escape
+//                     ^ keyword
+
+:root { --x: red !/**/important; }
+//      ^ variable
+//           ^ constant
+//               ^ keyword.modifier
+//                ^ comment
+//                    ^ keyword.modifier
+
+@use "theme"; .x { width: theme.calc(pi); }
+//                        ^ module
+//                              ^ function
+//                                   ^ constant
+//                                   ^ !constant.builtin
+
+@media NOT screen AND (width > 1px) {}
+//     ^ operator
+//                ^ operator
+
+$map: (primary: red, "secondary": blue);
+//     ^ property
+//              ^ constant
+
+:root { --brand: #0066cc; --space: 4px; } .a { color: var(--brand, #fff); }
+//      ^ variable
+//               ^ constant
+//                                 ^ number
+//                                  ^ type
+//                                                    ^ function
+//                                                        ^ variable
+//                                                                 ^ constant
+
+.x { --shadow: 0 1px rgb(0 0 0 / 50%), $ink; }
+//                   ^ function
+//                             ^ operator
+//                               ^ number
+//                                     ^ string
+//                                     ^ !variable
+
+@function --double(--n <number>) { result: calc(var(--n) * 2); }
+//        ^ function
+//                 ^ variable.parameter
+//                                         ^ function
+//                                                  ^ variable
+//                                                       ^ operator
+
+@property --angle { inherits: false; } @media only screen and (--small) {}
+//        ^ variable
+//                                            ^ operator
+//                                                             ^ variable
+//                                                             ^ !property
+
+.x { display: if(media(width > 1px): grid; else: block); } @container scroll-state(stuck) {}
+//                     ^ property
+//                                                                                 ^ property
+
+@apply px-4 rounded; @custom-media --narrow (width < 600px);
+// <- keyword.directive
+//     ^ constant
+//                                 ^ variable
+//                                                   ^ number
+
+#main, %shared, *|a, ::view-transition-old(*) {}
+// <- punctuation.delimiter
+//     ^ punctuation.delimiter
+//              ^ module
+//                                         ^ constant
+
+@-moz-keyframes spin { from {} }
+// <- keyword.directive
+//                     ^ keyword
+
+@function --pick(--a type(*)) {}
+//                        ^ type

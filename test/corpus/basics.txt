@@ -16,7 +16,7 @@ Complete selector names
 ---
 (stylesheet
   (rule_set
-    (selectors (class_selector) (tag_selector) (id_selector))))
+    (selectors (complex_selector (class_selector) (tag_selector)) (id_selector))))
 
 ==================
 Variables, booleans, and units

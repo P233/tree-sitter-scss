@@ -2,21 +2,21 @@
   "parser-directories": ["."],
   "theme": {
     "attribute": "#8250df",
-    "comment": "#57606a",
-    "constant": "#0550ae",
-    "constant.builtin": "#cf222e",
-    "function": "#8250df",
+    "comment": "#6e7781",
+    "constant": "#1b7c83",
+    "constant.builtin": "#6639ba",
+    "function": "#bf3989",
     "keyword": "#cf222e",
-    "module": "#953800",
-    "number": "#0550ae",
-    "operator": "#cf222e",
-    "property": "#0550ae",
+    "module": "#5a6e00",
+    "number": "#1a7f37",
+    "operator": "#9a6700",
+    "property": "#0969da",
     "punctuation": "#57606a",
-    "punctuation.special": "#cf222e",
+    "punctuation.special": "#a40e26",
     "string": "#0a3069",
-    "string.escape": "#cf222e",
+    "string.escape": "#e85aad",
     "tag": "#116329",
     "type": "#953800",
-    "variable": "#953800"
+    "variable": "#d4631a"
   }
 }

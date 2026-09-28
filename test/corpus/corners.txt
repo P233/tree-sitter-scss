@@ -1,0 +1,91 @@
+==================
+Escaped custom-property prefixes are ordinary property names
+==================
+.a { \2d\2d x: {a:b;}; color:red; } .after {}
+---
+(stylesheet (rule_set (selectors (class_selector)) (declaration_block (property_declaration (nested_property (property_name) (declaration_block (property_declaration (property_name) (plain_value))))) (property_declaration (property_name) (plain_value)))) (rule_set (selectors (class_selector))))
+
+==================
+Escaped keyword spellings stay ordinary identifiers
+==================
+@m\65 dia screen { .a {} } $x: \6E ull c\61 lc(pi); .after {}
+---
+(stylesheet (at_rule (at_keyword) (plain_value) (declaration_block (rule_set (selectors (class_selector))))) (variable_declaration (variable_name) (plain_value) (call_expression (function_name) (arguments (plain_value)))) (rule_set (selectors (class_selector))))
+
+==================
+Column selectors and value pseudo arguments
+==================
+col || td:nth-col(2n+1):state(checked)::scroll-button(left) {}
+---
+(stylesheet (rule_set (selectors (complex_selector (tag_selector) (combinator) (compound_selector (tag_selector) (pseudo_selector (pseudo_name) (nth_arguments (nth_formula))) (pseudo_selector (pseudo_name) (selector_arguments (plain_value))) (pseudo_selector (pseudo_name) (selector_arguments (plain_value))))))))
+
+==================
+CSS function compound parameter and return types
+==================
+@function --foo(--a type(<number> | <percentage>)) returns <length>+ { result: var(--a); } .after {}
+---
+(stylesheet (function_definition (function_name) (parameters (parameter (parameter_name) (type_annotation (function_name) (type_name) (type_name)))) (type_annotation (type_name) (operator)) (declaration_block (property_declaration (property_name) (raw_value (call_expression (function_name) (raw_group (plain_value (dashed_name)))))))) (rule_set (selectors (class_selector))))
+
+==================
+Conditional query calls own complete raw and comma values
+==================
+.a { width: if(style(--x: [a;b]): 1px; supports(font-family: a,b): 2px; else: 3px); color:red; } .after {}
+---
+(stylesheet (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (conditional (function_name) (conditional_branch (call_expression (function_name) (query_group (feature_query (property_name (dashed_name)) (raw_value (raw_group (plain_value) (plain_value)))))) (number (unit))) (conditional_branch (call_expression (function_name) (query_group (feature_query (property_name) (plain_value) (plain_value)))) (number (unit))) (conditional_branch (number (unit))))) (property_declaration (property_name) (plain_value)))) (rule_set (selectors (class_selector))))
+
+==================
+CSS function parameter and result spellings
+==================
+@function --f(--宽 <length>: 1px, --x <length>) { RESULT: {payload:value}; result: [a;b]; } .after {}
+---
+(stylesheet (function_definition (function_name) (parameters (parameter (parameter_name) (type_annotation (type_name)) (number (unit))) (parameter (parameter_name) (type_annotation (type_name)))) (declaration_block (property_declaration (property_name) (raw_value (raw_group (plain_value) (plain_value)))) (property_declaration (property_name) (raw_value (raw_group (plain_value) (plain_value)))))) (rule_set (selectors (class_selector))))
+
+==================
+CSS condition keyword case and empty branches
+==================
+.a { color: IF(style(--x: dark): ; Else: blue); margin:0; } .after {}
+---
+(stylesheet (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (conditional (function_name) (conditional_branch (call_expression (function_name) (query_group (feature_query (property_name (dashed_name)) (raw_value (plain_value)))))) (conditional_branch (plain_value)))) (property_declaration (property_name) (number)))) (rule_set (selectors (class_selector))))
+
+==================
+Conditional media calls retain query groups
+==================
+.a { width: IF(media((width = 600px) and (color)): 1px; ELSE:); color:red; } .after {}
+---
+(stylesheet (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (conditional (function_name) (conditional_branch (call_expression (function_name) (query_group (query_group (plain_value) (operator) (number (unit))) (operator) (query_group (plain_value)))) (number (unit))) (conditional_branch))) (property_declaration (property_name) (plain_value)))) (rule_set (selectors (class_selector))))
+
+==================
+Sass uppercase calls and lowercase conditional lists retain containers
+==================
+$x: IF(true,1,2); $y: module.IF(true,1,2); $z: if((a,b),(c:d),(e,f));
+---
+(stylesheet (variable_declaration (variable_name) (call_expression (function_name) (arguments (boolean) (number) (number)))) (variable_declaration (variable_name) (call_expression (module_name) (function_name) (arguments (boolean) (number) (number)))) (variable_declaration (variable_name) (conditional (function_name) (list (plain_value) (plain_value)) (map (map_entry (plain_value) (plain_value))) (list (plain_value) (plain_value)))))
+
+==================
+Result descriptors belong only to CSS functions and conditional groups
+==================
+.a { result:$x + 1px; } @function f() { result:$x + 1px; } @function --f() { @media (color) { RESULT:{a:b;}; } } .after {}
+---
+(stylesheet (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (variable_name) (operator) (number (unit))))) (function_definition (function_name) (parameters) (declaration_block (property_declaration (property_name) (variable_name) (operator) (number (unit))))) (function_definition (function_name) (parameters) (declaration_block (query_statement (query_group (plain_value)) (declaration_block (property_declaration (property_name) (raw_value (raw_group (plain_value) (plain_value)))))))) (rule_set (selectors (class_selector))))
+
+==================
+Complete dimension units preserve Sass subtraction and trivia boundaries
+==================
+.a { value: 1foo1bar 1foo- 1_foo 1%foo 1px-2px 1/**/px; color:red; } .after {}
+---
+(stylesheet (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (number (unit)) (number (unit)) (number (unit)) (number (unit)) (plain_value) (number (unit)) (operator) (number (unit)) (number) (block_comment) (plain_value)) (property_declaration (property_name) (plain_value)))) (rule_set (selectors (class_selector))))
+
+==================
+Unicode and escaped hashes remain complete values
+==================
+.a { value: #颜色 #😀 #á #\66 oo #ab\63; color:red; } .after {}
+---
+(stylesheet (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (hash_value) (hash_value) (hash_value) (hash_value) (hash_value)) (property_declaration (property_name) (plain_value)))) (rule_set (selectors (class_selector))))
+
+==================
+Quoted continuations retain escaped newlines and following declarations
+==================
+.a { content: "a\
+b"; color:red; } .after {}
+---
+(stylesheet (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (string (string_content) (escape_sequence) (string_content))) (property_declaration (property_name) (plain_value)))) (rule_set (selectors (class_selector))))

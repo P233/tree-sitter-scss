@@ -5,6 +5,20 @@ const { test } = require("node:test");
 const Parser = require("tree-sitter");
 const Scss = require("./index.js");
 
+test("reloading the JavaScript entry preserves both native language exports", () => {
+  const entry = require.resolve("./index.js");
+  for (let i = 0; i < 3; i++) {
+    delete require.cache[entry];
+    const reloaded = require("./index.js");
+    for (const language of [Scss, Scss.cssLanguage, reloaded, reloaded.cssLanguage]) {
+      const parser = new Parser();
+      parser.setLanguage(language);
+      assert.equal(parser.parse(".a { color: red; }").rootNode.hasError, false);
+    }
+    assert.equal(reloaded.cssLanguage.language, Scss.cssLanguage.language);
+  }
+});
+
 function parse(source) {
   const parser = new Parser();
   parser.setLanguage(Scss);
@@ -111,10 +125,11 @@ test("an incremental edit agrees with a fresh parse", () => {
   assert.equal(incremental.rootNode.toString(), parse(edited).rootNode.toString());
 });
 
-test("a broken declaration does not hide the following rule", () => {
+test("an unfinished value preserves its declaration and the following rule", () => {
   const parser = new Parser();
   parser.setLanguage(Scss);
   const tree = parser.parse(".broken { color: ; } .good { width: 1px; }");
-  assert.equal(tree.rootNode.hasError, true);
+  assert.equal(tree.rootNode.hasError, false);
+  assert.equal(tree.rootNode.descendantsOfType("property_declaration")[0].text, "color: ;");
   assert.ok(tree.rootNode.descendantsOfType("property_name").some(node => node.text === "width"));
 });

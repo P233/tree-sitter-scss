@@ -855,7 +855,7 @@ $stress-escaped-\67 ap: 2px;
 }
 // R40.03: [*] Recognize escaped mixin definitions and their normalized include targets.
 @mixin stress-escaped-\72 eset { padding: $stress-escaped-gap; }
-// R40.04: [*] Classify escaped literal spellings by their semantic value, not raw text alone.
+// R40.04: [*] Keep escaped literal spellings as ordinary identifiers; keywords match literal spellings only.
 $stress-escaped-literals: tr\75 e, n\75 ll, r\65 d;
 // R40.05: Keep differently cased TRUE/False/NULL as identifiers rather than Sass literals.
 $stress-case-sensitive-literals: TRUE, False, NULL;
@@ -947,7 +947,7 @@ $stress-rule-name: stress-custom;
 @stress-token raw [a, b] (c: d);
 // R44.03: Accept empty unknown at-rule blocks without a missing declaration.
 @stress-empty {}
-// R44.04: [*] Keep the escaped at-rule name intact and classify it as @media, as Sass does.
+// R44.04: [*] Keep the escaped at-rule name intact as an unknown at-rule; Sass would decode it as @media.
 @m\65 dia screen { .stress-escaped-rule { color: red; } }
 // R44.05: [MODERN] Recognize position-try names and descriptors in the at-rule block.
 @position-try --stress-below { position-area: block-end; }
