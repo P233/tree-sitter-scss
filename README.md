@@ -6,27 +6,69 @@
 
 The parser is built to give two Emacs packages a syntax tree they can act on:
 
-- **Structural editing in [scss2-mode](https://github.com/P233/scss2-mode).** Kill, copy, duplicate, empty, and substitute whole selector branches, declarations, values, arguments, and blocks, following the approach of [JSX Jedi](https://github.com/P233/jsx-jedi) for JSX/TSX. Every editing target is a node or field with exact source boundaries, in CSS and SCSS alike.
+- **Structural editing in [scss2-mode](https://github.com/P233/scss2-mode).** Kill, copy, duplicate, empty, and substitute whole selector branches, declarations, values, arguments, and blocks, following the approach of [JSX Jedi](https://github.com/P233/jsx-jedi) for JSX/TSX. Every target's range comes from the syntax tree, in CSS and SCSS alike.
 - **Context-aware completion with [emmet2-mode](https://github.com/P233/emmet2-mode).** The syntax role at point decides what to offer: at-rules after `@`, properties at the start of a declaration, values after the colon, custom properties inside `var()`, and Sass variables, mixins, and module members. It also decides where an Emmet abbreviation such as `m10` may expand into `margin: 10px;`.
 
-Emacs users should install scss2-mode, which bundles this parser. This repository contains only the grammar, scanner, highlight query, and Node/Rust bindings. It is not published to npm or crates.io, where `tree-sitter-scss` is the official grammar; use a Git checkout or release tag instead.
+Emacs users should install scss2-mode, which bundles this parser. This repository contains only the grammar, scanner, highlight query, and Node/Rust bindings. The packages are not published to npm or crates.io, where the `tree-sitter-scss` name belongs to the official grammar; see [Use from source](#use-from-source).
 
 ## Compared with the official grammar
 
-The official grammar extends `tree-sitter-css` with SCSS rules and targets highlighting. This project is one grammar for both dialects, shaped for structural editing and context-aware completion. Measured with Tree-sitter CLI 0.27.0 against the official grammar at commit [`2ef6d42`](https://github.com/tree-sitter-grammars/tree-sitter-scss/tree/2ef6d42e3ad7a8208900f9346f4529806ae0f9f9):
+The official grammar extends `tree-sitter-css` with SCSS rules. This project is one grammar for both dialects, shaped for structural editing and context-aware completion. Measured with Tree-sitter CLI 0.27.0 against the official grammar at commit [`2ef6d42`](https://github.com/tree-sitter-grammars/tree-sitter-scss/tree/2ef6d42e3ad7a8208900f9346f4529806ae0f9f9); the real-code row uses rhythm-sass at commit [`76aac68`](https://github.com/P233/rhythm-sass/tree/76aac6827bdd80d439579f0cf93cad78cd6d7fc7):
 
 |                   | This project                                                                          | Official                                                                   |
 | ----------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| CSS               | Second entry of the same parser, with the same node schema and query                  | Separate `tree-sitter-css` grammar, whose schema has diverged              |
+| CSS               | Second entry of the same parser, with the same node schema and query                  | Separate `tree-sitter-css`, whose schema no longer matches the SCSS one    |
 | Everyday Sass     | Parses cleanly                                                                        | Errors on `!default`, `@use ... as`, maps, `@include ns.mixin`, `$args...` |
-| Real code         | [rhythm-sass](https://github.com/P233/rhythm-sass) (1,157 non-blank lines): no errors | 707 error nodes; 37% of non-blank lines fall inside `ERROR`                |
+| Real code         | [rhythm-sass](https://github.com/P233/rhythm-sass) (1,157 non-blank lines): no errors | 700 error nodes; 37% of non-blank lines fall inside `ERROR`                |
 | Empty value       | `color: ;` is a declaration without a value                                           | A zero-width `integer_value`, with no error                                |
 | Selectors         | Flat compounds with explicit combinator nodes                                         | Left-nested: the `:hover` node in `.a .b:hover` spans the whole selector   |
 | Declarations      | Property, variable, and nested-property nodes                                         | One declaration node; nested properties are errors                         |
 | Fields            | `selectors`, `body`, `name`, `value`, `prelude`, `condition`                          | None on rules, declarations, or CSS at-rules                               |
 | Custom properties | Raw token payload                                                                     | Parsed as Sass: `0 / 20%` inside `rgb()` becomes a division                |
 
-Coverage matters beyond highlighting: node ranges inside an `ERROR` cannot be trusted, so scss2-mode refuses structural edits there. The costs are owning all CSS compatibility work and a generated parser about five times larger (3.8 MB of C against 0.79 MB). The node schema and highlight query are not interchangeable with the official grammar's.
+Coverage matters beyond highlighting: node ranges inside an `ERROR` cannot be trusted, so scss2-mode refuses structural edits there. The costs are owning all CSS compatibility work and a generated parser about five times larger (3.8 MB of generated C against 0.79 MB). The node schema and highlight query are not interchangeable with the official grammar's.
+
+## Use from source
+
+Both bindings compile the generated C sources, so they need a C/C++ compiler; the Node build also needs Python. Clone a release tag and pack it for Node:
+
+```sh
+git clone --branch v0.9.0 https://github.com/P233/tree-sitter-scss.git
+cd tree-sitter-scss
+npm pack  # Writes tree-sitter-scss-0.9.0.tgz
+```
+
+In a Node project next to the checkout, installing the tarball compiles the binding:
+
+```sh
+npm install ../tree-sitter-scss/tree-sitter-scss-0.9.0.tgz tree-sitter@0.25.1
+```
+
+```js
+const Parser = require("tree-sitter");
+const Scss = require("tree-sitter-scss");
+
+const parser = new Parser();
+parser.setLanguage(Scss); // Scss.cssLanguage for CSS
+const tree = parser.parse(".card { color: $accent; }");
+const captures = new Parser.Query(Scss, Scss.HIGHLIGHTS_QUERY).captures(tree.rootNode);
+```
+
+In Rust, depend on the checkout by path:
+
+```toml
+[dependencies]
+tree-sitter = "0.27.0"
+tree-sitter-scss = { path = "../tree-sitter-scss" }
+```
+
+```rust
+let mut parser = tree_sitter::Parser::new();
+parser
+    .set_language(&tree_sitter_scss::LANGUAGE.into()) // CSS_LANGUAGE for CSS
+    .expect("load SCSS");
+let tree = parser.parse(".card { color: $accent; }", None).unwrap();
+```
 
 ## Consumer contract
 
@@ -34,7 +76,7 @@ Coverage matters beyond highlighting: node ranges inside an `ERROR` cannot be tr
 - **Bindings:** Node exports `language`, `cssLanguage`, `nodeTypeInfo`, and `HIGHLIGHTS_QUERY`; Rust exports `LANGUAGE`, `CSS_LANGUAGE`, `NODE_TYPES`, and `HIGHLIGHTS_QUERY`. Both entries share one node schema and one query.
 - **The CSS entry differs only lexically:** `#{` inside a string stays literal and `1px-2px` is one dimension. Sass syntax in a `.css` file still parses without errors, and neither entry reports semantic problems such as undefined variables.
 - **Fields are not always singular:** `value`, `prelude`, and `condition` may hold several ordered children, including anonymous commas. Do not treat the first field child as the whole expression.
-- **Values are ordered atoms:** there is no evaluation tree and no node per comma-separated item, so split on the comma children. `-10px` is one number, while `-$gutter` is an operator followed by a variable.
+- **Declaration values and Sass lists are ordered atoms:** there is no evaluation tree and no node per comma-separated item, so split on the comma children. Call arguments and maps do have item nodes: several atoms in one argument are wrapped in `argument`, and each map pair is a `map_entry`. `-10px` is one number, while `-$gutter` is an operator followed by a variable.
 - **Empty forms have no content node:** an empty block has no `body` and an empty declaration has no `value`, so recognize the braces or colon without requiring them.
 - **Versioning:** keep the parser, [node schema](src/node-types.json), and [highlight query](queries/highlights.scm) on the same revision. A compatible ABI does not make another grammar's schema or queries interchangeable with these.
 
@@ -46,18 +88,18 @@ Coverage matters beyond highlighting: node ranges inside an `ERROR` cannot be tr
 - `keyword.directive` for CSS at-rules and unknown at-keywords.
 - `keyword.modifier` for `!default`, `!global`, `!optional`, and `!important`.
 
-When several patterns capture the same range, the later pattern wins. The `; Context overrides` section refines base roles such as map keys, query features, and parameters, so a host highlighter must apply it after the base captures. `ERROR` and `MISSING` nodes are left uncaptured.
+The query expects a later capture of the same range to override an earlier one, as the Tree-sitter CLI does. A host highlighter must apply captures in that order; in Emacs, that means `:override t` on the font-lock rules. The `; Context overrides` section refines base roles such as map keys, query features, and parameters, so it depends on this order. The query has no `ERROR` pattern, but zero-width `MISSING` punctuation can still be captured: a missing `]` becomes `punctuation.bracket`.
 
 ## Known limits
 
-None of these appeared in a sample of about 78,000 lines of real CSS and SCSS.
+In about 680,000 lines from 14 popular CSS and SCSS frameworks, such as Bootstrap 5.3 and Bulma 1.0, only the unspaced subtraction below appeared, on a single line.
 
-- Escaped keyword spellings are not decoded: `@m\65 dia` becomes a generic at-rule, while `!\69mportant` and `:nth-child(2\6e+1)` produce parse errors. Identifier escapes spanning CRLF are not fully covered.
+- Escaped keyword spellings are not decoded: `@m\65 dia` becomes a generic at-rule, while `!\69mportant` and `:nth-child(2\6e+1)` produce parse errors. A hex escape followed by CRLF splits the identifier: `.x\31`, CRLF, `b` reads as a descendant selector instead of `.x1b`.
 - Typed `attr()` unions such as `attr(data-width type(<length> | <percentage>), 10px)` produce a parse error.
-- A descendant combinator is read from whitespace directly before the next compound, so `.a /* c */.b` is one compound selector. In `@extend`, `.a :hover` reads as `.a:hover`.
-- Unspaced subtraction after a call, `fn()-1`, reads as a call followed by `-1`.
+- A descendant combinator is read from whitespace directly before the next compound, so `.a /* c */.b` is one compound selector. In `@extend`, `.a :hover` reads as `.a:hover`; Sass rejects both forms.
+- Unspaced subtraction after a closing parenthesis reads as a negative number: `fn()-1` and `($s)-1` both end with the number `-1` instead of a subtraction.
 - Inside Sass `url()`, `url(map.get($icons, x))` keeps `map.get` as one `function_name` without a `module_name`. Inside raw custom-property values, `url(https://a.test/x.png)` splits into the word `https`, a colon, and the raw text `//a.test/x.png`.
-- Editing the innermost of 1,000 nested rules spent about 95 ms in incremental changed-range calculation in a local test.
+- With 1,000 nested rules, adding a descendant combinator to the innermost selector spent about 50 ms computing incremental changed ranges on an Apple M1 Pro; other edits, and the same edit at 100 levels, stayed under 1 ms. The deepest block nesting in the sample was 11 levels.
 
 ## Development
 
