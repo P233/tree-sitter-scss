@@ -7,9 +7,17 @@ const parser = new Parser();
 parser.setLanguage(Scss);
 const tree = parser.parse(readFileSync(process.argv[2], "utf8"));
 const valid = !tree.rootNode.hasError;
+let depth = 0;
+// Quoted diagnostic tokens, such as (MISSING ")"), must not change the nesting depth.
+const formattedTree = tree.rootNode.toString().replace(/".*?"(?=\))|'.*?'(?=\))|[()]| (?:\w+: )?(?=\()/g, token => {
+  if (token === "(") depth++;
+  else if (token === ")") depth--;
+  else if (token.startsWith(" ")) return `\n${"  ".repeat(depth)}${token.slice(1)}`;
+  return token;
+});
 console.log(
   JSON.stringify({
     valid,
-    diagnostics: (valid ? "" : "Tree contains ERROR or MISSING nodes.\n") + tree.rootNode.toString()
+    diagnostics: (valid ? "" : "Tree contains ERROR or MISSING nodes.\n") + formattedTree
   })
 );

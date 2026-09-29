@@ -7,17 +7,43 @@ body {
     sans-serif;
 }
 .preview {
-  max-width: 76rem;
-  margin: 2.5rem auto;
-  padding: 0 1.5rem;
+  max-width: 96rem;
+  margin: 1.25rem auto;
+  padding: 0 1.25rem;
+}
+.preview-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  margin-bottom: 1rem;
 }
 .preview h1 {
-  margin-bottom: 0;
-  font-size: 1.6rem;
+  margin: 0;
+  font-size: 1.25rem;
+}
+.preview h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
 }
 .preview-path {
-  margin-top: 0.25rem;
+  margin: 0;
   overflow-wrap: anywhere;
+  font-size: 0.875rem;
+}
+.preview-feedback {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0.75rem 0;
+  font-size: 0.875rem;
+}
+.preview-feedback p {
+  margin: 0;
+}
+.preview-feedback p:empty {
+  display: none;
 }
 .preview-status {
   color: #116329;
@@ -25,9 +51,10 @@ body {
 .preview-error {
   color: #a40e26;
 }
-.preview pre {
+.preview-output,
+.preview textarea {
   overflow: auto;
-  padding: 1.25rem;
+  padding: 0.875rem;
   border: 1px solid #d0d7de;
   border-radius: 6px;
   background: #ffffff;
@@ -38,6 +65,75 @@ body {
     monospace;
   tab-size: 2;
 }
-.preview summary {
+.preview-results {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.preview-panel {
+  min-width: 0;
+}
+.preview-output {
+  box-sizing: border-box;
+  height: clamp(20rem, 55vh, 42rem);
+  margin: 0;
+}
+.preview-output pre {
+  margin: 0;
+  font: inherit;
+}
+.preview-editor {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.preview-editor label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+.preview textarea {
+  box-sizing: border-box;
+  width: 100%;
+  resize: vertical;
+}
+.preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.preview button {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  background: #ffffff;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
+}
+.preview button[type="submit"] {
+  background: #24292f;
+  color: #ffffff;
+}
+.preview button:hover:not(:disabled) {
+  border-color: #24292f;
+}
+.preview button:active:not(:disabled) {
+  opacity: 0.8;
+}
+.preview :is(button, textarea, [tabindex]):focus-visible {
+  outline: 2px solid #116329;
+  outline-offset: 3px;
+}
+.preview-editor:disabled {
+  opacity: 0.6;
+}
+.preview button:disabled {
+  cursor: wait;
+}
+@media (max-width: 54rem) {
+  .preview-results {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

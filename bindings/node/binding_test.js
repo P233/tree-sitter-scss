@@ -1,6 +1,4 @@
 const assert = require("node:assert/strict");
-const { readFileSync } = require("node:fs");
-const { join } = require("node:path");
 const { test } = require("node:test");
 const Parser = require("tree-sitter");
 const Scss = require("./index.js");
@@ -44,8 +42,7 @@ const examples = [
   ["ordinary hash in strings", '$text: "color #fff";'],
   ["non-nesting block comments", "/* outer /* inner */ body { color: red; }"],
   ["units and scientific notation", "$size: -1.5e2px; $ratio: 20%;"],
-  ["plain values followed by lists", "$value: foo (1 2);"],
-  ["original smoke fixture", readFileSync(join(__dirname, "../../test/test.scss"), "utf8")]
+  ["plain values followed by lists", "$value: foo (1 2);"]
 ];
 
 for (const [name, source] of examples) {

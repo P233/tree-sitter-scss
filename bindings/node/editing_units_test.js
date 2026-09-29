@@ -165,9 +165,7 @@ test("interpolated pseudos keep descendant boundaries across quoted and commente
       "'hover' // }\n",
       "map.get(('}': hover), '}')",
       "map.get(('{': hover), '{')",
-      ...(language === Scss
-        ? ["\"#{'hover'}\" /* } */", "'#{map.get(('}': hover), '}')}'"]
-        : ["'#{'"])
+      ...(language === Scss ? ["\"#{'hover'}\" /* } */", "'#{map.get(('}': hover), '}')}'"] : ["'#{'"])
     ]) {
       for (const space of ["", " "]) {
         const selector = `.a${space}:#{${expression}}`;
@@ -206,9 +204,7 @@ test("interpolated pseudos distinguish literal URL slashes from expression comme
     for (const url of urls) {
       const selector = `.a :#{if(true, hover, ${url})}`;
       const root = parse(`${selector} { color: red; } .after {}`, language);
-      assert.deepEqual(shape(root.firstNamedChild.childForFieldName("selectors")), [
-        ["complex_selector", selector]
-      ]);
+      assert.deepEqual(shape(root.firstNamedChild.childForFieldName("selectors")), [["complex_selector", selector]]);
       assert.equal(root.firstNamedChild.childForFieldName("body").text, "color: red;");
       assert.equal(root.lastNamedChild.text, ".after {}");
     }

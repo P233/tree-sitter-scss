@@ -165,6 +165,89 @@ test("ordinary CSS has identical syntax trees and captures through both language
   assert.deepEqual(captures(Scss.cssLanguage, cssTree), captures(Scss, scssTree));
 });
 
+test("simple CSS var calls retain ordinary argument nodes without external name tokens", () => {
+  const source = `.a { color: var(--text, #333); background: VAR(--bg, transparent);
+    border: var(--border); outline: var(--色, #aabbccdd); }`;
+  const parser = new Parser();
+  const symbols = [];
+  parser.setLogger((message, parameters) => {
+    if (message === "lexed_lookahead") symbols.push(parameters.sym);
+  });
+  const cssTree = parse(source, parser);
+  assert.ok(symbols.includes("_identifier"));
+  assert.ok(!symbols.includes("function_name"));
+  const scssTree = parse(source, new Parser(), undefined, Scss);
+  assert.equal(cssTree.rootNode.toString(), scssTree.rootNode.toString());
+  assert.deepEqual(
+    cssTree.rootNode.descendantsOfType("arguments").map(node => node.namedChildren.map(child => child.text)),
+    [["--text", "#333"], ["--bg", "transparent"], ["--border"], ["--色", "#aabbccdd"]]
+  );
+});
+
+test("incremental CSS var edits across simple and raw fallbacks retain fresh trees and captures", () => {
+  const query = new Parser.Query(Scss.cssLanguage, Scss.HIGHLIGHTS_QUERY);
+  const shape = node => [
+    node.type,
+    node.startIndex,
+    node.endIndex,
+    node.children.map((child, index) => [node.fieldNameForChild(index), shape(child)])
+  ];
+  const captures = tree =>
+    query.captures(tree.rootNode).map(({ name, node }) => [name, node.startIndex, node.endIndex]);
+  for (const [before, after] of [
+    ["#333", "#333, red"],
+    ["#333", "#{a:b}"],
+    ["#333", "#33"],
+    ["#333", "[a;b]"],
+    ["#333", "foo({a:b})"],
+    ["#333", "red blue"],
+    ["#333", String.raw`r\65 d`],
+    ["--text", "--text/* comment */"],
+    ["--text", "--text#{$suffix}"],
+    ["var", "VAR"]
+  ]) {
+    for (const [from, to] of [
+      [before, after],
+      [after, before]
+    ]) {
+      const original = ".a { color: var(--text, #333); padding: 1px; } .next { color: var(--other); }";
+      const source = original.replace(before, from);
+      const parser = new Parser();
+      const tree = parse(source, parser);
+      const startIndex = source.indexOf(from);
+      tree.edit({
+        startIndex,
+        oldEndIndex: startIndex + from.length,
+        newEndIndex: startIndex + to.length,
+        startPosition: { row: 0, column: startIndex },
+        oldEndPosition: { row: 0, column: startIndex + from.length },
+        newEndPosition: { row: 0, column: startIndex + to.length }
+      });
+      const edited = source.slice(0, startIndex) + to + source.slice(startIndex + from.length);
+      const incremental = parse(edited, parser, tree);
+      const fresh = parse(edited);
+      assert.deepEqual(shape(incremental.rootNode), shape(fresh.rootNode), edited);
+      assert.deepEqual(captures(incremental), captures(fresh), edited);
+      assert.equal(incremental.rootNode.lastNamedChild.text, ".next { color: var(--other); }");
+    }
+  }
+});
+
+test("CSS optimizations keep earlier SCSS declarations outside malformed statement recovery", () => {
+  const declaration = '$theme: (red blue: 2px, "x": (a: 3px));';
+  const parser = new Parser();
+  parser.setLanguage(Scss);
+  for (const value of ['m"ap.get($theme, "x")', 'm\'ap.get($theme, "x")', 'map."get($theme, "x")']) {
+    const tree = parser.parse(`${declaration} .card { margin: ${value}; }\n.after { color: red; }`);
+    assert.equal(tree.rootNode.hasError, true);
+    assert.equal(tree.rootNode.type, "stylesheet");
+    const earlier = tree.rootNode.firstNamedChild;
+    assert.equal(earlier.type, "variable_declaration");
+    assert.equal(earlier.text, declaration);
+    assert.equal(earlier.hasError, false);
+  }
+});
+
 test("interleaved CSS and SCSS parsers retain independent dialect identities", () => {
   const source = '.a { content: "#{$color}"; --value: #{$color}; }';
   const cssParser = new Parser();

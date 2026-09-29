@@ -42,9 +42,11 @@ try {
   assert.equal(grammar.metadata.version, metadata.version, "Tree-sitter metadata version has drifted");
   assert.equal(cargo.match(/^version = "([^"]+)"/m)?.[1], metadata.version, "Cargo version has drifted");
 
-  const [npm] = JSON.parse(
+  const packed = JSON.parse(
     run("npm", ["pack", "--dry-run", "--ignore-scripts", "--json", "--cache", join(temporary, "cache")])
   );
+  // npm 12 keys packages by name; earlier versions return an array.
+  const npm = Array.isArray(packed) ? packed[0] : packed[metadata.name];
   checkFiles(
     npm.files.map(file => file.path),
     [...shared, "package.json", "binding.gyp", "bindings/node/binding.cc", "bindings/node/index.js"]
