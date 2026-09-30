@@ -75,6 +75,41 @@ test("query keywords are reclassified when a query call becomes an ordinary call
   }
 });
 
+test("numeric boundaries after comment trivia agree across edits and undo", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    const parser = new Parser().setLanguage(language);
+    const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
+    const wrappers = [
+      [value => `$x: ${value};`, false],
+      [value => `.a { width: ${value}; } .after {}`, false],
+      [value => `.a { width: fn(${value}); }`, false]
+    ];
+    if (language === Scss) wrappers.push([value => `.a { /* #{${value}} */ color: red; } .after {}`, true]);
+    for (const [wrap, inComment] of wrappers) {
+      const comments = [" /* c */", "/* a */ /* b */", " /* a */ // b\r\n/* c */"];
+      // Long numeric dependencies are independent of text-host interpolation's pairing budget.
+      if (!inComment) comments.push(` /*${"x".repeat(2048)}*/`);
+      for (const number of ["1", "1px", "1foo-bar", "1e2", "1e", "1%", "-.5"]) {
+        for (const trivia of comments) {
+          const original = wrap(`${number}${trivia} + 2`);
+          for (const replacement of ["-1", "-.5px", "-$x", "-(1)"]) {
+            let source = original;
+            let tree = parser.parse(source);
+            assert.equal(tree.rootNode.hasError, false, source);
+            const start = source.indexOf(" + 2");
+            [tree, source] = editAndCompare(parser, query, tree, source, start, start, replacement);
+            assert.equal(tree.rootNode.hasError, false, source);
+            [tree, source] = editAndCompare(parser, query, tree, source, start, start, " ");
+            [tree, source] = editAndCompare(parser, query, tree, source, start, start + 1, "");
+            [tree, source] = editAndCompare(parser, query, tree, source, start, start + replacement.length, "");
+            assert.equal(source, original);
+          }
+        }
+      }
+    }
+  }
+});
+
 test("unfinished else heads recover inside their enclosing block", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     const parser = new Parser();

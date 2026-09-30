@@ -131,6 +131,49 @@ static bool scan_unit(TSLexer *lexer, bool css, bool mark_end, bool *complex) {
   return scan_unit_tail(lexer, css, mark_end, complex);
 }
 
+// The opening `/*` has already been consumed; ignored comments end at the first `*/`.
+static bool skip_block_comment(TSLexer *lexer) {
+  bool is_after_star = false;
+  while (!lexer->eof(lexer)) {
+    int32_t character = lexer->lookahead;
+    lexer->advance(lexer, false);
+    if (is_after_star && character == '/') return true;
+    is_after_star = character == '*';
+  }
+  return false;
+}
+
+// Both dialects parse `//` comments as extras, so lookahead skips them too.
+static bool skip_trivia(TSLexer *lexer) {
+  for (;;) {
+    while (css_space(lexer->lookahead)) lexer->advance(lexer, false);
+    if (lexer->lookahead != '/') return true;
+    lexer->advance(lexer, false);
+    if (lexer->lookahead == '/') {
+      while (!lexer->eof(lexer) && lexer->lookahead != '\n' && lexer->lookahead != '\r') lexer->advance(lexer, false);
+      continue;
+    }
+    if (lexer->lookahead != '*') return false;
+    lexer->advance(lexer, false);
+    if (!skip_block_comment(lexer)) return false;
+  }
+}
+
+// Named extras can intervene before a number reduces and allow subtraction at
+// their closing boundary. Record that dependency without including the comments
+// in the numeric token, so edits there invalidate a previously reduced value.
+static bool scan_number_comments(TSLexer *lexer, bool css) {
+  while (css_space(lexer->lookahead)) lexer->advance(lexer, false);
+  if (lexer->lookahead != '/') return false;
+  lexer->advance(lexer, false);
+  if (lexer->lookahead != '*') return false;
+  if (!css) {
+    lexer->advance(lexer, false);
+    if (skip_block_comment(lexer)) skip_trivia(lexer);
+  }
+  return true;
+}
+
 static bool scan_number(TSLexer *lexer, bool css) {
   bool leading_dot = lexer->lookahead == '.';
   if (leading_dot) lexer->advance(lexer, false);
@@ -154,7 +197,7 @@ static bool scan_number(TSLexer *lexer, bool css) {
       bool complex = sign == '-';
       scan_unit_tail(lexer, css, false, &complex);
       lexer->result_symbol = DIMENSION_NUMBER;
-      return complex;
+      return (!css && scan_number_comments(lexer, css)) || complex;
     }
     do { lexer->advance(lexer, false); } while (digit(lexer->lookahead));
     lexer->mark_end(lexer);
@@ -162,15 +205,17 @@ static bool scan_number(TSLexer *lexer, bool css) {
   // Immediate tokens may still follow named extras. Claim only this scalar
   // boundary so a comment cannot attach a later identifier as its unit.
   if (css_space(lexer->lookahead) || lexer->lookahead == '/') {
-    while (css_space(lexer->lookahead)) lexer->advance(lexer, false);
-    if (lexer->lookahead != '/') return false;
-    lexer->advance(lexer, false);
     lexer->result_symbol = SCALAR_NUMBER;
-    return lexer->lookahead == '*';
+    return scan_number_comments(lexer, css);
   }
   bool complex = false;
   lexer->result_symbol = DIMENSION_NUMBER;
-  return scan_unit(lexer, css, false, &complex) && complex;
+  if (!css && lexer->lookahead == '%') {
+    lexer->advance(lexer, false);
+    return scan_number_comments(lexer, css);
+  }
+  if (!scan_unit(lexer, css, false, &complex)) return false;
+  return (!css && scan_number_comments(lexer, css)) || complex;
 }
 
 // Longest keyword spelling (`important`, `-infinity`) plus its terminator.
@@ -199,18 +244,6 @@ static void lowercase(char *word) {
   for (; *word; word++) {
     if (*word >= 'A' && *word <= 'Z') *word += 'a' - 'A';
   }
-}
-
-// The opening `/*` has already been consumed; ignored comments end at the first `*/`.
-static bool skip_block_comment(TSLexer *lexer) {
-  bool is_after_star = false;
-  while (!lexer->eof(lexer)) {
-    int32_t character = lexer->lookahead;
-    lexer->advance(lexer, false);
-    if (is_after_star && character == '/') return true;
-    is_after_star = character == '*';
-  }
-  return false;
 }
 
 // Claim only an identifier followed by one `|`, keeping specialized name tokens out of ordinary selectors.
@@ -242,22 +275,6 @@ static bool scan_namespace_prefix(TSLexer *lexer, bool css) {
   lexer->advance(lexer, false);
   lexer->result_symbol = NAMESPACE_PREFIX;
   return lexer->lookahead != '|' && lexer->lookahead != '=';
-}
-
-// Both dialects parse `//` comments as extras, so priority lookahead skips them too.
-static bool skip_trivia(TSLexer *lexer) {
-  for (;;) {
-    while (css_space(lexer->lookahead)) lexer->advance(lexer, false);
-    if (lexer->lookahead != '/') return true;
-    lexer->advance(lexer, false);
-    if (lexer->lookahead == '/') {
-      while (!lexer->eof(lexer) && lexer->lookahead != '\n' && lexer->lookahead != '\r') lexer->advance(lexer, false);
-      continue;
-    }
-    if (lexer->lookahead != '*') return false;
-    lexer->advance(lexer, false);
-    if (!skip_block_comment(lexer)) return false;
-  }
 }
 
 static bool scan_else_keyword(TSLexer *lexer) {
@@ -646,6 +663,12 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     return digit(lexer->lookahead);
   }
   if (valid_symbols[DIMENSION_UNIT]) {
+    if (lexer->lookahead == '%') {
+      lexer->advance(lexer, false);
+      lexer->mark_end(lexer);
+      lexer->result_symbol = DIMENSION_UNIT;
+      return true;
+    }
     bool complex = false;
     lexer->result_symbol = DIMENSION_UNIT;
     return scan_unit(lexer, css, true, &complex);
