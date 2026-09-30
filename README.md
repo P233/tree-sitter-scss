@@ -22,26 +22,26 @@ The official grammar extends `tree-sitter-css` with SCSS rules. This project is 
 | Real code         | [rhythm-sass](https://github.com/P233/rhythm-sass) (1,157 non-blank lines): no errors | 700 error nodes; 37% of non-blank lines fall inside `ERROR`                |
 | Empty value       | `color: ;` is a declaration without a value                                           | A zero-width `integer_value`, with no error                                |
 | Selectors         | Flat compounds with explicit combinator nodes                                         | Left-nested: the `:hover` node in `.a .b:hover` spans the whole selector   |
-| Declarations      | Property, variable, and nested-property nodes                                         | One declaration node; nested properties are errors                         |
+| Declarations      | Property and variable declarations, including nested properties                       | One declaration node; nested properties are errors                         |
 | Fields            | `selectors`, `body`, `name`, `value`, `prelude`, `condition`                          | None on rules, declarations, or CSS at-rules                               |
 | Custom properties | Raw token payload                                                                     | Parsed as Sass: `0 / 20%` inside `rgb()` becomes a division                |
 
-Coverage matters beyond highlighting: node ranges inside an `ERROR` cannot be trusted, so scss2-mode refuses structural edits there. The costs are owning all CSS compatibility work and a generated parser about five times larger (3.8 MB of generated C against 0.79 MB). The node schema and highlight query are not interchangeable with the official grammar's.
+Coverage matters beyond highlighting: node ranges inside an `ERROR` cannot be trusted, so scss2-mode refuses structural edits there. The costs are owning all CSS compatibility work and a generated parser about five times larger (4.0 MB of generated C against 0.79 MB). The node schema and highlight query are not interchangeable with the official grammar's.
 
 ## Use from source
 
 Both bindings compile the generated C sources, so they need a C/C++ compiler; the Node build also needs Python. Clone a release tag and pack it for Node:
 
 ```sh
-git clone --branch v0.9.0 https://github.com/P233/tree-sitter-scss.git
+git clone --branch v0.10.0 https://github.com/P233/tree-sitter-scss.git
 cd tree-sitter-scss
-npm pack  # Writes tree-sitter-scss-0.9.0.tgz
+npm pack  # Writes tree-sitter-scss-0.10.0.tgz
 ```
 
 In a Node project next to the checkout, installing the tarball compiles the binding:
 
 ```sh
-npm install ../tree-sitter-scss/tree-sitter-scss-0.9.0.tgz tree-sitter@0.25.1
+npm install ../tree-sitter-scss/tree-sitter-scss-0.10.0.tgz tree-sitter@0.25.1
 ```
 
 ```js
