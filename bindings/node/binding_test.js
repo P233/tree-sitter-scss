@@ -77,7 +77,7 @@ test("a spaced identifier after a number is not a unit", () => {
 test("invalid token boundaries are rejected", () => {
   const parser = new Parser();
   parser.setLanguage(Scss);
-  for (const source of ["$ value: 1;", '$text: "raw\nnewline";']) {
+  for (const source of ["$ value: 1;", "$/**/value: 1;", "$\nvalue: 1;", '$text: "raw\nnewline";']) {
     assert.equal(parser.parse(source).rootNode.hasError, true, source);
   }
 });
@@ -129,4 +129,46 @@ test("an unfinished value preserves its declaration and the following rule", () 
   assert.equal(tree.rootNode.hasError, false);
   assert.equal(tree.rootNode.descendantsOfType("property_declaration")[0].text, "color: ;");
   assert.ok(tree.rootNode.descendantsOfType("property_name").some(node => node.text === "width"));
+});
+
+test("an unfinished variable preserves callable parameters and nested scopes", () => {
+  const parser = new Parser();
+  parser.setLanguage(Scss);
+  for (const source of [
+    "@mixin paint($tone) { color: $; } .after {}",
+    "@mixin outer($outer) { @mixin inner($inner) {} color: $; } .after {}",
+    "@function paint($tone) { @return $; } .after {}",
+    "@function paint($tone) { @return $/*c*/; } .after {}"
+  ]) {
+    let tree = parser.parse(source);
+    const root = tree.rootNode;
+    assert.equal(root.hasError, true, source);
+    const definition = root.firstNamedChild;
+    assert.ok(["mixin_definition", "function_definition"].includes(definition.type), root.toString());
+    assert.equal(definition.childForFieldName("parameters").text, source.includes("outer") ? "($outer)" : "($tone)");
+    assert.ok(definition.childForFieldName("body").hasError);
+    assert.equal(root.lastNamedChild.text, ".after {}");
+    const start = source.lastIndexOf("$") + 1;
+    let previous = "";
+    for (const name of ["tone", "", "other"]) {
+      tree.edit({
+        startIndex: start,
+        oldEndIndex: start + previous.length,
+        newEndIndex: start + name.length,
+        startPosition: { row: 0, column: start },
+        oldEndPosition: { row: 0, column: start + previous.length },
+        newEndPosition: { row: 0, column: start + name.length }
+      });
+      const edited = source.slice(0, start) + name + source.slice(start);
+      tree = parser.parse(edited, tree);
+      const fresh = parser.parse(edited);
+      assert.equal(tree.rootNode.hasError, name === "");
+      assert.equal(tree.rootNode.toString(), fresh.rootNode.toString());
+      const query = new Parser.Query(Scss, Scss.HIGHLIGHTS_QUERY);
+      const ranges = current =>
+        query.captures(current.rootNode).map(({ name, node }) => [name, node.startIndex, node.endIndex]);
+      assert.deepEqual(ranges(tree), ranges(fresh));
+      previous = name;
+    }
+  }
 });

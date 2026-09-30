@@ -97,10 +97,17 @@ module.exports = grammar({
     $._dimension_number,
     $._dimension_unit,
     $._descendant,
-    $._subtraction_minus
+    $._subtraction_minus,
+    $._statement_comment_start,
+    $._if_end,
+    $._namespace_prefix,
+    $._incomplete_variable_prefix,
+    $._missing_variable_name
   ],
   extras: $ => [/\s/, $.block_comment, $.inline_comment],
   word: $ => $._identifier,
+  // Keep nested properties in their declaration's reduction so malformed headers recover locally.
+  inline: $ => [$._nested_property],
   conflicts: $ => [
     [$.tag_selector, $._raw_statement_item],
     [$.tag_selector, $._variable],
@@ -123,7 +130,17 @@ module.exports = grammar({
   rules: {
     stylesheet: $ =>
       seq(
-        repeat(choice($.rule_set, $.variable_declaration, $._at_rule, ";", "<!--", "-->")),
+        repeat(
+          choice(
+            alias($._statement_comment, $.block_comment),
+            $.rule_set,
+            $.variable_declaration,
+            $._at_rule,
+            ";",
+            "<!--",
+            "-->"
+          )
+        ),
         optional($._final_statement)
       ),
     _statement: $ => choice($.rule_set, $.variable_declaration, $.property_declaration, $._at_rule, ";"),
@@ -140,7 +157,7 @@ module.exports = grammar({
         field("value", $._value),
         repeat(field("flags", $.flag))
       ),
-    property_declaration: $ => choice(seq($._property, ";"), $.nested_property),
+    property_declaration: $ => choice(seq($._property, ";"), $._nested_property),
     _property: $ =>
       choice(
         seq(
@@ -152,7 +169,7 @@ module.exports = grammar({
         rawProperty($, $._wrapped_dashed_name)
       ),
     _declaration_priority: $ => seq(alias($._important_bang, "!"), alias(keyword("important", true), "important")),
-    nested_property: $ => seq(field("name", $.property_name), ":", optional(field("value", $._value)), $._block),
+    _nested_property: $ => seq(field("name", $.property_name), ":", optional(field("value", $._value)), $._block),
     property_name: $ => seq(optional("*"), $._interpolated_identifier),
     // Aliasing this wrapper keeps `dashed_name` as a child of the aliased node.
     _wrapped_dashed_name: $ => $.dashed_name,
@@ -161,8 +178,10 @@ module.exports = grammar({
     // The literal `--` prefix outranks the identifier token that also matches it.
     _dashed_name: () => token(prec(2, seq("--", optional(NAME_FRAGMENT)))),
 
-    // Each comma item is exactly one named child: a simple, compound, or complex selector.
-    selectors: $ => commaSep1($._complex_selector),
+    // Each comma item is one named child: a simple, compound, or complex selector.
+    // Sass also accepts empty items and a trailing comma.
+    selectors: $ => $._selector_list,
+    _selector_list: $ => seq($._complex_selector, repeat(seq(",", optional($._complex_selector)))),
     _complex_selector: $ => choice($._compound_selector, $.complex_selector),
     // A descendant combinator is whitespace, so it separates compounds without a node.
     complex_selector: $ =>
@@ -188,8 +207,9 @@ module.exports = grammar({
       ),
     _simple_selector: $ =>
       choice($.tag_selector, $.universal_selector, $.parent_selector, $.keyframe_selector, $._subclass_selector),
-    // An adjacent interpolation, as in `:not(.a)#{$b}`, extends the compound as a type-like name.
-    _compound_tail: $ => choice($._subclass_selector, $.tag_selector),
+    // Only an adjacent interpolation, as in `:not(.a)#{$b}`, extends the compound as a type-like
+    // name. A name after whitespace needs the descendant token, so it cannot join from another statement.
+    _compound_tail: $ => choice($._subclass_selector, prec.right(alias($._identifier_tail, $.tag_selector))),
     _subclass_selector: $ =>
       choice($.id_selector, $.class_selector, $.placeholder_selector, $.attribute_selector, $.pseudo_selector),
     tag_selector: $ => $._interpolated_identifier,
@@ -198,7 +218,7 @@ module.exports = grammar({
     placeholder_selector: $ => seq("%", $._selector_name),
     parent_selector: $ => prec.right(seq("&", optional(adjacentName($, token.immediate(prec(1, NAME_FRAGMENT)))))),
     universal_selector: () => prec(-1, "*"),
-    namespace_selector: $ => seq(optional(choice(alias($._identifier, $.namespace_name), "*")), "|"),
+    namespace_selector: $ => seq(optional(choice(alias($._namespace_prefix, $.namespace_name), "*")), "|"),
     combinator: () => choice(">", "+", "~", "||"),
     keyframe_selector: $ => choice($.number, seq($.interpolation, token.immediate("%"))),
     attribute_selector: $ =>
@@ -241,7 +261,7 @@ module.exports = grammar({
         ")"
       ),
     nth_formula: $ => repeat1(choice(/[+-]?(?:[0-9]*[nN]|[0-9]+)|[+-]/, $.interpolation)),
-    selector_arguments: $ => seq(token.immediate("("), optional(choice($.selectors, $.string)), ")"),
+    selector_arguments: $ => seq(token.immediate("("), optional(choice($._selector_list, $.string)), ")"),
     _value_pseudo_name: () => token.immediate(choice(...VALUE_PSEUDOS.map(name => keyword(name, true)))),
     _pseudo_value_arguments: $ =>
       seq(token.immediate("("), repeat(choice($.plain_value, $.string, "*", ",", ".")), ")"),
@@ -255,10 +275,22 @@ module.exports = grammar({
     // Only an adjacent interpolation continues a name; whitespace starts the next value or selector.
     _adjacent_interpolation: $ => seq(alias(token.immediate(prec(1, "#{")), "#{"), $._value, "}"),
 
-    // Content wins over extras: apparent nested comment openers remain text.
+    // Trivia comments never enter SassScript, even when their text contains `#{`.
     block_comment: $ =>
       seq(
         "/*",
+        repeat(
+          choice(
+            alias(token.immediate(prec(1, /[^*#]+/)), $.comment_content),
+            alias(token.immediate(choice("*", "#")), $.comment_content)
+          )
+        ),
+        "*/"
+      ),
+    // Only statement positions offer this opener; content wins over extras, so nested openers stay literal.
+    _statement_comment: $ =>
+      seq(
+        alias($._statement_comment_start, "/*"),
         repeat(
           choice(
             alias(token.immediate(prec(1, /[^*#]+/)), $.comment_content),
@@ -410,7 +442,13 @@ module.exports = grammar({
     map_entry: $ => seq(field("key", $._space_value), ":", field("value", $._space_value)),
     spread: () => "...",
     operator: $ => choice("+", "-", "*", "/", "%", "==", "!=", "<", "<=", ">", ">=", $._sass_operator),
-    variable_name: () => token(seq("$", IDENTIFIER)),
+    // The scanner never emits _missing_variable_name: recovery inserts it for
+    // a bare prefix. Reusing IDENTIFIER here could join a name across extras.
+    variable_name: $ =>
+      choice(
+        token(seq("$", IDENTIFIER)),
+        seq(alias($._incomplete_variable_prefix, "$"), alias($._missing_variable_name, "identifier"))
+      ),
     boolean: $ => $._sass_boolean,
     null: $ => $._sass_null,
     hex_color: () => token(seq("#", /(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})/)),
@@ -569,7 +607,7 @@ module.exports = grammar({
         ),
         $._css_function_property
       ),
-    _css_function_property_declaration: $ => choice(seq($._css_function_property, ";"), $.nested_property),
+    _css_function_property_declaration: $ => choice(seq($._css_function_property, ";"), $._nested_property),
     _css_function_property: $ => choice($._property, prec(1, rawProperty($, $._result_property_name))),
     _css_function_query: $ => seq($._query_head, choice(";", $._css_function_block)),
     mixin_definition: $ =>
@@ -619,7 +657,11 @@ module.exports = grammar({
       ),
     content_statement: $ => seq($._content_head, ";"),
     _content_head: $ => seq(directive("content"), optional(alias($._mixin_arguments, $.arguments))),
-    if_statement: $ => prec.right(seq(directive("if"), field("condition", $._value), $._block, repeat($.else_clause))),
+    // Retain else lookahead, but allow an unfinished branch to recover inside its enclosing block.
+    if_statement: $ =>
+      prec.right(
+        seq(directive("if"), field("condition", $._value), $._block, repeat($.else_clause), optional($._if_end))
+      ),
     else_clause: $ =>
       seq(
         choice(
@@ -693,7 +735,11 @@ module.exports = grammar({
       ),
     namespace_statement: $ => seq($._namespace_head, ";"),
     _namespace_head: $ =>
-      seq(directive("namespace"), optional(alias($._identifier, $.namespace_name)), choice($.string, $.url)),
+      seq(
+        directive("namespace"),
+        optional(alias(choice(...identifierWords($), URL_NAME), $.namespace_name)),
+        choice($.string, $.url)
+      ),
     css_statement: $ => seq($._css_statement_head, choice(";", $._block)),
     _css_statement_head: $ => seq(choice(...CSS_STATEMENTS.map(directive)), optional(field("prelude", $._value))),
     page_statement: $ => seq(directive("page"), optional($.selectors), $._block),
@@ -733,16 +779,14 @@ module.exports = grammar({
   }
 });
 
-// An empty or comment-only block has no body node.
+// Direct braces define the complete block; body only groups its statements and loud comments.
 function braced(body) {
   return seq("{", optional(field("body", body)), "}");
 }
 
 function declarationBlock($, statement, property = $._property) {
-  return choice(
-    repeat1(statement),
-    seq(repeat(statement), choice(alias(property, $.property_declaration), $._final_statement))
-  );
+  const item = choice(statement, alias($._statement_comment, $.block_comment));
+  return choice(repeat1(item), seq(repeat(item), choice(alias(property, $.property_declaration), $._final_statement)));
 }
 
 // Raw values keep balanced text; only a trailing priority leaves the payload.
@@ -847,13 +891,10 @@ function interpolatedIdentifier($, identifier, hyphen, leading = $.interpolation
 function adjacentName($, identifier) {
   return interpolatedIdentifier($, identifier, token.immediate("-"), alias($._adjacent_interpolation, $.interpolation));
 }
-// Keywords match literal spellings only; an escaped spelling such as `c\61 lc` stays an ordinary identifier.
+// Keep keywords in Tree-sitter's compact keyword lexer. Escaped spellings
+// remain ordinary identifiers instead of expanding every keyword into a DFA.
 function keyword(word, ignoreCase = false) {
-  return new RegExp(
-    [...word]
-      .map(letter => (ignoreCase && /[a-z]/.test(letter) ? `[${letter}${letter.toUpperCase()}]` : letter))
-      .join("")
-  );
+  return new RegExp(ignoreCase ? word.replace(/[a-z]/g, letter => `[${letter}${letter.toUpperCase()}]`) : word);
 }
 
 function directive(name) {

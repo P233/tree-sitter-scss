@@ -19,14 +19,15 @@ function fieldTexts(node, field) {
   return node.childrenForFieldName(field).map(child => child.text);
 }
 
-test("body and selector fields preserve empty blocks and trivia boundaries", () => {
+test("body groups content while direct braces also represent empty blocks", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     const root = parse(".a, .b { color: red; } .empty {} .comments { /* only */ }", language);
     const [populated, empty, comments] = root.namedChildren;
     assert.deepEqual(fieldTexts(populated, "selectors"), [".a, .b"]);
     assert.deepEqual(fieldTexts(populated, "body"), ["color: red;"]);
+    assert.equal(empty.childForFieldName("body"), null);
+    assert.deepEqual(fieldTexts(comments, "body"), ["/* only */"]);
     for (const rule of [empty, comments]) {
-      assert.equal(rule.childForFieldName("body"), null);
       assert.deepEqual(
         rule.children.filter(child => !child.isNamed).map(child => child.text),
         ["{", "}"]
@@ -53,9 +54,8 @@ test("value fields keep ordered components apart from flags and trivia", () => {
   const root = parse("$x: 1 2, 3 !default !global; .a { font: bold { size: 1rem; } }");
   assert.deepEqual(fieldTexts(root.firstNamedChild, "value"), ["1", "2", ",", "3"]);
   assert.deepEqual(fieldTexts(root.firstNamedChild, "flags"), ["!default", "!global"]);
-  const nested = root.descendantsOfType("nested_property")[0];
-  assert.equal(nested.parent.type, "property_declaration");
-  assert.equal(nested.parent.childForFieldName("name"), null);
+  const nested = root.descendantsOfType("property_declaration")[0];
+  assert.equal(nested.parent.type, "declaration_block");
   assert.deepEqual(fieldTexts(nested, "name"), ["font"]);
   assert.deepEqual(fieldTexts(nested, "value"), ["bold"]);
   assert.deepEqual(fieldTexts(nested, "body"), ["size: 1rem;"]);
@@ -83,6 +83,82 @@ test("prelude and condition fields cannot include their bodies or dependent bran
   assert.deepEqual(fieldTexts(conditional, "body"), [".b {}"]);
   assert.deepEqual(fieldTexts(fallback, "condition"), []);
   assert.deepEqual(fieldTexts(fallback, "body"), []);
+});
+
+test("nested properties expose their fields and complete block delimiters directly", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    for (const content of ["", "/* only */", 'size: 1rem; /* } */ family: "{";', "weight: { heavy: 900; }"]) {
+      for (const header of [".a", "@function --f()", "@future"]) {
+        const source = `${header} { font: bold {${content}} color: red; } .after {}`;
+        const root = parse(source, language);
+        const property = root.descendantsOfType("property_declaration")[0];
+        assert.equal(property.parent.type, "declaration_block");
+        assert.deepEqual(fieldTexts(property, "name"), ["font"]);
+        assert.deepEqual(fieldTexts(property, "value"), ["bold"]);
+        assert.deepEqual(fieldTexts(property, "body"), content ? [content] : []);
+        const braces = property.children.filter(node => node.type === "{" || node.type === "}");
+        assert.deepEqual(
+          braces.map(node => node.type),
+          ["{", "}"]
+        );
+        assert.equal(source.slice(braces[0].endIndex, braces[1].startIndex), content);
+        assert.equal(property.nextNamedSibling.text, "color: red;");
+        assert.equal(root.lastNamedChild.text, ".after {}");
+      }
+    }
+  }
+});
+
+test("editing nested-property and selector-argument delimiters preserves fresh fields and ranges", () => {
+  const shape = node => [
+    node.type,
+    node.startIndex,
+    node.endIndex,
+    node.isMissing,
+    ...node.children.map((child, index) => [node.fieldNameForChild(index), shape(child)])
+  ];
+  const point = (source, index) => {
+    const lines = source.slice(0, index).split("\n");
+    return { row: lines.length - 1, column: lines.at(-1).length };
+  };
+  for (const language of [Scss, Scss.cssLanguage]) {
+    const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
+    const captures = root => query.captures(root).map(({ name, node }) => [name, node.startIndex, node.endIndex]);
+    for (const [source, from, to] of [
+      [".a { font: bold; color: red; } .after {}", "bold;", "bold { size: 1rem; }"],
+      [".a { font: bold { size: 1rem; } color: red; } .after {}", "size: 1rem;", "/* only */"],
+      [".a { font: { size: 1rem; } color: red; } .after {}", " } color", " color"],
+      [".a:is(.b, .c:not(.d, .e)) { color: red; } .after {}", ".d, .e", ".d /*,*/ > .e"],
+      [".a:is(.b, .c) { color: red; } .after {}", "is", "lang"],
+      [".a:is(.b, .c) { color: red; } .after {}", ".c)", ".c"],
+      [".a:is(.b, .c) { color: red; } .after {}", ".b, .c", ".b, // comma,\n .c"],
+      [".a:is() { color: red; } .after {}", "is()", "is(.b, .c)"]
+    ]) {
+      const start = source.indexOf(from);
+      const edited = source.slice(0, start) + to + source.slice(start + from.length);
+      for (const [before, after, removed, inserted] of [
+        [source, edited, from, to],
+        [edited, source, to, from]
+      ]) {
+        const parser = new Parser();
+        parser.setLanguage(language);
+        const previous = parser.parse(before);
+        previous.edit({
+          startIndex: start,
+          oldEndIndex: start + removed.length,
+          newEndIndex: start + inserted.length,
+          startPosition: point(before, start),
+          oldEndPosition: point(before, start + removed.length),
+          newEndPosition: point(after, start + inserted.length)
+        });
+        const incremental = parser.parse(after, previous).rootNode;
+        const fresh = parser.parse(after).rootNode;
+        assert.deepEqual(shape(incremental), shape(fresh), `${before} -> ${after}`);
+        assert.deepEqual(captures(incremental), captures(fresh), `${before} -> ${after}`);
+        if (!fresh.hasError) assert.equal(incremental.lastNamedChild.text, ".after {}");
+      }
+    }
+  }
 });
 
 test("callable fields distinguish module names, parameters, arguments and defaults", () => {
@@ -133,8 +209,8 @@ test("rule, declaration and nested-property bodies keep their own sibling bounda
     body.namedChildren.map(node => node.type),
     ["property_declaration", "property_declaration", "rule_set"]
   );
-  const nested = body.firstNamedChild.firstNamedChild;
-  assert.equal(nested.type, "nested_property");
+  const nested = body.firstNamedChild;
+  assert.equal(nested.type, "property_declaration");
   assert.equal(nested.childForFieldName("name").text, "font");
   assert.equal(children(nested, "declaration_block")[0].text, "size: 1rem;");
   assert.equal(body.namedChildren[1].childForFieldName("name").text, "color");

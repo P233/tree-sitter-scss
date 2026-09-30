@@ -150,7 +150,7 @@ test("compound and descendant selectors are distinct nodes", () => {
       ["parent_selector", "parent_selector", "compound_selector", "complex_selector"]
     );
     const pseudo = parse(".d:is(.e .f, .g) {}", language).descendantsOfType("selector_arguments")[0];
-    assert.deepEqual(shape(pseudo.firstNamedChild), [
+    assert.deepEqual(shape(pseudo), [
       ["complex_selector", ".e .f"],
       ["class_selector", ".g"]
     ]);
@@ -177,6 +177,37 @@ test("interpolated pseudos keep descendant boundaries across quoted and commente
         assert.equal(root.lastNamedChild.text, ".after {}");
       }
     }
+  }
+});
+
+test("selector arguments keep direct branches and their own commas and parentheses", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    const source = '.host:is(.a /*,*/, .b:not([data-x=","], .c)):lang("en,fr") {} .after {}';
+    const root = parse(source, language);
+    const [outer, inner, value] = root.descendantsOfType("selector_arguments");
+    assert.deepEqual(shape(outer), [
+      ["class_selector", ".a"],
+      ["compound_selector", '.b:not([data-x=","], .c)']
+    ]);
+    assert.deepEqual(shape(inner), [
+      ["attribute_selector", '[data-x=","]'],
+      ["class_selector", ".c"]
+    ]);
+    assert.deepEqual(shape(value), [["string", '"en,fr"']]);
+    for (const node of [outer, inner, value]) {
+      assert.equal(node.firstChild.type, "(");
+      assert.equal(node.lastChild.type, ")");
+      assert.equal(node.children.filter(child => child.type === ",").length, node === value ? 0 : 1);
+      assertOneUnitPerItem(node);
+    }
+    assert.equal(root.descendantsOfType("selectors").length, 2);
+    assert.equal(root.lastNamedChild.text, ".after {}");
+    const nth = parse(".a:nth-child(2n of .b:is(.c, .d), .e) {}", language).descendantsOfType("nth_arguments")[0];
+    assert.equal(nth.namedChildren[1].type, "selectors");
+    assert.deepEqual(shape(nth.namedChildren[1]), [
+      ["compound_selector", ".b:is(.c, .d)"],
+      ["class_selector", ".e"]
+    ]);
   }
 });
 
@@ -349,5 +380,30 @@ test("incremental edits across editing-unit boundaries agree with fresh parses",
       const captures = node => query.captures(node).map(({ name, node }) => [name, node.startIndex, node.endIndex]);
       assert.deepEqual(captures(incremental), captures(fresh));
     }
+  }
+});
+
+test("selector lists accept the empty and trailing commas Sass allows", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    for (const [source, type, items] of [
+      ["a, b, { c: d }", "selectors", ["a", "b"]],
+      ["a,\nb,\n{ c: d }", "selectors", ["a", "b"]],
+      ["a, , b { c: d }", "selectors", ["a", "b"]],
+      ["a,, { c: d }", "selectors", ["a"]],
+      ["@extend .x, ;", "selectors", [".x"]],
+      ["@extend .x,", "selectors", [".x"]],
+      ["a:is(.x, , .y) { c: d }", "selector_arguments", [".x", ".y"]]
+    ]) {
+      const node = parse(source, language).descendantsOfType(type)[0];
+      assertOneUnitPerItem(node);
+      assert.deepEqual(
+        units(node).map(child => child.text),
+        items,
+        source
+      );
+    }
+    const parser = new Parser();
+    parser.setLanguage(language);
+    assert.equal(parser.parse(", a { c: d }").rootNode.hasError, true);
   }
 });

@@ -19,16 +19,22 @@ const executable = join(
   process.platform === "win32" ? "tree-sitter.exe" : "tree-sitter"
 );
 
-function runTreeSitter(args, { reportWarnings = false } = {}) {
+function runTreeSitter(args, { reportWarnings = false, inherit = false } = {}) {
   const result = spawnSync(executable, args, {
     ...childOptions,
+    // Foreground CLI commands retain their terminal and may intentionally run longer than preview requests.
+    ...(inherit ? { stdio: "inherit", timeout: undefined } : {}),
     // The CLI keys compiled libraries by grammar name, so keep worktrees isolated.
     env: { ...process.env, TREE_SITTER_LIBDIR: join(root, "build/tree-sitter") }
   });
   if (result.error) throw result.error;
   if (result.status !== 0) {
     const reason = result.signal || `exit status ${result.status}`;
-    throw Object.assign(new Error(`tree-sitter ${args[0]} failed with ${reason}`), { stderr: result.stderr });
+    throw Object.assign(new Error(`tree-sitter ${args[0]} failed with ${reason}`), {
+      stdout: result.stdout,
+      stderr: result.stderr,
+      exitCode: result.status || 1
+    });
   }
   // Successful generation still reports grammar warnings, such as unnecessary conflicts.
   if (reportWarnings && result.stderr) process.stderr.write(result.stderr);
@@ -87,19 +93,25 @@ function checkGenerated() {
 
 if (require.main === module) {
   try {
-    if (process.argv.includes("--build")) {
+    const [command, ...args] = process.argv.slice(2);
+    if (command === "--build") {
       build();
-    } else if (process.argv.includes("--check")) {
+    } else if (command === "--check") {
       const largeStates = checkGenerated();
       console.log(
         `Generated files match grammar.js (ABI 14); ${largeStates}/${LARGE_STATE_BUDGET} large parse states.`
       );
-    } else {
+    } else if (["test", "parse", "highlight"].includes(command)) {
+      runTreeSitter([command, "--config-path", "test/config.json", "--grammar-path", ".", ...args], { inherit: true });
+    } else if (command === undefined) {
       generate();
+    } else {
+      throw new Error(`Unknown grammar command: ${command}`);
     }
   } catch (error) {
+    if (error.stdout) process.stdout.write(error.stdout);
     console.error(error.stderr || error.message);
-    process.exitCode = 1;
+    process.exitCode = error.exitCode || 1;
   }
 }
 

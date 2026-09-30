@@ -77,7 +77,13 @@ let tree = parser.parse(".card { color: $accent; }", None).unwrap();
 - **The CSS entry differs only lexically:** `#{` inside a string stays literal and `1px-2px` is one dimension. Sass syntax in a `.css` file still parses without errors, and neither entry reports semantic problems such as undefined variables.
 - **Fields are not always singular:** `value`, `prelude`, and `condition` may hold several ordered children, including anonymous commas. Do not treat the first field child as the whole expression.
 - **Declaration values and Sass lists are ordered atoms:** there is no evaluation tree and no node per comma-separated item, so split on the comma children. Call arguments and maps do have item nodes: several atoms in one argument are wrapped in `argument`, and each map pair is a `map_entry`. `-10px` is one number, while `-$gutter` is an operator followed by a variable.
-- **Empty forms have no content node:** an empty block has no `body` and an empty declaration has no `value`, so recognize the braces or colon without requiring them.
+- **Nested properties use `property_declaration` directly:** `name`, optional `value`, and optional `body` belong to the same node, with direct braces even when the property block is empty. There is no public `nested_property` wrapper.
+- **Selector-taking pseudo arguments are direct branches:** `selector_arguments` contains its parentheses, comma-separated selector branches, and comments without an inner `selectors` node. Value-taking pseudos such as `:lang()` instead contain value nodes; the `of` list in `nth_arguments` retains its own `selectors` node.
+- **Selector lists can hold empty items:** Sass accepts `a, , b` and a trailing comma, so a `,` child may be followed by another comma, the block, or a closing parenthesis instead of a selector.
+- **Block boundaries:** the owning rule, declaration, or directive has direct `{` and `}` children. Use those delimiters to identify the complete block interior, including comments and whitespace. The optional `body` only groups content; it can begin or end with a statement comment, and a comment-only block can have a `body`.
+- **Empty forms:** an empty block has no `body` and an empty declaration has no `value`, so recognize the braces or colon without requiring content nodes.
+- **Comments and strings:** a `/* */` comment in a statement position is a `block_comment` child; other comments are extras with literal text, and `//` comments never parse interpolation. In SCSS, statement comments and strings parse `#{…}` when its closing brace follows without leaving the enclosing block, statement, comment, or string, and the expression may span lines. An opener without such a closer stays literal text as an editing tolerance, even though Sass may reject it.
+- **Statements being typed:** whitespace that crosses a line break is a descendant combinator unless the statement ends within the next 1 KB before a block opens. A name or a single compound selector typed on its own line above another statement is therefore one `ERROR` node and leaves that statement intact; a selector of several compounds can still absorb it until its block is typed, and an unclosed `#{` outside comments and strings pairs with the next `}`.
 - **Versioning:** keep the parser, [node schema](src/node-types.json), and [highlight query](queries/highlights.scm) on the same revision. A compatible ABI does not make another grammar's schema or queries interchangeable with these.
 
 ## Highlighting
@@ -94,9 +100,10 @@ The query expects a later capture of the same range to override an earlier one, 
 
 In about 680,000 lines from 14 popular CSS and SCSS frameworks, such as Bootstrap 5.3 and Bulma 1.0, only the unspaced subtraction below appeared, on a single line.
 
-- Escaped keyword spellings are not decoded: `@m\65 dia` becomes a generic at-rule, while `!\69mportant` and `:nth-child(2\6e+1)` produce parse errors. A hex escape followed by CRLF splits the identifier: `.x\31`, CRLF, `b` reads as a descendant selector instead of `.x1b`.
+- Escaped identifiers retain their source spelling, but escaped keywords such as `c\61 lc`, `@m\65 dia`, and `:l\61 ng` use generic syntax instead of their specialized roles. Keyword-only forms such as escaped `!important`, and escapes inside `An+B` formulas, may produce a parse error. Numeric constants in calculations and CSS `var()` keep their scanner-based escape support. CSS consumes CRLF as one escape terminator; SCSS retains its single-character terminator, so `.x\31`, CRLF, `b` reads as a descendant selector in SCSS.
+- In comments and strings, an interpolation pairs only when its closing brace lies within 1 KB of its opener, with each nested opener counting as 64 characters. If the expression contains the comment's `*/`, or in a string its own quote or a line break, the comment or string must end on the closing line or open another interpolation there.
 - Typed `attr()` unions such as `attr(data-width type(<length> | <percentage>), 10px)` produce a parse error.
-- A descendant combinator is read from whitespace directly before the next compound, so `.a /* c */.b` is one compound selector. In `@extend`, `.a :hover` reads as `.a:hover`; Sass rejects both forms.
+- A descendant combinator is read from whitespace directly before the next compound, so `.a /* c */.b` is one compound selector. In `@extend`, `.a :hover` reads as `.a:hover`; Sass rejects both forms. A name glued to the preceding simple selector, as in `[x]a`, is a parse error; Sass reads it as a descendant.
 - Unspaced subtraction after a closing parenthesis reads as a negative number: `fn()-1` and `($s)-1` both end with the number `-1` instead of a subtraction.
 - Inside Sass `url()`, `url(map.get($icons, x))` keeps `map.get` as one `function_name` without a `module_name`. Inside raw custom-property values, `url(https://a.test/x.png)` splits into the word `https`, a colon, and the raw text `//a.test/x.png`.
 - With 1,000 nested rules, adding a descendant combinator to the innermost selector spent about 50 ms computing incremental changed ranges on an Apple M1 Pro; other edits, and the same edit at 100 levels, stayed under 1 ms. The deepest block nesting in the sample was 11 levels.
@@ -112,6 +119,8 @@ pnpm dev     # Live preview of trees and highlights at http://127.0.0.1:4173
 ```
 
 `grammar.js` and `src/scanner.c` are the authored sources; `pnpm generate` regenerates everything else under `src/`.
+
+After `pnpm build`, run native acceptance tests with `pnpm test:node` or the development tooling and preview tests with `pnpm test:development`. `pnpm benchmark` reports reproducible parsing and editing workloads. See [Architecture](ARCHITECTURE.md) for ownership, invariants, and comparison instructions.
 
 ## License
 

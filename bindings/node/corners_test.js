@@ -16,6 +16,10 @@ function parse(source, language) {
   };
 }
 
+function blockDeclarations(root) {
+  return root.descendantsOfType("property_declaration").filter(node => node.children.some(child => child.type === "{"));
+}
+
 function role(captures, text, expected, excluded) {
   const names = captures.filter(capture => capture.node.text === text).map(capture => capture.name);
   assert.ok(names.includes(expected), `${text}: expected ${expected}, got ${names}`);
@@ -304,14 +308,14 @@ test("escaped custom property prefixes are ordinary property names", () => {
     for (const name of [String.raw`\2d\2d x`, String.raw`-\2d x`, String.raw`\-\-x`]) {
       const { tree, captures } = parse(`.a { ${name}: {a:b;}; color:red; } .after {}`, language);
       assert.equal(tree.rootNode.descendantsOfType("raw_value").length, 0);
-      assert.equal(tree.rootNode.descendantsOfType("nested_property")[0].childForFieldName("name").text, name);
+      assert.equal(blockDeclarations(tree.rootNode)[0].childForFieldName("name").text, name);
       assert.equal(tree.rootNode.lastNamedChild.text, ".after {}");
       role(captures, name, "property");
     }
   }
 });
 
-test("selector queries accept any letter case without claiming escaped or longer names", () => {
+test("selector queries accept letter case without claiming escaped or longer names", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     for (const name of ["selector", "SeLeCtOr"]) {
       const { tree, captures } = parse(`@supports ${name}(:has(> .foo)) { .ok {} } .after {}`, language);
@@ -323,8 +327,8 @@ test("selector queries accept any letter case without claiming escaped or longer
     for (const name of [
       "selectorx",
       "SeLeCtOrX",
-      String.raw`s\65 lectorx`,
       String.raw`s\65 lector`,
+      String.raw`s\65 lectorx`,
       "selector#{$suffix}"
     ]) {
       const { tree } = parse(`.a { value: ${name}(foo); }`, language);
@@ -427,11 +431,11 @@ test("CSS function parameters share escaped and Unicode custom property spelling
   }
 });
 
-test("CSS result descriptors accept any letter case without claiming escaped, longer, or interpolated names", () => {
+test("CSS result descriptors accept case without claiming escaped, longer or interpolated names", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     for (const name of ["result", "RESULT"]) {
       const { tree, captures } = parse(`@function --f() { ${name}: {payload:value}; color:red; } .after {}`, language);
-      assert.equal(tree.rootNode.descendantsOfType("nested_property").length, 0);
+      assert.equal(blockDeclarations(tree.rootNode).length, 0);
       assert.equal(tree.rootNode.descendantsOfType("raw_value").length, 1);
       assert.equal(tree.rootNode.descendantsOfType("property_declaration").length, 2);
       assert.equal(tree.rootNode.lastNamedChild.text, ".after {}");
@@ -442,8 +446,8 @@ test("CSS result descriptors accept any letter case without claiming escaped, lo
     for (const name of ["resultx", "RESULTant", "result#{$x}", String.raw`r\65 sult`]) {
       const { tree } = parse(`.a { ${name}: {payload:value}; }`, language);
       assert.equal(tree.rootNode.descendantsOfType("raw_value").length, 0);
-      assert.equal(tree.rootNode.descendantsOfType("nested_property").length, 1);
-      assert.equal(tree.rootNode.descendantsOfType("nested_property")[0].childForFieldName("name").text, name);
+      assert.equal(blockDeclarations(tree.rootNode).length, 1);
+      assert.equal(blockDeclarations(tree.rootNode)[0].childForFieldName("name").text, name);
     }
   }
 });
@@ -536,7 +540,7 @@ test("result raw values are limited to CSS function bodies and their conditional
       ]) {
         const { tree } = parse(`@function --f() { ${body} } .after {}`, language);
         assert.equal(tree.rootNode.descendantsOfType("raw_value").length, 1);
-        assert.equal(tree.rootNode.descendantsOfType("nested_property").length, 0);
+        assert.equal(blockDeclarations(tree.rootNode).length, 0);
         assert.equal(tree.rootNode.lastNamedChild.text, ".after {}");
       }
     }
@@ -631,6 +635,11 @@ test("corner-case incremental parses and captures agree with fresh parses", () =
   for (const language of [Scss, Scss.cssLanguage]) {
     for (const [before, after] of [
       ["@supports selector(:has(.foo)) {} .after {}", "@supports SELECTOR(:has(.foo)) {} .after {}"],
+      ["@supports selector(button) {} .after {}", String.raw`@supports s\65 lector(button) {} .after {}`],
+      ["@media (width: 40rem) {} .after {}", String.raw`@m\65 dia (width: 40rem) {} .after {}`],
+      [".a { width: calc(pi); } .after {}", String.raw`.a { width: c\61 lc(p\69); } .after {}`],
+      [String.raw`.a { width: \63\61lc(pi); } .after {}`, String.raw`.a { width: \63alc(pi); } .after {}`],
+      [".a:lang(en) {} .after {}", String.raw`.a:l\61 ng(en) {} .after {}`],
       [".a { --x: {a:b;}; color:red; } .after {}", String.raw`.a { \2d\2d x: {a:b;}; color:red; } .after {}`],
       ["@media (width: 40rem) {} .after {}", "@media (width > 40rem) {} .after {}"],
       ["@function --f(--a <length>) {} .after {}", "@function --f(--a <length>+) {} .after {}"],

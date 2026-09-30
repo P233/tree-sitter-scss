@@ -55,18 +55,40 @@ for (const name of mathFunctions) {
   });
 }
 
-// Keywords match literal spellings only, although CSS and Sass would decode these escapes.
-test("escaped calculation names and numeric constants stay ordinary words", () => {
+test("escaped numeric constants retain builtin roles inside literal calculation names", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     for (const [call, constant] of [
-      [String.raw`c\61 lc(p\69)`, String.raw`p\69`],
-      [String.raw`\000063alc(\000070i)`, String.raw`\000070i`],
-      [String.raw`\sqrt(\pi)`, String.raw`\pi`],
-      [String.raw`a\63 os(\65)`, String.raw`\65`],
+      [String.raw`calc(p\69)`, String.raw`p\69`],
+      [String.raw`calc(\000070i)`, String.raw`\000070i`],
+      [String.raw`sqrt(\pi)`, String.raw`\pi`],
+      [String.raw`acos(\65)`, String.raw`\65`],
       [String.raw`calc(inf\69 nity)`, String.raw`inf\69 nity`],
       [String.raw`calc(N\61 N)`, String.raw`N\61 N`]
     ]) {
-      assertRole(captures(`.sample { width: ${call}; }`, language), constant, "constant", ["constant.builtin"]);
+      assertRole(captures(`.sample { width: ${call}; }`, language), constant, "constant.builtin", ["constant"]);
+    }
+  }
+});
+
+test("escaped calculation names remain ordinary calls with complete escape boundaries", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    for (const name of [
+      String.raw`\63\61lc`,
+      String.raw`\63\61\6c\63`,
+      String.raw`\6D in`,
+      String.raw`c\61 lc`,
+      String.raw`\000063alc`,
+      String.raw`\sqrt`,
+      String.raw`a\63 os`,
+      String.raw`\63alc`,
+      String.raw`\6Dax`,
+      String.raw`\61bs`,
+      String.raw`c\61  lc`
+    ]) {
+      assertRole(captures(`.a { width: ${name}(pi); }`, language), "pi", "constant", ["constant.builtin"]);
+    }
+    for (const name of [String.raw`\65e`, String.raw`\000065extra`]) {
+      assertRole(captures(`.a { width: calc(${name}); }`, language), name, "constant", ["constant.builtin"]);
     }
   }
 });
@@ -164,16 +186,25 @@ test("conditional named arguments share parameter roles without changing configu
   }
 });
 
-test("identifier pseudo arguments retain roles across letter case", () => {
+test("literal value pseudos retain value roles while escaped names use generic selector arguments", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     for (const [pseudo, argument] of [
       [":LANG", "en"],
       [":DiR", "rtl"],
       ["::PART", "label"],
       ["::HIGHLIGHT", "search"],
-      ["::VIEW-TRANSITION-OLD", "root"]
+      ["::VIEW-TRANSITION-OLD", "root"],
+      [String.raw`:l\61 ng`, "en"],
+      [String.raw`:d\69 r`, "rtl"],
+      [String.raw`::p\61 rt`, "label"],
+      [String.raw`::h\69 ghlight`, "search"],
+      [String.raw`::view-transit\69 on-new`, "root"]
     ]) {
-      assertRole(captures(`.sample${pseudo}(${argument}) {}`, language), argument, "constant");
+      assertRole(
+        captures(`.sample${pseudo}(${argument}) {}`, language),
+        argument,
+        pseudo.includes("\\") ? "tag" : "constant"
+      );
     }
   }
 });

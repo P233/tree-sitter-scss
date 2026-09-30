@@ -14,6 +14,77 @@ function texts(tree, type) {
   return tree.rootNode.descendantsOfType(type).map(node => node.text);
 }
 
+test("CSS CRLF escapes retain identifier boundaries and original source ranges", () => {
+  const normalized = node => [
+    node.type,
+    node.text.replaceAll("\r\n", "\n"),
+    node.isMissing,
+    ...node.children.map((child, index) => [node.fieldNameForChild(index), normalized(child)])
+  ];
+  const query = new Parser.Query(Scss.cssLanguage, Scss.HIGHLIGHTS_QUERY);
+  for (const source of [
+    ".a:l\\61\r\nng(en) {}",
+    ".a { width: c\\61\r\nlc(pi); }",
+    "@m\\65\r\ndia screen { .x\\31\r\nb { image: u\\72\r\nl(foo); } }",
+    ".a:nth-\\63\r\nhild(.b) {}",
+    '.a { --raw: foo\\61\r\nbar; width: 1p\\78\r\nx; content: "a\\61\r\nb"; }'
+  ]) {
+    const tree = parse(source);
+    const lf = parse(source.replaceAll("\r\n", "\n"));
+    assert.deepEqual(normalized(tree.rootNode), normalized(lf.rootNode), source);
+    assert.deepEqual(
+      query.captures(tree.rootNode).map(({ name, node }) => [name, node.text.replaceAll("\r\n", "\n")]),
+      query.captures(lf.rootNode).map(({ name, node }) => [name, node.text]),
+      source
+    );
+    for (const { node } of query.captures(tree.rootNode)) {
+      assert.equal(node.text, source.slice(node.startIndex, node.endIndex));
+    }
+  }
+  const source = ".x\\31\r\nb {}";
+  assert.deepEqual(texts(parse(source), "class_selector"), [".x\\31\r\nb"]);
+  const sass = parse(source, new Parser(), undefined, Scss);
+  assert.deepEqual(texts(sass, "class_selector"), [".x\\31\r"]);
+  assert.deepEqual(texts(sass, "tag_selector"), ["b"]);
+});
+
+test("CSS CRLF preprocessing follows the logical input across included ranges", () => {
+  const source = ".a:l\\61\r omitted \nng(en) {}";
+  const split = source.indexOf(" omitted ");
+  const position = index => {
+    const lines = source.slice(0, index).split("\n");
+    return { row: lines.length - 1, column: lines.at(-1).length };
+  };
+  const range = (start, end) => ({
+    startIndex: start,
+    endIndex: end,
+    startPosition: position(start),
+    endPosition: position(end)
+  });
+  const parser = new Parser();
+  parser.setLanguage(Scss.cssLanguage);
+  const tree = parser.parse(source, undefined, {
+    includedRanges: [range(0, split), range(split + " omitted ".length, source.length)]
+  });
+  assert.equal(tree.rootNode.hasError, false, tree.rootNode.toString());
+  assert.deepEqual(texts(tree, "pseudo_name"), ["l\\61\r omitted \nng"]);
+  assert.deepEqual(texts(tree, "selector_arguments"), ["(en)"]);
+});
+
+test("escaped priority keywords report a local error without losing following rules", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    const parser = new Parser();
+    parser.setLanguage(language);
+    for (const priority of [String.raw`!imp\6f rtant`, "!imp\\6f\r\nrtant"]) {
+      const source = `.a { color: red ${priority}; width: 1px; } .after {}`;
+      const root = parser.parse(source).rootNode;
+      assert.equal(root.hasError, true, source);
+      assert.equal(root.lastNamedChild.text, ".after {}", source);
+      assert.equal(root.descendantsOfType("property_declaration").at(-1).text, "width: 1px;", source);
+    }
+  }
+});
+
 test("CSS literal interpolation-like strings preserve following declarations", () => {
   for (const value of ['"#{"', "'#{text'", '"#{}"', '"#{foo: bar}"', '"#{foo?bar}"', '"#{(text}"']) {
     const tree = parse(`.a { content: ${value}; color: red; } .sentinel { display: grid; }`);
@@ -76,6 +147,143 @@ test("quoted Sass list items and word operators remain inside interpolation", ()
   }
 });
 
+test("one Sass interpolation preserves mixed value types and their ranges", () => {
+  const expression = "#{'gap' $gap #369 true null math.div(12px, 3)}";
+  const tree = parse(`.a { content: "${expression}"; }`, new Parser(), undefined, Scss);
+  const [interpolation] = tree.rootNode.descendantsOfType("interpolation");
+  assert.equal(interpolation.text, expression);
+  assert.deepEqual(
+    interpolation.namedChildren.map(node => [node.type, node.text]),
+    [
+      ["string", "'gap'"],
+      ["variable_name", "$gap"],
+      ["hex_color", "#369"],
+      ["boolean", "true"],
+      ["null", "null"],
+      ["call_expression", "math.div(12px, 3)"]
+    ]
+  );
+});
+
+test("keyword-shaped CSS namespace prefixes keep their complete names and module roles", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
+    for (const name of [
+      "svg",
+      "calc",
+      "min",
+      "style",
+      "media",
+      "supports",
+      "selector",
+      "if",
+      "else",
+      "result",
+      "url",
+      "URL",
+      "true",
+      "false",
+      "null",
+      "not",
+      "and",
+      "or",
+      "element",
+      "expression",
+      "--x",
+      "x-long",
+      "色",
+      "calc-extra",
+      String.raw`c\61 lc`
+    ]) {
+      const rule = `${name}|a, a[${name}|href] { color: red; }`;
+      for (const body of [rule, `.outer { ${rule} }`]) {
+        const tree = parse(`@namespace ${name} "urn:test"; ${body}`, new Parser(), undefined, language);
+        assert.deepEqual(texts(tree, "namespace_name"), [name, name, name]);
+        assert.deepEqual(
+          query
+            .captures(tree.rootNode)
+            .filter(({ name }) => name === "module")
+            .map(({ node }) => node.text),
+          [name, name, name]
+        );
+        assert.deepEqual(texts(tree, "function_name"), []);
+        assert.deepEqual(texts(tree, "boolean"), []);
+        assert.deepEqual(texts(tree, "null"), []);
+      }
+    }
+    const tree = parse(
+      '@namespace url("urn:default"); @namespace url url("urn:named"); url|a, *|a, |a {}',
+      new Parser(),
+      undefined,
+      language
+    );
+    assert.deepEqual(texts(tree, "namespace_name"), ["url", "url"]);
+    assert.equal(texts(tree, "url").length, 2);
+    assert.deepEqual(texts(tree, "namespace_selector"), ["url|", "*|", "|"]);
+  }
+});
+
+test("namespace prefixes do not reclassify ordinary names or other pipe syntax", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    for (const name of ["calc", "url", "true", "false", "null", "not", "and", "or", "element", "expression"]) {
+      const tree = parse(`${name} { ${name}: red; .outer { ${name} {} } }`, new Parser(), undefined, language);
+      assert.deepEqual(texts(tree, "tag_selector"), [name, name]);
+      assert.deepEqual(texts(tree, "property_name"), [name]);
+      assert.deepEqual(texts(tree, "namespace_name"), []);
+    }
+    const tree = parse("a |b, a||b, a[lang|=en] {}", new Parser(), undefined, language);
+    assert.deepEqual(texts(tree, "namespace_name"), []);
+    assert.deepEqual(texts(tree, "namespace_selector"), ["|"]);
+    assert.deepEqual(texts(tree, "combinator"), ["||"]);
+    assert.deepEqual(texts(tree, "attribute_operator"), ["|="]);
+    assert.equal(texts(tree, "complex_selector").length, 2);
+  }
+});
+
+test("incremental namespace qualification preserves fresh trees and captures", () => {
+  const shape = node => [node.type, node.startIndex, node.endIndex, node.isMissing, ...node.children.map(shape)];
+  for (const language of [Scss, Scss.cssLanguage]) {
+    const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
+    const captures = tree =>
+      query.captures(tree.rootNode).map(({ name, node }) => [name, node.startIndex, node.endIndex]);
+    for (const [before, after] of [
+      ["calc", "url"],
+      ["calc|a", "calc |a"],
+      ["svg|a", "svg||a"],
+      ["lang|href", "lang|=href"]
+    ]) {
+      for (const [from, to] of [
+        [before, after],
+        [after, before]
+      ]) {
+        const original =
+          before === "calc"
+            ? '@namespace calc "urn:test"; calc|a {}'
+            : before.startsWith("lang")
+              ? ".a[lang|href] {}"
+              : `${before} { color: red; }`;
+        const source = `${original.replace(before, from)} .next {}`;
+        const parser = new Parser();
+        const tree = parse(source, parser, undefined, language);
+        const start = source.indexOf(from);
+        tree.edit({
+          startIndex: start,
+          oldEndIndex: start + from.length,
+          newEndIndex: start + to.length,
+          startPosition: { row: 0, column: start },
+          oldEndPosition: { row: 0, column: start + from.length },
+          newEndPosition: { row: 0, column: start + to.length }
+        });
+        const edited = source.slice(0, start) + to + source.slice(start + from.length);
+        const incremental = parse(edited, parser, tree, language);
+        const fresh = parse(edited, new Parser(), undefined, language);
+        assert.deepEqual(shape(incremental.rootNode), shape(fresh.rootNode), `${source} -> ${edited}`);
+        assert.deepEqual(captures(incremental), captures(fresh));
+      }
+    }
+  }
+});
+
 test("CSS custom-property raw groups accept literal interpolation delimiters", () => {
   const tree = parse(".a { --empty: #{}; --record: #{name: value}; --nested: #{[one, two]}; color: red; }");
   assert.ok(texts(tree, "raw_group").includes("#{}"));
@@ -93,6 +301,12 @@ test("CSS URLs keep hashes, dollars, and apparent interpolation as literal paylo
   assert.ok(texts(tree, "raw_text").includes("#{$color}"));
   assert.ok(texts(tree, "raw_text").includes("$path"));
   assert.deepEqual(texts(tree, "property_name"), ["background", "cursor", "mask", "image"]);
+  for (const payload of ["$", "$path"]) {
+    const literal = parse(`.a { background: url(${payload}); } .after {}`);
+    assert.deepEqual(texts(literal, "variable_name"), []);
+    assert.deepEqual(texts(literal, "raw_text"), [payload]);
+    assert.equal(literal.rootNode.lastNamedChild.text, ".after {}");
+  }
 });
 
 test("empty values remain structural declarations with and without semicolons", () => {

@@ -1,7 +1,17 @@
 const assert = require("node:assert/strict");
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const { once } = require("node:events");
-const { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } = require("node:fs");
+const {
+  cpSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync
+} = require("node:fs");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 const { setTimeout: delay } = require("node:timers/promises");
@@ -95,6 +105,51 @@ test("generated parsers stay within the large parse state budget", t => {
   writeFileSync(join(directory, "parser.c"), "#define STATE_COUNT 900\n");
   assert.throws(() => checkLargeStates(directory, 12), /LARGE_STATE_COUNT is missing/);
   assert.ok(checkLargeStates(join(root, "src")) > 0, "The committed parser must satisfy the default budget");
+});
+
+test("CLI commands compile each checkout independently and retain failed parse diagnostics", { timeout: 30_000 }, t => {
+  const directory = temporaryDirectory(t);
+  const checkouts = [join(directory, "first"), join(directory, "second")];
+  for (const checkout of checkouts) {
+    for (const path of ["scripts", "test", "examples"]) mkdirSync(join(checkout, path), { recursive: true });
+    for (const path of [
+      "src",
+      "grammar.js",
+      "tree-sitter.json",
+      "package.json",
+      "scripts/grammar.js",
+      "test/config.json"
+    ]) {
+      cpSync(join(root, path), join(checkout, path), { recursive: true });
+    }
+    symlinkSync(join(root, "node_modules"), join(checkout, "node_modules"), "junction");
+    writeFileSync(join(checkout, "examples/highlight-stress.scss"), ".sample { color: red; }");
+  }
+  // The second generated fixture has the same grammar name, but a distinguishable root node.
+  const secondParser = join(checkouts[1], "src/parser.c");
+  writeFileSync(secondParser, readFileSync(secondParser, "utf8").replace('"stylesheet"', '"alternate_stylesheet"'));
+  // Execute the package script without pnpm's unrelated install-on-run policy in disposable fixtures.
+  const command = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).scripts.parse.split(" ");
+  assert.equal(command.shift(), "node");
+  const run = (checkout, args = []) =>
+    spawnSync(process.execPath, [...command, ...args], {
+      cwd: checkout,
+      encoding: "utf8",
+      timeout: 10_000,
+      env: { ...process.env, TREE_SITTER_LIBDIR: join(directory, "shared-cache") }
+    });
+  for (const index of [0, 1, 0]) {
+    const result = run(checkouts[index]);
+    assert.equal(result.error, undefined, String(result.error));
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, index === 0 ? /\(stylesheet / : /\(alternate_stylesheet /);
+    assert.ok(readdirSync(join(checkouts[index], "build/tree-sitter")).length);
+  }
+  const broken = join(checkouts[0], "broken.scss");
+  writeFileSync(broken, ".broken {");
+  const result = run(checkouts[0], [broken]);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /ERROR|MISSING/);
 });
 
 test("preview renders real captures and exposes parse errors", t => {

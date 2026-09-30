@@ -3,10 +3,10 @@ Escaped custom-property prefixes are ordinary property names
 ==================
 .a { \2d\2d x: {a:b;}; color:red; } .after {}
 ---
-(stylesheet (rule_set (selectors (class_selector)) (declaration_block (property_declaration (nested_property (property_name) (declaration_block (property_declaration (property_name) (plain_value))))) (property_declaration (property_name) (plain_value)))) (rule_set (selectors (class_selector))))
+(stylesheet (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (declaration_block (property_declaration (property_name) (plain_value)))) (property_declaration (property_name) (plain_value)))) (rule_set (selectors (class_selector))))
 
 ==================
-Escaped keyword spellings stay ordinary identifiers
+Escaped keywords use ordinary names and calls
 ==================
 @m\65 dia screen { .a {} } $x: \6E ull c\61 lc(pi); .after {}
 ---

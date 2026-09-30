@@ -132,7 +132,10 @@ test("CSS escapes preserve their full extent and only one terminating space", ()
 test("colon spacing distinguishes nested properties from pseudo selectors", () => {
   const tree = parse(".x { a:hover {} font:bold {} font: bold { family: serif; } #{$tag}:hover {} #{$side}: 0; }");
   assert.deepEqual(texts(tree, "pseudo_name"), ["hover", "bold", "hover"]);
-  assert.equal(texts(tree, "nested_property").length, 1);
+  assert.equal(
+    tree.rootNode.descendantsOfType("property_declaration").filter(node => node.childForFieldName("body")).length,
+    1
+  );
   assert.deepEqual(texts(tree, "property_name"), ["font", "family", "#{$side}"]);
 });
 
@@ -166,8 +169,7 @@ test("unknown directives retain complete names and balanced preludes", () => {
   assertCovered(source, tree);
 });
 
-// Keywords match literal spellings only, although CSS and Sass would decode these escapes.
-test("escaped keyword spellings stay ordinary identifiers with full highlight coverage", () => {
+test("escaped directives retain complete generic names in both dialects", () => {
   const source = String.raw`@m\65 dia screen and (width >= 1px) { .x {} } @\75 se "sass:math"; @\6D ixin ring($x) {} @\mixin other {} $x: \6E ull, \null, \true, fals\65 ;`;
   const tree = parse(source);
   assert.deepEqual(texts(tree, "at_keyword"), [
@@ -176,7 +178,7 @@ test("escaped keyword spellings stay ordinary identifiers with full highlight co
     String.raw`@\6D ixin`,
     String.raw`@\mixin`
   ]);
-  // Unknown at-rule preludes keep their CSS words as plain values.
+  assert.deepEqual(texts(tree, "query_statement"), []);
   assert.deepEqual(texts(tree, "plain_value"), [
     "screen",
     "and",

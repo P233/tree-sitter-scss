@@ -10,7 +10,7 @@ Nested selector versus nested property
 ==================
 .x { font:bold {} font: bold { family: serif; } width: 2px }
 ---
-(stylesheet (rule_set (selectors (class_selector)) (declaration_block (rule_set (selectors (compound_selector (tag_selector) (pseudo_selector (pseudo_name))))) (property_declaration (nested_property (property_name) (plain_value) (declaration_block (property_declaration (property_name) (plain_value))))) (property_declaration (property_name) (number (unit))))))
+(stylesheet (rule_set (selectors (class_selector)) (declaration_block (rule_set (selectors (compound_selector (tag_selector) (pseudo_selector (pseudo_name))))) (property_declaration (property_name) (plain_value) (declaration_block (property_declaration (property_name) (plain_value)))) (property_declaration (property_name) (number (unit))))))
 
 ==================
 Modules and callable definitions
