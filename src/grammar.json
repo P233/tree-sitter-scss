@@ -1750,6 +1750,10 @@
                   },
                   {
                     "type": "SYMBOL",
+                    "name": "_query_word_operator"
+                  },
+                  {
+                    "type": "SYMBOL",
                     "name": "_selector_function_name"
                   },
                   {
@@ -2929,6 +2933,10 @@
                             },
                             {
                               "type": "SYMBOL",
+                              "name": "_query_word_operator"
+                            },
+                            {
+                              "type": "SYMBOL",
                               "name": "_selector_function_name"
                             },
                             {
@@ -3887,6 +3895,10 @@
                 },
                 {
                   "type": "SYMBOL",
+                  "name": "_query_word_operator"
+                },
+                {
+                  "type": "SYMBOL",
                   "name": "_selector_function_name"
                 },
                 {
@@ -4326,29 +4338,45 @@
       "value": "![ \\t]*[iI][mM][pP][oO][rR][tT][aA][nN][tT]"
     },
     "_query_operator": {
-      "type": "CHOICE",
-      "members": [
-        {
-          "type": "STRING",
-          "value": "="
-        },
-        {
-          "type": "PATTERN",
-          "value": "[nN][oO][tT]"
-        },
-        {
-          "type": "PATTERN",
-          "value": "[oO][rR]"
-        },
-        {
-          "type": "PATTERN",
-          "value": "[aA][nN][dD]"
-        },
-        {
-          "type": "PATTERN",
-          "value": "[oO][nN][lL][yY]"
-        }
-      ]
+      "type": "PREC",
+      "value": 1,
+      "content": {
+        "type": "CHOICE",
+        "members": [
+          {
+            "type": "STRING",
+            "value": "="
+          },
+          {
+            "type": "SYMBOL",
+            "name": "_query_word_operator"
+          }
+        ]
+      }
+    },
+    "_query_word_operator": {
+      "type": "TOKEN",
+      "content": {
+        "type": "CHOICE",
+        "members": [
+          {
+            "type": "PATTERN",
+            "value": "[nN][oO][tT]"
+          },
+          {
+            "type": "PATTERN",
+            "value": "[oO][rR]"
+          },
+          {
+            "type": "PATTERN",
+            "value": "[aA][nN][dD]"
+          },
+          {
+            "type": "PATTERN",
+            "value": "[oO][nN][lL][yY]"
+          }
+        ]
+      }
     },
     "_identifier": {
       "type": "PATTERN",
@@ -5465,6 +5493,10 @@
                             },
                             {
                               "type": "SYMBOL",
+                              "name": "_query_word_operator"
+                            },
+                            {
+                              "type": "SYMBOL",
                               "name": "_selector_function_name"
                             },
                             {
@@ -5607,6 +5639,10 @@
                       {
                         "type": "SYMBOL",
                         "name": "_query_function_name"
+                      },
+                      {
+                        "type": "SYMBOL",
+                        "name": "_query_word_operator"
                       },
                       {
                         "type": "SYMBOL",
@@ -6857,6 +6893,10 @@
                         },
                         {
                           "type": "SYMBOL",
+                          "name": "_query_word_operator"
+                        },
+                        {
+                          "type": "SYMBOL",
                           "name": "_selector_function_name"
                         },
                         {
@@ -6938,6 +6978,10 @@
                 {
                   "type": "SYMBOL",
                   "name": "_query_function_name"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "_query_word_operator"
                 },
                 {
                   "type": "SYMBOL",
@@ -8316,6 +8360,10 @@
                   {
                     "type": "SYMBOL",
                     "name": "_query_function_name"
+                  },
+                  {
+                    "type": "SYMBOL",
+                    "name": "_query_word_operator"
                   },
                   {
                     "type": "SYMBOL",

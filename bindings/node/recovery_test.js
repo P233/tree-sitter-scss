@@ -46,6 +46,35 @@ function assertScope(root, source) {
   assert.equal(root.lastNamedChild.text, ".after {}", source);
 }
 
+test("query keywords are reclassified when a query call becomes an ordinary call", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    const parser = new Parser().setLanguage(language);
+    const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
+    for (const name of ["media", "supports", "style", "scroll-state", "at-rule"]) {
+      for (const word of ["and", "or", "not", "only", "AND", "Only"]) {
+        let source = `.a { width: if(${name}(screen ${word} (color)): 1px); }`;
+        let tree = parser.parse(source);
+        assert.equal(tree.rootNode.hasError, false, source);
+        const start = source.indexOf(name);
+        [tree, source] = editAndCompare(parser, query, tree, source, start, start + name.length, "foo");
+        assert.equal(tree.rootNode.hasError, false, source);
+        if (language === Scss.cssLanguage) {
+          assert.ok(
+            tree.rootNode.descendantsOfType("plain_value").some(node => node.text === word),
+            source
+          );
+        }
+        [tree, source] = editAndCompare(parser, query, tree, source, start, start + 3, name);
+        assert.equal(tree.rootNode.hasError, false, source);
+        assert.ok(
+          tree.rootNode.descendantsOfType("operator").some(node => node.text === word),
+          source
+        );
+      }
+    }
+  }
+});
+
 test("unfinished else heads recover inside their enclosing block", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     const parser = new Parser();

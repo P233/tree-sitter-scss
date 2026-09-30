@@ -461,7 +461,10 @@ module.exports = grammar({
     _special_call_word: $ => prec.right(seq(choice(URL_NAME, $._raw_function_word), optional($._identifier_tail))),
     flag: () => /![ \t]*[-\w]+/,
     important: () => /![ \t]*[iI][mM][pP][oO][rR][tT][aA][nN][tT]/,
-    _query_operator: () => choice("=", ...["not", "or", "and", "only"].map(name => keyword(name, true))),
+    // Reused query words must also reduce as identifiers after an enclosing call changes.
+    // Prefer their operator role only where a query condition accepts it.
+    _query_operator: $ => prec(1, choice("=", $._query_word_operator)),
+    _query_word_operator: () => token(choice(...["not", "or", "and", "only"].map(name => keyword(name, true)))),
     _identifier: () => IDENTIFIER,
 
     // Raw CSS only enters SassScript through interpolation. Its CSS tokens keep typed
@@ -925,6 +928,7 @@ function identifierWords($) {
     $._identifier,
     $._math_function_name,
     $._query_function_name,
+    $._query_word_operator,
     $._selector_function_name,
     $._sass_conditional_function_name,
     $._conditional_function_name,
