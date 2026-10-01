@@ -423,8 +423,7 @@ test("a statement typed above a declaration ends at its own line", () => {
         prefix
       );
     }
-    // Longer headers, and lines ending in punctuation that cannot complete them, end at their line too.
-    // That punctuation goes with the statement break, so the error covers the selector before it.
+    // Lines ending in punctuation that cannot complete them end there too, the error covering the selector before it.
     for (const [prefix, error] of [
       ["a b", "a b"],
       [".b .c", ".b .c"],
@@ -577,7 +576,6 @@ test("unfinished control headers and declaration values end before a declaration
       "@if $a ==",
       "@if $a and",
       "@if not",
-      "@elseif $a ==",
       "@each $x in",
       "@each $k, $v in",
       "@for $i from 1 through",
@@ -599,6 +597,41 @@ test("unfinished control headers and declaration values end before a declaration
         header
       );
     }
+    // An else header after an `@if` block ends there too.
+    for (const header of ["@else if $b ==", "@elseif $b ==", "@else", "@else if"]) {
+      const source = `.a {\n  @if $a { b: c; }\n  ${header}\n  width: 1px;\n}\n.y {\n  color: blue;\n}\n${tail}\n`;
+      const root = parser.parse(source).rootNode;
+      assert.equal(root.namedChildCount, 302, header);
+      const rule = root.firstNamedChild;
+      assert.deepEqual(
+        rule.descendantsOfType("property_declaration").map(node => node.text),
+        ["b: c;", "width: 1px;"],
+        header
+      );
+      assert.deepEqual(
+        rule.descendantsOfType("ERROR").map(node => node.text.trim()),
+        [header],
+        header
+      );
+    }
+    // The next line may hold a URL with `//`; other spellings and an `@elseif` with no `@if` stay unknown at-rules.
+    const url = parser.parse(`.a {\n  @if $a ==\n  background: url(//x.test/a.png);\n}\n.y { c: d; }\n`).rootNode;
+    assert.deepEqual(
+      url.descendantsOfType("ERROR").map(node => node.text),
+      ["@if $a =="]
+    );
+    // A comment after the header stays a comment outside the error.
+    for (const comment of ["// todo", "/* todo */"]) {
+      const root = parser.parse(`.a {\n  @if $a == ${comment}\n  width: 1px;\n}\n`).rootNode;
+      assert.deepEqual(
+        root.descendantsOfType("ERROR").map(node => node.text),
+        ["@if $a =="],
+        comment
+      );
+    }
+    for (const source of ["@IF $a\n  width: 1px;\n", "@For x\n  width: 1px;\n", "@elseif foo\n  bar: baz;\n"]) {
+      assert.equal(parser.parse(`${source}.b { c: d; }\n`).rootNode.hasError, false, source);
+    }
     // A declaration missing its semicolon ends before the next declaration line.
     const unfinished = parser.parse(`.a {\n  color: red\n  width: 1px;\n}\n.y {}\n`).rootNode;
     assert.deepEqual(
@@ -606,6 +639,18 @@ test("unfinished control headers and declaration values end before a declaration
       ["color: red", "width: 1px;"]
     );
     assert.equal(unfinished.namedChildCount, 2);
+    // That holds however far the block runs on, and for a URL on the next line.
+    const longBlock = Array.from({ length: 80 }, (_, index) => `  margin-${index}: ${index}px;`).join("\n");
+    for (const declaration of ["width: 1px;", "background: url(https://x.test/a.png);"]) {
+      const root = parser.parse(`.a {\n  color: red\n  ${declaration}\n${longBlock}\n}\n`).rootNode;
+      assert.deepEqual(
+        root
+          .descendantsOfType("property_declaration")
+          .slice(0, 2)
+          .map(node => node.text),
+        ["color: red", declaration]
+      );
+    }
     // Groups, CSS if() branches, value lists and raw values may still continue onto declaration-like lines.
     for (const source of [
       "@if $a ==\n  $b { .x { y: z; } }",
