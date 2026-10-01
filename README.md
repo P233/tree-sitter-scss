@@ -26,7 +26,7 @@ The official grammar extends `tree-sitter-css` with SCSS rules. This project is 
 | Fields            | `selectors`, `body`, `name`, `value`, `prelude`, `condition`                          | None on rules, declarations, or CSS at-rules                               |
 | Custom properties | Raw token payload                                                                     | Parsed as Sass: `0 / 20%` inside `rgb()` becomes a division                |
 
-Coverage matters beyond highlighting: node ranges inside an `ERROR` cannot be trusted, so scss2-mode refuses structural edits there. The costs are owning all CSS compatibility work and a generated parser about five times larger (4.0 MB of generated C against 0.79 MB). The node schema and highlight query are not interchangeable with the official grammar's.
+Coverage matters beyond highlighting: node ranges inside an `ERROR` cannot be trusted, so scss2-mode refuses structural edits there. The costs are owning all CSS compatibility work and a generated parser about five times larger (4.1 MB of generated C against 0.79 MB). The node schema and highlight query are not interchangeable with the official grammar's.
 
 ## Use from source
 
@@ -103,7 +103,7 @@ In about 680,000 lines from 14 popular CSS and SCSS frameworks, such as Bootstra
 - Escaped identifiers retain their source spelling, but escaped keywords such as `c\61 lc`, `@m\65 dia`, and `:l\61 ng` use generic syntax instead of their specialized roles. Keyword-only forms such as escaped `!important`, and escapes inside `An+B` formulas, may produce a parse error. Numeric constants in calculations and CSS `var()` keep their scanner-based escape support. CSS consumes CRLF as one escape terminator; SCSS retains its single-character terminator, so `.x\31`, CRLF, `b` reads as a descendant selector in SCSS.
 - In comments and strings, an interpolation pairs only when its closing brace lies within 1 KB of its opener, with each nested opener counting as 64 characters. If the expression contains the comment's `*/`, or in a string its own quote or a line break, the comment or string must end on the closing line or open another interpolation there.
 - Typed `attr()` unions such as `attr(data-width type(<length> | <percentage>), 10px)` produce a parse error.
-- A descendant combinator is read from whitespace directly before the next compound, so `.a /* c */.b` is one compound selector. In `@extend`, `.a :hover` reads as `.a:hover`; Sass rejects both forms. A name glued to the preceding simple selector, as in `[x]a`, is a parse error; Sass reads it as a descendant.
+- A descendant combinator is read from whitespace directly before the next compound, so `.a /* c */.b` is one compound selector. A name glued to the preceding simple selector, as in `[x]a`, is a parse error; Sass reads it as a descendant.
 - Unspaced subtraction after a closing parenthesis reads as a negative number: `fn()-1` and `($s)-1` both end with the number `-1` instead of a subtraction.
 - Inside Sass `url()`, `url(map.get($icons, x))` keeps `map.get` as one `function_name` without a `module_name`. Inside raw custom-property values, `url(https://a.test/x.png)` splits into the word `https`, a colon, and the raw text `//a.test/x.png`.
 - With 1,000 nested rules, adding a descendant combinator to the innermost selector spent about 50 ms computing incremental changed ranges on an Apple M1 Pro; other edits, and the same edit at 100 levels, stayed under 1 ms. The deepest block nesting in the sample was 11 levels.

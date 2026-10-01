@@ -1,6 +1,5 @@
 #include "tree_sitter/parser.h"
 
-#include <limits.h>
 #include <stdatomic.h>
 #include <string.h>
 
@@ -20,6 +19,7 @@ enum TokenType {
   DIMENSION_NUMBER,
   DIMENSION_UNIT,
   DESCENDANT,
+  SPACE_BEFORE_COLON,
   SUBTRACTION_MINUS,
   STATEMENT_COMMENT_START,
   IF_END,
@@ -485,12 +485,12 @@ static bool skip_interpolation(TSLexer *lexer, bool css, int32_t host) {
   return matched;
 }
 
-// Whether a block opens before the statement ends: `a :hover {` is a selector,
-// `color :red;` is not. A scan that uses up `limit` steps returns `fallback`.
-static bool block_follows(TSLexer *lexer, bool css, unsigned limit, bool fallback) {
+// Cross-line selector recovery: a nearby statement ending stops a descendant,
+// while a longer header may continue to its block.
+static bool block_follows(TSLexer *lexer, bool css) {
   int32_t quote = 0;
-  for (; !lexer->eof(lexer); limit--) {
-    if (!limit) return fallback;
+  for (unsigned limit = LOOKAHEAD_LIMIT; !lexer->eof(lexer); limit--) {
+    if (!limit) return true;
     if (!quote && lexer->lookahead == '/') {
       skip_trivia(lexer);
       continue;
@@ -516,13 +516,13 @@ static bool block_follows(TSLexer *lexer, bool css, unsigned limit, bool fallbac
   return false;
 }
 
-static bool selector_start_after(TSLexer *lexer, bool css) {
+static bool selector_start_after(TSLexer *lexer) {
   int32_t first = lexer->lookahead;
   lexer->advance(lexer, false);
   int32_t next = lexer->lookahead;
   if (first == '|') return next != '|';
   bool can_start_name = next == '-' || next == '\\' || next == '#' || name_start(next);
-  if (first == ':') return (can_start_name || next == ':') && block_follows(lexer, css, UINT_MAX, false);
+  if (first == ':') return can_start_name || next == ':';
   return can_start_name;
 }
 
@@ -635,7 +635,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
                                                                    : HOST_COMMENT;
     return !skip_interpolation(lexer, css, host);
   }
-  if (valid_symbols[DESCENDANT] && css_space(lexer->lookahead)) {
+  if ((valid_symbols[DESCENDANT] || valid_symbols[SPACE_BEFORE_COLON]) && css_space(lexer->lookahead)) {
     bool has_crossed_line = false;
     while (css_space(lexer->lookahead)) {
       has_crossed_line |= line_break(lexer->lookahead);
@@ -643,15 +643,18 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     }
     // Zero width: the token ends before any character peeked below.
     lexer->mark_end(lexer);
-    lexer->result_symbol = DESCENDANT;
     int32_t first = lexer->lookahead;
-    bool is_ambiguous_start = first == ':' || first == '-' || first == '|';
-    if (is_ambiguous_start ? selector_start_after(lexer, css) : selector_start(first)) {
-      // A selector continues on another line unless the statement is seen to
-      // end first; that line then starts a new statement.
-      return !has_crossed_line || first == ':' || block_follows(lexer, css, LOOKAHEAD_LIMIT, true);
+    // Without a descendant, other whitespace-led tokens such as `true` in `(a true)` still get scanned below.
+    if (first == ':' || valid_symbols[DESCENDANT]) {
+      lexer->result_symbol = first == ':' ? SPACE_BEFORE_COLON : DESCENDANT;
+      bool is_ambiguous_start = first == ':' || first == '-' || first == '|';
+      if (is_ambiguous_start ? selector_start_after(lexer) : selector_start(first)) {
+        // A selector continues on another line unless the statement is seen to
+        // end first; that line then starts a new statement.
+        return !has_crossed_line || block_follows(lexer, css);
+      }
+      if (is_ambiguous_start) return false;
     }
-    if (is_ambiguous_start) return false;
   }
   // Only valid right after a number: Sass subtracts on an unspaced minus (`1-1`), CSS keeps a signed number.
   if (!css && valid_symbols[SUBTRACTION_MINUS] && lexer->lookahead == '-') {

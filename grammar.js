@@ -97,6 +97,8 @@ module.exports = grammar({
     $._dimension_number,
     $._dimension_unit,
     $._descendant,
+    // A spaced colon remains available to both a declaration and a pseudo selector.
+    $._space_before_colon,
     $._subtraction_minus,
     $._statement_comment_start,
     $._if_end,
@@ -110,6 +112,7 @@ module.exports = grammar({
   inline: $ => [$._nested_property],
   conflicts: $ => [
     [$.tag_selector, $._raw_statement_item],
+    [$.property_name, $.tag_selector, $._raw_statement_item],
     [$.tag_selector, $._variable],
     [$.property_name, $.tag_selector],
     [$.property_name, $.operator],
@@ -162,6 +165,7 @@ module.exports = grammar({
       choice(
         seq(
           field("name", $.property_name),
+          optional($._space_before_colon),
           ":",
           optional(field("value", $._value)),
           optional(field("flags", choice($.flag, alias($._declaration_priority, $.important))))
@@ -169,7 +173,14 @@ module.exports = grammar({
         rawProperty($, $._wrapped_dashed_name)
       ),
     _declaration_priority: $ => seq(alias($._important_bang, "!"), alias(keyword("important", true), "important")),
-    _nested_property: $ => seq(field("name", $.property_name), ":", optional(field("value", $._value)), $._block),
+    _nested_property: $ =>
+      seq(
+        field("name", $.property_name),
+        optional($._space_before_colon),
+        ":",
+        optional(field("value", $._value)),
+        $._block
+      ),
     property_name: $ => seq(optional("*"), $._interpolated_identifier),
     // Aliasing this wrapper keeps `dashed_name` as a child of the aliased node.
     _wrapped_dashed_name: $ => $.dashed_name,
@@ -198,7 +209,7 @@ module.exports = grammar({
       ),
     // Sass still accepts consecutive and bare combinators, such as `.a >>> .b` and `> { … }`.
     _combinators: $ => repeat1($.combinator),
-    _combination: $ => choice($._combinators, $._descendant),
+    _combination: $ => choice($._combinators, $._descendant, $._space_before_colon),
     _compound_selector: $ => choice($._simple_selector, $.compound_selector),
     compound_selector: $ =>
       choice(
@@ -763,7 +774,11 @@ module.exports = grammar({
       prec.dynamic(
         -1,
         // The competing selector reading lexes whitespace between items as a descendant.
-        seq($._raw_statement_item, repeat(seq(optional($._descendant), $._raw_statement_item)), ";")
+        seq(
+          $._raw_statement_item,
+          repeat(seq(optional(choice($._descendant, $._space_before_colon)), $._raw_statement_item)),
+          ";"
+        )
       ),
     _raw_statement_item: $ =>
       choice(
@@ -796,6 +811,7 @@ function declarationBlock($, statement, property = $._property) {
 function rawProperty($, name) {
   return seq(
     field("name", alias(name, $.property_name)),
+    optional($._space_before_colon),
     ":",
     optional(field("value", $.raw_value)),
     optional(field("flags", alias($._declaration_priority, $.important)))

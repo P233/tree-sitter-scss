@@ -157,6 +157,46 @@ test("compound and descendant selectors are distinct nodes", () => {
   }
 });
 
+test("spaced colons preserve declaration values and blockless selector boundaries", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    for (const gap of [" ", "\t", " /* note */ ", "\r\n"]) {
+      for (const name of ["color", "--custom", "#{$name}"]) {
+        const source = `.a { ${name}${gap}:red; }`;
+        const declaration = parse(source, language).descendantsOfType("property_declaration")[0];
+        assert.equal(declaration.childForFieldName("name").text, name);
+        assert.equal(declaration.childForFieldName("value").text, "red");
+        assert.equal(declaration.childForFieldName("value").type, name === "--custom" ? "raw_value" : "plain_value");
+      }
+    }
+    for (const selector of [".b :hover", ":is(.b :hover)"]) {
+      const root = parse(`.a { @extend ${selector} !optional; }`, language);
+      assert.equal(root.descendantsOfType("complex_selector")[0].text, ".b :hover");
+    }
+  }
+  for (const [source, type] of [
+    ["@supports (a true) {}", "boolean"],
+    ["@media (a null) {}", "null"]
+  ]) {
+    assert.equal(parse(source).descendantsOfType("query_group")[0].lastNamedChild.type, type);
+  }
+});
+
+test("long spaced pseudo chains preserve every descendant and the following rule", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    for (const space of [" ", "\n"]) {
+      const selector = "a" + `${space}:hover`.repeat(20000);
+      const root = parse(`${selector} { color: red; } .after { width: 1px; }`, language);
+      assert.equal(root.namedChildCount, 2);
+      const complex = root.firstNamedChild.childForFieldName("selectors").firstNamedChild;
+      assert.equal(complex.type, "complex_selector");
+      assert.equal(complex.text, selector);
+      assert.equal(complex.namedChildCount, 20001);
+      assert.equal(complex.descendantsOfType("pseudo_selector").length, 20000);
+      assert.equal(root.lastNamedChild.text, ".after { width: 1px; }");
+    }
+  }
+});
+
 test("interpolated pseudos keep descendant boundaries across quoted and commented braces", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     for (const expression of [
@@ -338,6 +378,11 @@ test("incremental edits across editing-unit boundaries agree with fresh parses",
       [".a .b {} .after {}", ".a.b {} .after {}"],
       [".a, .b {} .after {}", ".a .b {} .after {}"],
       [".x { color:red; } .after {}", ".x { color :red; } .after {}"],
+      [".x { --x :red; } .after {}", ".x { --x :true and false; } .after {}"],
+      [".x { a :red; } .after {}", ".x { a :red {} } .after {}"],
+      [".x { a :red {} } .after {}", ".x { a :red; } .after {}"],
+      [".x { @extend :is(.a:hover); }", ".x { @extend :is(.a :hover); }"],
+      [".x { @extend :is(.a :hover); }", ".x { @extend :is(.a:hover); }"],
       [".x { a :hover {} } .after {}", ".x { a:hover {} } .after {}"],
       [".a :#{'hover' /* x */} {} .after {}", ".a :#{'hover' /* } */} {} .after {}"],
       [".a :#{'hover' /* } */} {} .after {}", ".a :#{'hover' /* x */} {} .after {}"],

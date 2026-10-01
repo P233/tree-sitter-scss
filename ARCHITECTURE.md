@@ -35,6 +35,7 @@ The Tree-sitter runtime owns trees and incremental reuse. A host edits the old t
 
 - CSS and SCSS share one generated parsing table, node schema and query. Language selection is immutable per entry; it is never a global dialect switch.
 - The scanner serializes zero bytes. Every lookahead context belongs to one call and is discarded on return.
+- Whitespace before a colon has one external token shared by declarations and selector combinations. The grammar resolves those readings; the scanner does not repeatedly search for a block after each spaced pseudo. Cross-line recovery retains its existing lookahead window.
 - Interpolation pairing uses the existing 1,024-step budget and 64-step nested-opener charge. Local frame capacity is derived from that budget, including the final opener that exhausts it. There is no independent depth policy, recursive scan, heap growth or frame cleanup path.
 - The CSS descriptor is published once with acquire/release synchronization. This protects concurrent native callers and must not be replaced with an unsynchronized flag.
 - CSS CRLF normalization preserves original positions. The adapter is required for the dialect contract, not a removable compatibility shim.
@@ -67,6 +68,8 @@ The optional corpus is a newline-separated list of file paths, resolved from the
 
 Full-parse samples have two warmups and nine measured rounds, with GC outside each round when available. Small/nested samples are batches of 1,000 parses. Incremental samples change one numeric value in a 1,000-rule file and include 20 warmups followed by 200 measured edits. These measure parser work, not GUI latency. Peak RSS includes the runtime, trees and benchmark; it is not scanner memory usage.
 
+The spaced-pseudo and multiline-pseudo workloads each contain 20,000 pseudos. They protect the distinction between local token recognition and repeated scanning of the remaining selector. Native acceptance tests also check the complete selector and following rule, without a machine-dependent timing assertion.
+
 Alternate baseline/candidate order on the same machine with identical hashes. Investigate a repeatable regression in a representative workload before accepting a change. Do not turn one noisy wall-clock result into a CI threshold or claim a speedup from generated size alone.
 
 The 2026-09-30 bounded-storage refactor kept 1,987 states, 478 large states and the 3,961,896-byte parser unchanged. On an Apple M1 Pro, Node 24.21.0 and runtime 0.25.1, same-process alternating measurements gave:
@@ -81,12 +84,24 @@ The 2026-09-30 bounded-storage refactor kept 1,987 states, 478 large states and 
 
 Independent native C measurements over 338 local files / 945,278 bytes were SCSS 76.87 → 76.98 ms and CSS 32.51 → 32.57 ms (seven alternating groups, best of ten within each group, median across groups). Ordinary parsing and editing were effectively unchanged; the measured unfinished-SCSS workload improved about 5%. Initial separate-process Node groups were noisy and are not evidence of a general improvement. The direct resource result is narrower: the scanner no longer references `malloc`, `realloc` or `free`; it uses 16 local frames, 192 bytes on this ABI. No process-wide memory reduction is claimed.
 
+The later Q017 comparison uses clean v0.10.0 as its baseline and identical `-O2` native builds. On the same machine/runtime, seven alternating corpus groups (best of ten within each group, median across groups) and three alternating pseudo-chain samples gave:
+
+| Workload, median ms                         | SCSS before | SCSS after | CSS before | CSS after |
+| ------------------------------------------- | ----------: | ---------: | ---------: | --------: |
+| 338 local files, selected by file extension |       76.24 |      76.40 |      32.27 |     32.52 |
+| 20,000 spaced pseudos                       |    4,698.55 |      34.12 |   4,691.11 |     33.48 |
+| 20,000 pseudos on separate lines            |    4,815.52 |     197.40 |   4,813.78 |    196.88 |
+
+Ordinary corpus parsing was effectively unchanged. The targeted improvement removes repeated scanning; it is not a general parser speedup. The tradeoff is 1,997 → 2,066 states, 454 → 465 large states and 3,983,147 → 4,092,269 bytes of generated C. The node schema remains unchanged. Electric-pairing probes retained the baseline 536/570 and 512/570 keystrokes, so this change does not resolve Q016.
+
 ## Decisions and remaining debt
 
 The architecture review considered retaining shared tables with simpler resource/execution ownership, pre-classifying statements in the scanner, and generating separate dialect tables. The first option preserves the smallest supported model. The statement-classification prototype changes incomplete-tree recovery and has failing acceptance evidence; separate dialect tables add generation/schema obligations without demonstrated net benefit. Neither is part of this migration.
 
 Retain the fresh-process preview boundary, standard CLI HTML renderer, CSS adapter, atomic descriptor publication, context-specific grammar productions and required generated headers. Replacing them would need new contract/performance evidence. Repository file moves and a metadata generator do not remove a demonstrated obligation here.
 
-Known baseline debt remains: complex unfinished statements can absorb later rules (Q016); spaced-pseudo lookahead can repeat work quadratically (Q017); invalid bare-block recovery can choose different nodes (Q018). These are not newly accepted product behavior or resolved by this storage refactor. The PatternFly interpolation/selector-argument syntax gap also remains separate.
+The subsequent Q017 change removes the unbounded per-pseudo block search with one additional external token and no persistent scanner state. It also corrects a previously hidden descendant inside blockless selectors: `@extend :is(.b :hover)` now contains a `complex_selector` for `.b :hover`. Public node types remain unchanged. This is an intentional tree correction, not evidence that every previously accepted tree is byte-for-byte identical.
+
+Known baseline debt remains: complex unfinished statements can absorb later rules (Q016), and invalid bare-block recovery can choose different nodes (Q018). Statement-entry classification prototypes still regress recovery for some incomplete selectors; changing those trees is separate from Q017. The PatternFly interpolation/selector-argument syntax gap also remains separate.
 
 For future changes: establish the required behavior, identify its owner, challenge any new state or cross-layer classification, add contract evidence, implement, and measure affected hot paths. Remove replaced mechanisms rather than keeping an indefinite parallel path. Stop when remaining alternatives have no demonstrated benefit.
