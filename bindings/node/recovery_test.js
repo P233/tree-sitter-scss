@@ -423,6 +423,21 @@ test("a statement typed above a declaration ends at its own line", () => {
         prefix
       );
     }
+    // The error stays on the unfinished line even when the declaration below has a shorter name.
+    for (const prefix of ["c", "overflo"]) {
+      const source = `.a {\n  ${prefix}\n  w: 1px;\n}\n.y {\n  color: blue;\n}\n${tail}\n`;
+      const rule = parser.parse(source).rootNode.firstNamedChild;
+      assert.deepEqual(
+        rule.descendantsOfType("ERROR").map(node => node.text),
+        [prefix],
+        prefix
+      );
+      assert.deepEqual(
+        rule.descendantsOfType("property_declaration").map(node => node.text),
+        ["w: 1px;"],
+        prefix
+      );
+    }
     // Lines ending in punctuation that cannot complete them end there too, the error covering the selector before it.
     for (const [prefix, error] of [
       ["a b", "a b"],
@@ -441,7 +456,8 @@ test("a statement typed above a declaration ends at its own line", () => {
       ["&:is(.)", "&:is"],
       ["&:is(.c, .)", "&:is(.c"],
       [".b-#{", ".b-"],
-      [".b-#{}", ".b-"]
+      [".b-#{}", ".b-"],
+      [".b-#{$}", ".b-"]
     ]) {
       const source = `.a {\n  color: red;\n  ${prefix}\n  width: 1px;\n}\n.y {\n  color: blue;\n}\n${tail}\n`;
       const root = parser.parse(source).rootNode;
@@ -648,13 +664,29 @@ test("unfinished at-rule headers and declaration values end before a declaration
     ]) {
       assert.equal(parser.parse(`${source}.b { c: d; }\n`).rootNode.hasError, false, source);
     }
-    // A declaration missing its semicolon ends before the next declaration line.
-    const unfinished = parser.parse(`.a {\n  color: red\n  width: 1px;\n}\n.y {}\n`).rootNode;
+    // A declaration missing its semicolon ends before the next declaration line, also a `*` hack one.
+    for (const declaration of ["width: 1px;", "*zoom: 1;"]) {
+      const unfinished = parser.parse(`.a {\n  color: red\n  ${declaration}\n}\n.y {}\n`).rootNode;
+      assert.deepEqual(
+        unfinished.descendantsOfType("property_declaration").map(node => node.text),
+        ["color: red", declaration],
+        declaration
+      );
+      assert.equal(unfinished.namedChildCount, 2, declaration);
+    }
+    // A value ending with a dotted name cannot take a missing `;`, so the unfinished declaration is the error.
+    const dotted = parser.parse(
+      `.a {\n  color: map.get\n  width: 1px;\n}\n.y {\n  color: blue;\n}\n${tail}\n`
+    ).rootNode;
+    assert.equal(dotted.namedChildCount, 302);
     assert.deepEqual(
-      unfinished.descendantsOfType("property_declaration").map(node => node.text),
-      ["color: red", "width: 1px;"]
+      dotted.firstNamedChild.descendantsOfType("ERROR").map(node => node.text),
+      ["color: map.get"]
     );
-    assert.equal(unfinished.namedChildCount, 2);
+    assert.deepEqual(
+      dotted.firstNamedChild.descendantsOfType("property_declaration").map(node => node.text),
+      ["width: 1px;"]
+    );
     // That holds however far the block runs on, and for a URL on the next line.
     const longBlock = Array.from({ length: 80 }, (_, index) => `  margin-${index}: ${index}px;`).join("\n");
     for (const declaration of ["width: 1px;", "background: url(https://x.test/a.png);"]) {
@@ -683,13 +715,14 @@ test("unfinished at-rule headers and declaration values end before a declaration
     ]) {
       assert.equal(parser.parse(source).rootNode.hasError, false, source);
     }
+    // An unclosed url( ends before a declaration line, which a Sass payload never holds and a CSS one only as `name:`.
+    for (const head of ["background: url(a.png", "background: url("]) {
+      const root = parser.parse(
+        `.a {\n  color: red;\n  ${head}\n  width: 1px;\n}\n.y {\n  color: blue;\n}\n${tail}\n`
+      ).rootNode;
+      assert.equal(root.namedChildCount, 302, head);
+    }
   }
-  // A Sass url( payload never holds a declaration.
-  parser.setLanguage(Scss);
-  const url = parser.parse(
-    `.a {\n  color: red;\n  background: url(a.png\n  width: 1px;\n}\n.y {\n  color: blue;\n}\n${tail}\n`
-  ).rootNode;
-  assert.equal(url.namedChildCount, 302);
 });
 
 test("statement breaks after an earlier error keep incremental trees equal to fresh ones", () => {

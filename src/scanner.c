@@ -660,6 +660,9 @@ static bool tail_ends_statement(TSLexer *lexer, bool css) {
     } else if (character == '}' && interpolations) {
       lexer->advance(lexer, false);
       interpolations--;
+    } else if (character == '$' && interpolations) {
+      // A variable without its name yet, as in `#{$}`, leaves the interpolation unfinished too.
+      lexer->advance(lexer, false);
     } else if (tail_start(character, true) || character == ')' || character == ']') {
       lexer->advance(lexer, false);
     } else {
@@ -929,12 +932,14 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
   if ((valid_symbols[DESCENDANT] || valid_symbols[SPACE_BEFORE_COLON]) &&
       (css_space(lexer->lookahead) || tail_start(lexer->lookahead, true))) {
     bool has_space = css_space(lexer->lookahead);
+    // A token decided across a line stays at the end of the line above, so the next line keeps its whitespace.
+    lexer->mark_end(lexer);
     while (css_space(lexer->lookahead)) {
       has_crossed_line |= line_break(lexer->lookahead);
       lexer->advance(lexer, true);
     }
     // Zero width: the token ends before any character peeked below.
-    lexer->mark_end(lexer);
+    if (!has_crossed_line) lexer->mark_end(lexer);
     int32_t first = lexer->lookahead;
     if (!has_crossed_line && valid_symbols[DESCENDANT] && !valid_symbols[STATEMENT_BREAK] &&
         tail_start(first, !has_space)) {
@@ -997,6 +1002,13 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
       return tail_ends_statement(lexer, css);
     }
   }
+  // A declaration value, also one in a feature query, accepts `!important`; maps, arguments and raw values do not.
+  bool is_value_state = valid_symbols[IMPORTANT_BANG] && !valid_symbols[STATEMENT_BREAK] &&
+                        (valid_symbols[SASS_BOOLEAN] || valid_symbols[SASS_NULL] || valid_symbols[SASS_OPERATOR] ||
+                         valid_symbols[CALCULATION_CONSTANT] || valid_symbols[CSS_VAR_FUNCTION_NAME]);
+  bool is_url = valid_symbols[LITERAL_CSS_URL] && !valid_symbols[STATEMENT_BREAK];
+  // Zero width at the end of the line above: a declaration that starts the next line ends the value before it.
+  if ((is_value_state || is_url) && css_space(lexer->lookahead)) lexer->mark_end(lexer);
   while (css_space(lexer->lookahead)) {
     has_crossed_line |= line_break(lexer->lookahead);
     lexer->advance(lexer, true);
@@ -1004,12 +1016,12 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
   if (valid_symbols[STATEMENT_BREAK] && valid_symbols[STATEMENT_COMMENT_START] && lexer->lookahead == '@') {
     return scan_unfinished_header(lexer, css);
   }
-  // A declaration value, also one in a feature query, accepts `!important`; maps, arguments and raw values do not.
-  bool can_end_value = has_crossed_line && valid_symbols[IMPORTANT_BANG] && !valid_symbols[STATEMENT_BREAK] &&
-                       (valid_symbols[SASS_BOOLEAN] || valid_symbols[SASS_NULL] || valid_symbols[SASS_OPERATOR] ||
-                        valid_symbols[CALCULATION_CONSTANT] || valid_symbols[CSS_VAR_FUNCTION_NAME]);
-  // Zero width: a declaration that starts this line ends the value before it.
-  if (can_end_value) lexer->mark_end(lexer);
+  bool can_end_value = has_crossed_line && is_value_state;
+  // Sass reads a line-leading `*` as multiplication, but a `*` hack declaration still ends the value.
+  if (can_end_value && lexer->lookahead == '*') {
+    lexer->result_symbol = STATEMENT_BREAK;
+    return declaration_follows(lexer, css) && value_ends_on_line(lexer, css) && !continues_past_line(lexer, css, false);
+  }
   if (valid_symbols[STATEMENT_COMMENT_START] && lexer->lookahead == '/') {
     return scan_statement_comment_start(lexer);
   }
@@ -1053,18 +1065,28 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     return scan_keyword(lexer, valid_symbols, css, word, 0, can_end_value);
   }
   // A Sass url( payload is never a declaration, so one on a later line ends an unclosed url( above it.
-  if (!css && valid_symbols[LITERAL_CSS_URL] && has_crossed_line && !valid_symbols[STATEMENT_BREAK]) {
-    lexer->mark_end(lexer);
+  if (!css && is_url && has_crossed_line) {
     lexer->result_symbol = STATEMENT_BREAK;
     return declaration_follows(lexer, css) && value_ends_on_line(lexer, css) && !continues_past_line(lexer, css, false);
   }
   if (!css || !valid_symbols[LITERAL_CSS_URL]) return false;
   bool content = false;
+  // A payload on a later line shaped `name:` may instead start a declaration below an unclosed url(.
+  bool is_name = has_crossed_line && (name_start(lexer->lookahead) || lexer->lookahead == '-');
+  bool has_colon = false;
   while (!lexer->eof(lexer) && !css_space(lexer->lookahead) &&
          lexer->lookahead != '(' && lexer->lookahead != ')' &&
          lexer->lookahead != '"' && lexer->lookahead != '\'' && lexer->lookahead != '\\') {
+    if (has_colon || !(name_character(lexer->lookahead) || lexer->lookahead == ':')) is_name = false;
+    has_colon |= lexer->lookahead == ':';
     lexer->advance(lexer, false);
     content = true;
+  }
+  // Such a payload ends the url( with a zero-width statement break, which no url state accepts.
+  lexer->result_symbol = STATEMENT_BREAK;
+  if (is_name && has_colon && css_space(lexer->lookahead) && value_ends_on_line(lexer, css) &&
+      !continues_past_line(lexer, css, false)) {
+    return true;
   }
   lexer->mark_end(lexer);
   lexer->result_symbol = LITERAL_CSS_URL;
