@@ -41,8 +41,7 @@ function distribution(samples) {
   return { p50Ms: sorted[Math.floor(sorted.length / 2)], p95Ms: sorted[Math.floor(sorted.length * 0.95)] };
 }
 
-// Native Tree finalizers run after V8 collection, when Node returns to the event loop.
-// Keep both steps outside timed regions, including incremental samples.
+// Native finalizers free trees only after GC and a return to the event loop; callers keep this outside timing.
 async function cleanUpSample() {
   globalThis.gc?.();
   await yieldToEventLoop();
@@ -110,7 +109,6 @@ async function main() {
         runtime: local("tree-sitter/package.json").version,
         platform: `${process.platform}-${process.arch}`,
         gcBetweenParseSamples: typeof globalThis.gc === "function",
-        sampleCleanup: { forcedGc: typeof globalThis.gc === "function", eventLoopYield: true },
         loadMs,
         maxRssKiB,
         processRssAfterCleanupBytes,

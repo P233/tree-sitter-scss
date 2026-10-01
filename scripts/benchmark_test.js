@@ -95,7 +95,6 @@ for (const forcedGc of [true, false]) {
       "cleanup must be untimed"
     );
     assert.equal(output.gcBetweenParseSamples, forcedGc);
-    assert.deepEqual(output.sampleCleanup, { forcedGc, eventLoopYield: true });
     assert.equal(output.maxRssKiB, 123);
     assert.equal(output.processRssAfterCleanupBytes, 456);
   });
