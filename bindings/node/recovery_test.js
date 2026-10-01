@@ -423,6 +423,37 @@ test("a statement typed above a declaration ends at its own line", () => {
         prefix
       );
     }
+    // Longer headers, and a compound ending in a separator above a declaration, end at their line too.
+    for (const prefix of ["a b", ".b .c", ".b > .c", ".b,", ".b >", "&:is("]) {
+      const source = `.a {\n  color: red;\n  ${prefix}\n  width: 1px;\n}\n.y {\n  color: blue;\n}\n${tail}\n`;
+      const root = parser.parse(source).rootNode;
+      assert.equal(root.namedChildCount, 302, prefix);
+      const rule = root.firstNamedChild;
+      assert.deepEqual(
+        rule.descendantsOfType("property_declaration").map(node => node.text),
+        ["color: red;", "width: 1px;"],
+        prefix
+      );
+      const errors = rule.descendantsOfType("ERROR");
+      assert.deepEqual(
+        errors.map(node => node.text),
+        [prefix],
+        prefix
+      );
+      assert.ok(errors[0].descendantsOfType(["class_selector", "tag_selector", "parent_selector"]).length, prefix);
+    }
+    // A stray separator line stays an error instead of disappearing into the statement break.
+    for (const separator of [",", "("]) {
+      const rule = parser.parse(`.a {\n  color: red;\n  ${separator}\n  width: 1px;\n}\n`).rootNode.firstNamedChild;
+      assert.deepEqual(
+        rule.descendantsOfType("ERROR").map(node => node.text),
+        [separator]
+      );
+    }
+    // Sass rejects extending a complex selector; the line still ends without absorbing the next rule.
+    const extend = parser.parse(`.a {\n  @extend .b\n    .c;\n}\n.after {}\n`).rootNode;
+    assert.equal(extend.namedChildCount, 2);
+    assert.equal(extend.lastNamedChild.text, ".after {}");
     // A selector still continues on later lines when its block follows, even past the lookahead window.
     for (const selector of [
       ".b\n.c",

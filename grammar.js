@@ -104,7 +104,9 @@ module.exports = grammar({
     $._if_end,
     $._namespace_prefix,
     $._incomplete_variable_prefix,
-    $._missing_variable_name
+    $._missing_variable_name,
+    // Ends a selector line that cannot continue; only statement lists accept it.
+    $._statement_break
   ],
   extras: $ => [/\s/, $.block_comment, $.inline_comment],
   word: $ => $._identifier,
@@ -140,6 +142,7 @@ module.exports = grammar({
             $.variable_declaration,
             $._at_rule,
             ";",
+            $._statement_break,
             "<!--",
             "-->"
           )
@@ -175,7 +178,8 @@ module.exports = grammar({
     _declaration_priority: $ => seq(alias($._important_bang, "!"), alias(keyword("important", true), "important")),
     // As in Sass, a spaced colon touching a name before a block starts a pseudo selector instead.
     _nested_property: $ => seq(field("name", $.property_name), ":", optional(field("value", $._value)), $._block),
-    property_name: $ => seq(optional("*"), $._interpolated_identifier),
+    // Sass lets a line separate the `*` hack from its name, so a selector line's end cannot end it.
+    property_name: $ => seq(optional(seq("*", optional($._statement_break))), $._interpolated_identifier),
     // Aliasing this wrapper keeps `dashed_name` as a child of the aliased node.
     _wrapped_dashed_name: $ => $.dashed_name,
     // Custom properties and other author-defined `--` names share one node wherever they are a value or name.
@@ -770,7 +774,9 @@ module.exports = grammar({
         // The competing selector reading lexes whitespace between items as a descendant.
         seq(
           $._raw_statement_item,
-          repeat(seq(optional(choice($._descendant, $._space_before_colon)), $._raw_statement_item)),
+          repeat(
+            seq(optional(choice($._descendant, $._space_before_colon, $._statement_break)), $._raw_statement_item)
+          ),
           ";"
         )
       ),
@@ -797,7 +803,7 @@ function braced(body) {
 }
 
 function declarationBlock($, statement, property = $._property) {
-  const item = choice(statement, alias($._statement_comment, $.block_comment));
+  const item = choice(statement, alias($._statement_comment, $.block_comment), $._statement_break);
   return choice(repeat1(item), seq(repeat(item), choice(alias(property, $.property_declaration), $._final_statement)));
 }
 

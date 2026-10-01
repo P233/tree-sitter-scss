@@ -26,6 +26,7 @@ enum TokenType {
   NAMESPACE_PREFIX,
   INCOMPLETE_VARIABLE_PREFIX,
   MISSING_VARIABLE_NAME,
+  STATEMENT_BREAK,
 };
 
 // Dialect identity belongs to the immutable language entry, never to a buffer
@@ -485,9 +486,10 @@ static bool skip_interpolation(TSLexer *lexer, bool css, int32_t host) {
   return matched;
 }
 
-// After a line break, a selector continues only if its block opens before the statement ends.
+// After a line break, a selector continues if its block opens, or a group around it closes, before the statement ends.
 static bool block_follows(TSLexer *lexer, bool css) {
   int32_t quote = 0;
+  unsigned groups = 0;
   for (unsigned limit = LOOKAHEAD_LIMIT; !lexer->eof(lexer); limit--) {
     if (!limit) return true;
     if (!quote && lexer->lookahead == '/') {
@@ -506,6 +508,11 @@ static bool block_follows(TSLexer *lexer, bool css) {
       if (character == quote || line_break(character)) quote = 0;
     } else if (character == '"' || character == '\'') {
       quote = character;
+    } else if (character == '(' || character == '[') {
+      groups++;
+    } else if (character == ')' || character == ']') {
+      if (!groups) return true;
+      groups--;
     } else if (character == '{') {
       return true;
     } else if (character == ';' || character == '}') {
@@ -513,6 +520,35 @@ static bool block_follows(TSLexer *lexer, bool css) {
     }
   }
   return false;
+}
+
+// A name whose colon cannot start a pseudo-class begins a declaration.
+static bool declaration_follows(TSLexer *lexer) {
+  if (lexer->lookahead == '-') lexer->advance(lexer, false);
+  if (lexer->lookahead == '-') lexer->advance(lexer, false);
+  if (!name_start(lexer->lookahead)) return false;
+  while (name_character(lexer->lookahead)) lexer->advance(lexer, false);
+  while (css_space(lexer->lookahead)) lexer->advance(lexer, false);
+  if (lexer->lookahead != ':') return false;
+  lexer->advance(lexer, false);
+  int32_t next = lexer->lookahead;
+  // A pseudo-class name touches its colon, so anything else starts a value.
+  return css_space(next) || !(name_start(next) || next == '-' || next == '\\' || next == '#' || next == ':');
+}
+
+static bool selector_separator(int32_t character) {
+  return character == ',' || character == '>' || character == '+' || character == '~';
+}
+
+// Whether the separator under the lexer ends a selector line above a declaration; the caller has marked the token end.
+static bool separator_ends_statement(TSLexer *lexer) {
+  lexer->advance(lexer, false);
+  bool has_crossed_line = false;
+  while (css_space(lexer->lookahead)) {
+    has_crossed_line |= line_break(lexer->lookahead);
+    lexer->advance(lexer, false);
+  }
+  return has_crossed_line && declaration_follows(lexer);
 }
 
 static bool selector_start_after(TSLexer *lexer) {
@@ -634,6 +670,13 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
                                                                    : HOST_COMMENT;
     return !skip_interpolation(lexer, css, host);
   }
+  // Zero width before a separator, or an argument opener, that ends a selector line.
+  if (valid_symbols[DESCENDANT] && !valid_symbols[STATEMENT_BREAK] &&
+      (selector_separator(lexer->lookahead) || lexer->lookahead == '(')) {
+    lexer->mark_end(lexer);
+    lexer->result_symbol = STATEMENT_BREAK;
+    return separator_ends_statement(lexer);
+  }
   if ((valid_symbols[DESCENDANT] || valid_symbols[SPACE_BEFORE_COLON]) && css_space(lexer->lookahead)) {
     bool has_crossed_line = false;
     while (css_space(lexer->lookahead)) {
@@ -650,9 +693,17 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
       if (is_ambiguous_start ? selector_start_after(lexer) : selector_start(first)) {
         // A selector continues on another line unless the statement is seen to
         // end first; that line then starts a new statement.
-        return !has_crossed_line || block_follows(lexer, css);
+        if (!has_crossed_line || block_follows(lexer, css)) return true;
+        if (first == ':') return false;
+        // Only statement lists accept this token, so error recovery returns to the enclosing list.
+        lexer->result_symbol = STATEMENT_BREAK;
+        return true;
       }
       if (is_ambiguous_start) return false;
+      if (!has_crossed_line && !valid_symbols[STATEMENT_BREAK] && selector_separator(first)) {
+        lexer->result_symbol = STATEMENT_BREAK;
+        return separator_ends_statement(lexer);
+      }
     }
   }
   // Only valid right after a number: Sass subtracts on an unspaced minus (`1-1`), CSS keeps a signed number.

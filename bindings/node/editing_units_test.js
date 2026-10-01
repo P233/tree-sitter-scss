@@ -181,6 +181,32 @@ test("spaced colons preserve declaration values and blockless selector boundarie
   }
 });
 
+test("line breaks inside valid statements never end them early", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    const declaration = parse(".x {\n  *\n  width: 1px;\n}", language).descendantsOfType("property_declaration")[0];
+    assert.equal(declaration.text, "*\n  width: 1px;");
+    assert.equal(
+      parse(".x { @extend :is(.a\n  .b) !optional; }", language).descendantsOfType("complex_selector")[0].text,
+      ".a\n  .b"
+    );
+    assert.equal(
+      parse(".x { @extend .a,\n  .b; }", language).descendantsOfType("extend_statement")[0].firstNamedChild
+        .namedChildCount,
+      2
+    );
+    assert.equal(parse("@foo {\n  a\n  b;\n}", language).descendantsOfType("raw_statement")[0].text, "a\n  b;");
+    assert.equal(
+      parse(".x {\n  font\n    : bold;\n}", language).descendantsOfType("property_declaration")[0].text,
+      "font\n    : bold;"
+    );
+    const selectors = parse(".a\n  .b,\n.c\n  > .d { color: red; }", language).descendantsOfType("selectors")[0];
+    assert.deepEqual(
+      selectors.namedChildren.map(node => node.text),
+      [".a\n  .b", ".c\n  > .d"]
+    );
+  }
+});
+
 test("a spaced colon touching a name before a block starts a selector, as in Sass", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     for (const [source, selector] of [
