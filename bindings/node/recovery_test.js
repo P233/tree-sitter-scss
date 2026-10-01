@@ -460,7 +460,8 @@ test("a statement typed above a declaration ends at its own line", () => {
       ".b\n  c\n  d",
       ":is(.b\n  .c)",
       ".b // note\n  .c",
-      `.b\n  ${".c, ".repeat(400)}.d`
+      `.b\n  ${".c, ".repeat(400)}.d`,
+      `.b${"\n  :c".repeat(128)}\n  /* ${"x".repeat(1 << 20)} */`
     ]) {
       const root = parser.parse(`.a {\n  ${selector} { color: red; }\n}`).rootNode;
       assert.equal(root.hasError, false, selector);

@@ -492,12 +492,23 @@ static bool block_follows(TSLexer *lexer, bool css) {
   unsigned groups = 0;
   for (unsigned limit = LOOKAHEAD_LIMIT; !lexer->eof(lexer); limit--) {
     if (!limit) return true;
-    if (!quote && lexer->lookahead == '/') {
-      skip_trivia(lexer);
-      continue;
-    }
     int32_t character = lexer->lookahead;
     lexer->advance(lexer, false);
+    if (!quote && character == '/' && (lexer->lookahead == '/' || lexer->lookahead == '*')) {
+      // Comments spend the same budget, so a long one is never rescanned in full from every line.
+      bool is_block = lexer->lookahead == '*';
+      bool is_after_star = false;
+      lexer->advance(lexer, false);
+      while (--limit && !lexer->eof(lexer)) {
+        int32_t inner = lexer->lookahead;
+        if (!is_block && (inner == '\n' || inner == '\r')) break;
+        lexer->advance(lexer, false);
+        if (is_block && is_after_star && inner == '/') break;
+        is_after_star = inner == '*';
+      }
+      if (!limit) return true;
+      continue;
+    }
     if (character == '\\') {
       if (!lexer->eof(lexer)) lexer->advance(lexer, false);
     } else if (character == '#' && lexer->lookahead == '{' && (!quote || !css)) {

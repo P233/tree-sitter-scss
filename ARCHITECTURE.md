@@ -72,7 +72,7 @@ Full-parse samples have two warmups and nine measured rounds. Before every full-
 
 Without the event-loop yield, native finalizers stay queued even after `gc()`, and discarded trees inflate peak RSS by more than an order of magnitude (about 1.5 GB against 86 MB on Node 24.21.0 / Tree-sitter 0.25.1). The cleanup corrects measurement-induced retention; it does not reduce a live tree's allocation. Because GC and yielding also change heap and cache conditions, compare revisions only with this runner, never against results from a runner without the cleanup.
 
-The spaced-pseudo and multiline-pseudo workloads each contain 20,000 pseudos. They protect the distinction between local token recognition and repeated scanning of the remaining selector. Native acceptance tests also check the complete selector and following rule, without a machine-dependent timing assertion.
+The spaced-pseudo and multiline-pseudo workloads each contain 20,000 pseudos. They protect the distinction between local token recognition and repeated scanning of the remaining selector. The long-comment-lines workload ends 128 selector lines with a 1 MB comment, which cross-line lookahead must not read in full from every line; comments spend the same step budget as other characters. Native acceptance tests also check the complete selector and following rule, without a machine-dependent timing assertion.
 
 Alternate baseline/candidate order on the same machine with identical hashes. Investigate a repeatable regression in a representative workload before accepting a change. Do not turn one noisy wall-clock result into a CI threshold or claim a speedup from generated size alone.
 
