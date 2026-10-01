@@ -109,7 +109,7 @@ module.exports = grammar({
     $._statement_break,
     // A line between the `*` hack and its name; selector states never accept it.
     $._star_line_break,
-    // Never valid: a control directive header cut off by a declaration line is skipped as one error.
+    // Never valid: an at-rule header cut off by a declaration line is skipped as one error.
     $._unfinished_header
   ],
   extras: $ => [/\s/, $.block_comment, $.inline_comment],
@@ -184,7 +184,7 @@ module.exports = grammar({
     // As in Sass, a spaced colon touching a name before a block starts a pseudo selector instead.
     _nested_property: $ => seq(field("name", $.property_name), ":", optional(field("value", $._value)), $._block),
     // Sass lets a line separate the `*` hack from its name, so a selector line's end cannot end it.
-    // A universal selector is never followed by a plain name, so a touching `*` hack wins equal-cost recoveries.
+    // A `*` touching a plain name can only be the hack, so that reading wins equal-cost recoveries.
     property_name: $ =>
       seq(optional(choice(prec.dynamic(1, "*"), seq("*", $._star_line_break))), $._interpolated_identifier),
     // Aliasing this wrapper keeps `dashed_name` as a child of the aliased node.

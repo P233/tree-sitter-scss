@@ -601,12 +601,9 @@ test("unfinished at-rule headers and declaration values end before a declaration
       "@while fn(",
       "@at-root",
       "@at-root .b",
-      "@mixin foo",
       "@media screen",
       "@MEDIA",
       "@supports (x: y)",
-      "@font-face",
-      "@keyframes x",
       "a:hover b"
     ]) {
       const source = `.a {\n  color: red;\n  ${header}\n  width: 1px;\n}\n.y {\n  color: blue;\n}\n${tail}\n`;
@@ -623,6 +620,13 @@ test("unfinished at-rule headers and declaration values end before a declaration
         [header],
         header
       );
+    }
+    // At-rules usually written at the top level, where no declaration may follow, keep their body in one error.
+    for (const header of ["@mixin foo", "@font-face", "@keyframes x"]) {
+      const root = parser.parse(`${header}\n  color: red;\n}\n.y {\n  color: blue;\n}\n${tail}\n`).rootNode;
+      const rule = root.namedChildren.find(node => node.type === "rule_set");
+      assert.equal(rule.text, ".y {\n  color: blue;\n}", header);
+      assert.equal(rule.hasError, false, header);
     }
     // An else header after an `@if` block ends there too.
     for (const header of ["@else if $b ==", "@elseif $b ==", "@else", "@else if"]) {
@@ -711,7 +715,8 @@ test("unfinished at-rule headers and declaration values end before a declaration
       ".a {\n  width: if(\n    style(--x): 1px;\n    else: 2px;\n  );\n}",
       ".a {\n  transition:\n    opacity 1s,\n    transform 1s;\n}",
       ":root {\n  --a: #fde>\n  --b: #f2b8b0;\n}",
-      '.a {\n  background: url(\n    "a.png"\n  );\n}'
+      '.a {\n  background: url(\n    "a.png"\n  );\n}',
+      ".a {\n  background: url(\n    data: x;\n  );\n}"
     ]) {
       assert.equal(parser.parse(source).rootNode.hasError, false, source);
     }
@@ -722,6 +727,9 @@ test("unfinished at-rule headers and declaration values end before a declaration
       ).rootNode;
       assert.equal(root.namedChildCount, 302, head);
     }
+    // A payload line that a later `)` closes stays inside the url(.
+    const closed = parser.parse("@supports (url(\ndisplay: grid) { display: grid; }\n.y { c: d; }\n").rootNode;
+    assert.equal(closed.lastNamedChild.text, ".y { c: d; }");
   }
 });
 

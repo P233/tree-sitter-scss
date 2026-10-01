@@ -716,7 +716,7 @@ static bool value_ends_on_line(TSLexer *lexer, bool css) {
 // Whether an at-rule header meets a whole declaration line before its block opens; the token claims the header.
 static bool header_ends_early(TSLexer *lexer, bool css) {
   unsigned groups = 0;
-  // Within a group only the header's first line is checked, which keeps lookahead to a few bounded scans.
+  // Within a group only the header's first line is checked, so a header runs the declaration checks at most twice.
   bool is_first_line = true;
   for (unsigned limit = LOOKAHEAD_LIMIT; limit && !lexer->eof(lexer); limit--) {
     int32_t character = lexer->lookahead;
@@ -727,7 +727,7 @@ static bool header_ends_early(TSLexer *lexer, bool css) {
         // An open group ends the header there only if it never closes.
         return value_ends_on_line(lexer, css) && (!groups || !continues_past_line(lexer, css, false));
       }
-      // A failed name check consumes no punctuation, so group counting goes on.
+      // A failed name check consumes only a name, its interpolation and the whitespace after it.
       if (!groups) return false;
       continue;
     }
@@ -753,16 +753,13 @@ static bool header_ends_early(TSLexer *lexer, bool css) {
   return false;
 }
 
-// Longest at-rule name the header check knows (`font-feature-values`) plus its terminator.
-enum { AT_RULE_BUFFER = 20 };
+// Longest at-rule name the header check knows (`starting-style`) plus its terminator.
+enum { AT_RULE_BUFFER = 15 };
 
-// At-rules whose header ends with a block or `;`: Sass directives as spelled, CSS ones in any case.
-static bool requires_block_or_end(const char name[AT_RULE_BUFFER]) {
-  static const char *const sass[] = {"if", "each", "for", "while", "at-root", "mixin"};
-  static const char *const css[] = {"media", "supports", "container", "scope", "keyframes", "-webkit-keyframes",
-                                    "-moz-keyframes", "-o-keyframes", "page", "font-face", "font-feature-values",
-                                    "font-palette-values", "counter-style", "starting-style", "view-transition",
-                                    "position-try", "property", "layer", "charset", "import", "namespace", "function"};
+// Block at-rules nested among declarations: Sass directives as spelled, CSS ones in any case.
+static bool can_claim_header(const char name[AT_RULE_BUFFER]) {
+  static const char *const sass[] = {"if", "each", "for", "while", "at-root"};
+  static const char *const css[] = {"media", "supports", "container", "layer", "scope", "starting-style"};
   for (unsigned index = 0; index < sizeof(sass) / sizeof(*sass); index++) {
     if (strcmp(name, sass[index]) == 0) return true;
   }
@@ -785,8 +782,8 @@ static bool scan_unfinished_header(TSLexer *lexer, bool css) {
     lexer->advance(lexer, false);
   }
   name[length] = '\0';
-  // Other at-rules, such as an `@else` with no `@if`, keep raw statements that may span lines.
-  if (name_character(lexer->lookahead) || lexer->lookahead == '\\' || !requires_block_or_end(name)) return false;
+  // Other at-rules, such as `@mixin` at the top level or an `@else` with no `@if`, keep their own recovery.
+  if (name_character(lexer->lookahead) || lexer->lookahead == '\\' || !can_claim_header(name)) return false;
   lexer->mark_end(lexer);
   lexer->result_symbol = UNFINISHED_HEADER;
   return header_ends_early(lexer, css);
@@ -851,6 +848,12 @@ static bool value_ends_before(TSLexer *lexer, bool css, bool has_name) {
   lexer->result_symbol = STATEMENT_BREAK;
   return declaration_rest(lexer, css, has_name) && value_ends_on_line(lexer, css) &&
          !continues_past_line(lexer, css, false);
+}
+
+// The same from the start of the line, where a name may begin with the `*` hack or dashes.
+static bool value_ends_before_line(TSLexer *lexer, bool css) {
+  lexer->result_symbol = STATEMENT_BREAK;
+  return declaration_follows(lexer, css) && value_ends_on_line(lexer, css) && !continues_past_line(lexer, css, false);
 }
 
 // `word` holds `length` characters already consumed by the caller; a name that is no keyword may end the value instead.
@@ -1019,8 +1022,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
   bool can_end_value = has_crossed_line && is_value_state;
   // Sass reads a line-leading `*` as multiplication, but a `*` hack declaration still ends the value.
   if (can_end_value && lexer->lookahead == '*') {
-    lexer->result_symbol = STATEMENT_BREAK;
-    return declaration_follows(lexer, css) && value_ends_on_line(lexer, css) && !continues_past_line(lexer, css, false);
+    return value_ends_before_line(lexer, css);
   }
   if (valid_symbols[STATEMENT_COMMENT_START] && lexer->lookahead == '/') {
     return scan_statement_comment_start(lexer);
@@ -1066,8 +1068,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
   }
   // A Sass url( payload is never a declaration, so one on a later line ends an unclosed url( above it.
   if (!css && is_url && has_crossed_line) {
-    lexer->result_symbol = STATEMENT_BREAK;
-    return declaration_follows(lexer, css) && value_ends_on_line(lexer, css) && !continues_past_line(lexer, css, false);
+    return value_ends_before_line(lexer, css);
   }
   if (!css || !valid_symbols[LITERAL_CSS_URL]) return false;
   bool content = false;
@@ -1082,14 +1083,12 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     lexer->advance(lexer, false);
     content = true;
   }
-  // Such a payload ends the url( with a zero-width statement break, which no url state accepts.
-  lexer->result_symbol = STATEMENT_BREAK;
-  if (is_name && has_colon && css_space(lexer->lookahead) && value_ends_on_line(lexer, css) &&
-      !continues_past_line(lexer, css, false)) {
-    return true;
-  }
+  // Mark before the lookahead below, so a payload that starts no declaration keeps its own end.
   lexer->mark_end(lexer);
-  lexer->result_symbol = LITERAL_CSS_URL;
+  bool is_declaration = is_name && has_colon && css_space(lexer->lookahead) && value_ends_on_line(lexer, css) &&
+                        !continues_past_line(lexer, css, false);
+  // A `name:` payload starting a declaration line ends the url( as a statement break, which includes it.
+  lexer->result_symbol = is_declaration ? STATEMENT_BREAK : LITERAL_CSS_URL;
   return content;
 }
 
