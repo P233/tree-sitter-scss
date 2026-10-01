@@ -89,8 +89,23 @@ for (const forcedGc of [true, false]) {
     assert.equal(peakPendingTrees, 1000, "only a single small/nested batch may accumulate retired trees");
     assert.equal(pendingTrees, 0, "the final dialect must also drain before memory reporting");
     assert.equal(editedTrees, 440, "both dialects retain the existing warmup and measured edit counts");
+    const workloads = [
+      "small",
+      "stress",
+      "medium",
+      "large",
+      "nested",
+      "unmatched",
+      "spaced-pseudos",
+      "multiline-pseudos",
+      "long-comment-lines"
+    ];
+    assert.deepEqual(Object.keys(output.workloads), workloads);
     // Each dialect reports every workload plus the incremental edit.
-    assert.equal(output.results.length, (Object.keys(output.workloads).length + 1) * 2);
+    assert.deepEqual(
+      output.results.map(result => `${result.dialect}:${result.workload}`),
+      ["scss", "css"].flatMap(dialect => [...workloads, "edit-large"].map(workload => `${dialect}:${workload}`))
+    );
     assert.ok(
       output.results.every(result => result.p50Ms === 1 && result.p95Ms === 1),
       "cleanup must be untimed"
