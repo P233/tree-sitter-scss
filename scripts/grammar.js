@@ -1,5 +1,5 @@
 const { execFileSync, spawnSync } = require("node:child_process");
-const { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } = require("node:fs");
+const { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const { dirname, join } = require("node:path");
 
@@ -45,8 +45,35 @@ function build() {
   return execFileSync(process.execPath, [require.resolve("node-gyp/bin/node-gyp.js"), "rebuild"], childOptions);
 }
 
+// Tree-sitter compiles a large lexer unoptimized, assuming lexing is cheap; here it is about a quarter of parsing.
+const OPTIMIZE_OFF = [
+  "#ifdef _MSC_VER",
+  '#pragma optimize("", off)',
+  "#elif defined(__clang__)",
+  "#pragma clang optimize off",
+  "#elif defined(__GNUC__)",
+  '#pragma GCC optimize ("O0")',
+  "#endif",
+  "",
+  ""
+].join("\n");
+
+function enableLexerOptimization(directory) {
+  const path = join(directory, "parser.c");
+  const source = readFileSync(path, "utf8");
+  const optimized = source.replace(OPTIMIZE_OFF, "");
+  if (/optimize\s*\(\s*""\s*,\s*off\s*\)|optimize off|optimize\s*\(\s*"O0"\s*\)/.test(optimized)) {
+    throw new Error(`Unrecognized optimization pragma in ${path}; update OPTIMIZE_OFF in scripts/grammar.js.`);
+  }
+  if (optimized !== source) writeFileSync(path, optimized);
+}
+
 function generate(output) {
-  return runTreeSitter(["generate", "--abi", "14", ...(output ? ["--output", output] : [])], { reportWarnings: true });
+  const log = runTreeSitter(["generate", "--abi", "14", ...(output ? ["--output", output] : [])], {
+    reportWarnings: true
+  });
+  enableLexerOptimization(output || join(root, "src"));
+  return log;
 }
 
 function generatedDifferences(expected, actual, relative = "") {
@@ -120,6 +147,7 @@ module.exports = {
   childOptions,
   runTreeSitter,
   generate,
+  enableLexerOptimization,
   build,
   generatedDifferences,
   checkLargeStates,

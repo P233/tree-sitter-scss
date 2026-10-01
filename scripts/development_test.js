@@ -17,7 +17,7 @@ const { join } = require("node:path");
 const { setTimeout: delay } = require("node:timers/promises");
 const { test } = require("node:test");
 const { runInNewContext } = require("node:vm");
-const { checkLargeStates, generatedDifferences, root } = require("./grammar.js");
+const { checkLargeStates, enableLexerOptimization, generatedDifferences, root } = require("./grammar.js");
 const { escapeHtml, page, renderPreview } = require("./preview.js");
 
 function temporaryDirectory(t) {
@@ -95,6 +95,29 @@ test("generated-file verification detects missing and stale files without modify
   writeFileSync(join(actual, "parser.c"), "old parser");
   assert.deepEqual(generatedDifferences(expected, actual).sort(), ["parser.c", join("tree_sitter", "parser.h")].sort());
   assert.equal(readFileSync(join(actual, "parser.c"), "utf8"), "old parser");
+});
+
+test("generation keeps the lexer optimized and rejects an unrecognized optimization pragma", t => {
+  const directory = temporaryDirectory(t);
+  const prefix = '#include "tree_sitter/parser.h"\n\n';
+  const pragma = [
+    "#ifdef _MSC_VER",
+    '#pragma optimize("", off)',
+    "#elif defined(__clang__)",
+    "#pragma clang optimize off",
+    "#elif defined(__GNUC__)",
+    '#pragma GCC optimize ("O0")',
+    "#endif",
+    "",
+    ""
+  ].join("\n");
+  writeFileSync(join(directory, "parser.c"), `${prefix}${pragma}#define STATE_COUNT 1\n`);
+  enableLexerOptimization(directory);
+  assert.equal(readFileSync(join(directory, "parser.c"), "utf8"), `${prefix}#define STATE_COUNT 1\n`);
+  enableLexerOptimization(directory);
+  assert.equal(readFileSync(join(directory, "parser.c"), "utf8"), `${prefix}#define STATE_COUNT 1\n`);
+  writeFileSync(join(directory, "parser.c"), `${prefix}#pragma clang optimize off\n`);
+  assert.throws(() => enableLexerOptimization(directory), /Unrecognized optimization pragma/);
 });
 
 test("generated parsers stay within the large parse state budget", t => {
