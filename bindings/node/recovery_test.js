@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const { test } = require("node:test");
 const Parser = require("tree-sitter");
 const Scss = require("./index.js");
+const { effectiveCaptures } = require("./highlight_roles.js");
 
 function shape(node) {
   return [
@@ -19,11 +20,13 @@ function position(source, index) {
   return { row: lines.length - 1, column: lines.at(-1).length };
 }
 
+// Paint outer ranges first so the innermost effective capture owns each character.
 function highlightRoles(captures, source) {
   const roles = new Array(source.length);
-  for (const { name, node } of captures) {
-    if (!name.startsWith("_")) roles.fill(name, node.startIndex, node.endIndex);
-  }
+  const outerFirst = captures.toSorted(
+    (a, b) => b.node.endIndex - b.node.startIndex - (a.node.endIndex - a.node.startIndex)
+  );
+  for (const { name, node } of outerFirst) roles.fill(name, node.startIndex, node.endIndex);
   return roles;
 }
 
@@ -75,7 +78,7 @@ test("unfinished headers retain existing selector and function highlight roles",
     for (const [source, expected] of cases) {
       const tree = parser.parse(source);
       assert.equal(tree.rootNode.hasError, true, source);
-      const captures = query.captures(tree.rootNode);
+      const captures = effectiveCaptures(query, tree.rootNode);
       const roles = highlightRoles(captures, source);
       for (const [role, text] of expected) {
         const capture = captures.find(({ name, node }) => name === role && node.text === text);
@@ -97,7 +100,7 @@ test("damaged raw interpolation preserves following delimiter highlight roles", 
     const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
     const tree = parser.parse(source);
     assert.equal(tree.rootNode.hasError, true);
-    const roles = highlightRoles(query.captures(tree.rootNode), source);
+    const roles = highlightRoles(effectiveCaptures(query, tree.rootNode), source);
     assert.equal(roles[source.indexOf("} a.a")], "punctuation.bracket");
     // CSS keeps interpolation literal inside a raw group; SCSS retains the later selector delimiter.
     assert.equal(roles[source.lastIndexOf(".")], language === Scss ? "punctuation.delimiter" : "string");
