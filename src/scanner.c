@@ -273,13 +273,23 @@ static bool scan_namespace_prefix(TSLexer *lexer, bool css) {
     }
   }
   lexer->mark_end(lexer);
-  while (lexer->lookahead == '/') {
-    lexer->advance(lexer, false);
-    if (lexer->lookahead != '*') return false;
-    lexer->advance(lexer, false);
-    if (!skip_block_comment(lexer)) return false;
+  // As with descendants, only whitespace directly before `|` separates it; a comment there keeps the prefix.
+  bool is_after_space = false;
+  for (;;) {
+    if (css_space(lexer->lookahead)) {
+      is_after_space = true;
+      lexer->advance(lexer, false);
+    } else if (lexer->lookahead == '/') {
+      lexer->advance(lexer, false);
+      if (lexer->lookahead != '*') return false;
+      lexer->advance(lexer, false);
+      if (!skip_block_comment(lexer)) return false;
+      is_after_space = false;
+    } else {
+      break;
+    }
   }
-  if (lexer->lookahead != '|') return false;
+  if (lexer->lookahead != '|' || is_after_space) return false;
   lexer->advance(lexer, false);
   lexer->result_symbol = NAMESPACE_PREFIX;
   return lexer->lookahead != '|' && lexer->lookahead != '=';

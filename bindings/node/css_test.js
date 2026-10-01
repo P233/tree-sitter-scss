@@ -238,6 +238,11 @@ test("namespace prefixes do not reclassify ordinary names or other pipe syntax",
     assert.deepEqual(texts(tree, "combinator"), ["||"]);
     assert.deepEqual(texts(tree, "attribute_operator"), ["|="]);
     assert.equal(texts(tree, "complex_selector").length, 2);
+    // A comment directly before `|` keeps the prefix, as `.a /* c */.b` stays one compound; whitespace there does not.
+    const commented = parse("svg /* c */|a, svg /* c */ |b {}", new Parser(), undefined, language);
+    assert.equal(commented.rootNode.hasError, false);
+    assert.deepEqual(texts(commented, "namespace_name"), ["svg"]);
+    assert.equal(texts(commented, "complex_selector").length, 1);
   }
 });
 
