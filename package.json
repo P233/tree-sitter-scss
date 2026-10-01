@@ -1,6 +1,6 @@
 {
   "name": "tree-sitter-scss",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "private": true,
   "description": "Shared CSS and SCSS grammar for tree-sitter",
   "main": "bindings/node",

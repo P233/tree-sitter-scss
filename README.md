@@ -33,15 +33,15 @@ Coverage matters beyond highlighting: node ranges inside an `ERROR` cannot be tr
 Both bindings compile the generated C sources, so they need a C/C++ compiler; the Node build also needs Python. Clone a release tag and pack it for Node:
 
 ```sh
-git clone --branch v0.10.0 https://github.com/P233/tree-sitter-scss.git
+git clone --branch v0.11.0 https://github.com/P233/tree-sitter-scss.git
 cd tree-sitter-scss
-npm pack  # Writes tree-sitter-scss-0.10.0.tgz
+npm pack  # Writes tree-sitter-scss-0.11.0.tgz
 ```
 
 In a Node project next to the checkout, installing the tarball compiles the binding:
 
 ```sh
-npm install ../tree-sitter-scss/tree-sitter-scss-0.10.0.tgz tree-sitter@0.25.1
+npm install ../tree-sitter-scss/tree-sitter-scss-0.11.0.tgz tree-sitter@0.25.1
 ```
 
 ```js
