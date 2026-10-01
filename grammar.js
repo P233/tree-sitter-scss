@@ -173,14 +173,8 @@ module.exports = grammar({
         rawProperty($, $._wrapped_dashed_name)
       ),
     _declaration_priority: $ => seq(alias($._important_bang, "!"), alias(keyword("important", true), "important")),
-    _nested_property: $ =>
-      seq(
-        field("name", $.property_name),
-        optional($._space_before_colon),
-        ":",
-        optional(field("value", $._value)),
-        $._block
-      ),
+    // As in Sass, a spaced colon touching a name before a block starts a pseudo selector instead.
+    _nested_property: $ => seq(field("name", $.property_name), ":", optional(field("value", $._value)), $._block),
     property_name: $ => seq(optional("*"), $._interpolated_identifier),
     // Aliasing this wrapper keeps `dashed_name` as a child of the aliased node.
     _wrapped_dashed_name: $ => $.dashed_name,

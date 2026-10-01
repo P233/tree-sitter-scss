@@ -181,6 +181,28 @@ test("spaced colons preserve declaration values and blockless selector boundarie
   }
 });
 
+test("a spaced colon touching a name before a block starts a selector, as in Sass", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    for (const [source, selector] of [
+      [".x { a :hover { color: red; } }", "a :hover"],
+      ["@foo { a :hover, b { color: red; } }", "a :hover, b"],
+      ["@-moz-document url-prefix() { a\n:hover { color: red; } }", "a\n:hover"]
+    ]) {
+      const rule = parse(source, language).descendantsOfType("rule_set").at(-1);
+      assert.equal(rule.childForFieldName("selectors").text, selector, source);
+    }
+    for (const source of [
+      ".x { font : bold { family: x; } }",
+      ".x { font :{ family: x; } }",
+      "@foo { font : bold { family: x; } }"
+    ]) {
+      const declaration = parse(source, language).descendantsOfType("property_declaration")[0];
+      assert.equal(declaration.childForFieldName("name").text, "font", source);
+      assert.equal(declaration.childForFieldName("body").text, "family: x;", source);
+    }
+  }
+});
+
 test("long spaced pseudo chains preserve every descendant and the following rule", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     for (const space of [" ", "\n"]) {

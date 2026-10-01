@@ -485,8 +485,7 @@ static bool skip_interpolation(TSLexer *lexer, bool css, int32_t host) {
   return matched;
 }
 
-// Cross-line selector recovery: a nearby statement ending stops a descendant,
-// while a longer header may continue to its block.
+// After a line break, a selector continues only if its block opens before the statement ends.
 static bool block_follows(TSLexer *lexer, bool css) {
   int32_t quote = 0;
   for (unsigned limit = LOOKAHEAD_LIMIT; !lexer->eof(lexer); limit--) {
