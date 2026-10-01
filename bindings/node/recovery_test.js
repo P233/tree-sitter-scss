@@ -643,3 +643,23 @@ test("statement breaks after an earlier error keep incremental trees equal to fr
     }
   }
 });
+
+test("a stray block recovers as a missing selector after any edit", () => {
+  const sources = [
+    ".x { c: d; }\n.a {\n  color: red;\n  &:hover { b: c; }\n}{\n  color: blue;\n}\n@foo {\n  a\n  b;\n}\n",
+    "{\n  color: blue;\n}\n.a { b: c; }\n"
+  ];
+  for (const language of [Scss, Scss.cssLanguage]) {
+    const parser = new Parser().setLanguage(language);
+    const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
+    for (const source of sources) {
+      const stray = parser.parse(source).rootNode.namedChildren.find(node => node.hasError);
+      assert.equal(stray.type, "rule_set", source);
+      assert.equal(stray.childForFieldName("selectors").toString(), "(selectors (tag_selector (MISSING _identifier)))");
+      // Equal-cost missing-selector and missing-directive repairs must not depend on which version reused the tail.
+      for (let index = 0; index <= source.length; index++) {
+        editAndCompare(parser, query, parser.parse(source), source, index, index, "");
+      }
+    }
+  }
+});

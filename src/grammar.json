@@ -7872,6 +7872,31 @@
       "type": "CHOICE",
       "members": [
         {
+          "type": "PREC_DYNAMIC",
+          "value": -1,
+          "content": {
+            "type": "ALIAS",
+            "content": {
+              "type": "TOKEN",
+              "content": {
+                "type": "SEQ",
+                "members": [
+                  {
+                    "type": "STRING",
+                    "value": "@"
+                  },
+                  {
+                    "type": "PATTERN",
+                    "value": "[mM][eE][dD][iI][aA]"
+                  }
+                ]
+              }
+            },
+            "named": false,
+            "value": "@media"
+          }
+        },
+        {
           "type": "SEQ",
           "members": [
             {
@@ -7896,20 +7921,12 @@
               "value": "@media"
             },
             {
-              "type": "CHOICE",
-              "members": [
-                {
-                  "type": "FIELD",
-                  "name": "prelude",
-                  "content": {
-                    "type": "SYMBOL",
-                    "name": "_query_value"
-                  }
-                },
-                {
-                  "type": "BLANK"
-                }
-              ]
+              "type": "FIELD",
+              "name": "prelude",
+              "content": {
+                "type": "SYMBOL",
+                "name": "_query_value"
+              }
             }
           ]
         },
