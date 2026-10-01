@@ -533,21 +533,26 @@
           "type": "CHOICE",
           "members": [
             {
-              "type": "SEQ",
+              "type": "CHOICE",
               "members": [
                 {
-                  "type": "STRING",
-                  "value": "*"
+                  "type": "PREC_DYNAMIC",
+                  "value": 1,
+                  "content": {
+                    "type": "STRING",
+                    "value": "*"
+                  }
                 },
                 {
-                  "type": "CHOICE",
+                  "type": "SEQ",
                   "members": [
+                    {
+                      "type": "STRING",
+                      "value": "*"
+                    },
                     {
                       "type": "SYMBOL",
                       "name": "_star_line_break"
-                    },
-                    {
-                      "type": "BLANK"
                     }
                   ]
                 }

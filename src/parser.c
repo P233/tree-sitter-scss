@@ -125494,7 +125494,7 @@ static const TSParseActionEntry ts_parse_actions[] = {
   [5337] = {.entry = {.count = 1, .reusable = true}}, SHIFT(190),
   [5339] = {.entry = {.count = 1, .reusable = true}}, SHIFT(212),
   [5341] = {.entry = {.count = 1, .reusable = true}}, SHIFT(402),
-  [5343] = {.entry = {.count = 1, .reusable = true}}, REDUCE(sym_property_name, 2, 0, 0),
+  [5343] = {.entry = {.count = 1, .reusable = true}}, REDUCE(sym_property_name, 2, 1, 0),
   [5345] = {.entry = {.count = 1, .reusable = true}}, SHIFT(130),
   [5347] = {.entry = {.count = 1, .reusable = true}}, REDUCE(sym__unknown_declaration_block, 1, 0, 35),
   [5349] = {.entry = {.count = 1, .reusable = true}}, REDUCE(sym_declaration_block, 2, 0, 58),

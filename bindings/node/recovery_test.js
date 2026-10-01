@@ -754,6 +754,28 @@ test("statement breaks after an earlier error keep incremental trees equal to fr
   }
 });
 
+test("an unfinished star hack recovers the same after an edit as in a fresh parse", () => {
+  const source =
+    ".s {\n  display: flex;\n  flex-direction: column;\n  gap: rhythm(90);\n\n  h2 {\n    font-size: 24px;\n  }\n}\n";
+  const start = source.indexOf("\n  gap: ");
+  for (const language of [Scss, Scss.cssLanguage]) {
+    const parser = new Parser().setLanguage(language);
+    const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
+    // `*zoom rhythm(90);` fails as a declaration and as a selector at equal cost.
+    editAndCompare(parser, query, parser.parse(source), source, start, start + "\n  gap: ".length, "*zoom ");
+    // A stray `*` that does not touch a name keeps the statement below it.
+    const stray = parser.parse(".s {\n  *;\n  b: c;\n}\n").rootNode;
+    assert.deepEqual(
+      stray.descendantsOfType("ERROR").map(node => node.text),
+      ["*"]
+    );
+    assert.deepEqual(
+      stray.descendantsOfType("property_declaration").map(node => node.text),
+      ["b: c;"]
+    );
+  }
+});
+
 test("a stray block recovers as a missing selector after any edit", () => {
   const sources = [
     ".x { c: d; }\n.a {\n  color: red;\n  &:hover { b: c; }\n}{\n  color: blue;\n}\n@foo {\n  a\n  b;\n}\n",

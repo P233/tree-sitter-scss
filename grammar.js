@@ -184,7 +184,9 @@ module.exports = grammar({
     // As in Sass, a spaced colon touching a name before a block starts a pseudo selector instead.
     _nested_property: $ => seq(field("name", $.property_name), ":", optional(field("value", $._value)), $._block),
     // Sass lets a line separate the `*` hack from its name, so a selector line's end cannot end it.
-    property_name: $ => seq(optional(seq("*", optional($._star_line_break))), $._interpolated_identifier),
+    // A universal selector is never followed by a plain name, so a touching `*` hack wins equal-cost recoveries.
+    property_name: $ =>
+      seq(optional(choice(prec.dynamic(1, "*"), seq("*", $._star_line_break))), $._interpolated_identifier),
     // Aliasing this wrapper keeps `dashed_name` as a child of the aliased node.
     _wrapped_dashed_name: $ => $.dashed_name,
     // Custom properties and other author-defined `--` names share one node wherever they are a value or name.
