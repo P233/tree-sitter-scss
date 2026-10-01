@@ -108,7 +108,9 @@ module.exports = grammar({
     // Ends a selector line that cannot continue; selector states reject it, so recovery resumes in a statement list.
     $._statement_break,
     // A line between the `*` hack and its name; selector states never accept it.
-    $._star_line_break
+    $._star_line_break,
+    // Never valid: a control directive header cut off by a declaration line is skipped as one error.
+    $._unfinished_header
   ],
   extras: $ => [/\s/, $.block_comment, $.inline_comment],
   word: $ => $._identifier,

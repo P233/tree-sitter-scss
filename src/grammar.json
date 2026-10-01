@@ -9345,6 +9345,10 @@
     {
       "type": "SYMBOL",
       "name": "_star_line_break"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_unfinished_header"
     }
   ],
   "inline": [

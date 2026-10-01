@@ -566,11 +566,73 @@ test("selector lines above another kind of statement keep one local error", () =
   }
 });
 
+test("unfinished control headers and declaration values end before a declaration line", () => {
+  const parser = new Parser();
+  const tail = Array.from({ length: 300 }, (_, index) => `.t${index} { margin: ${index}px; }`).join("\n");
+  for (const language of [Scss, Scss.cssLanguage]) {
+    parser.setLanguage(language);
+    // A header cut off by a whole declaration line is one error; the declaration and later rules stay intact.
+    for (const header of [
+      "@if",
+      "@if $a ==",
+      "@if $a and",
+      "@if not",
+      "@elseif $a ==",
+      "@each $x in",
+      "@each $k, $v in",
+      "@for $i from 1 through",
+      "@while $i >",
+      "a:hover b"
+    ]) {
+      const source = `.a {\n  color: red;\n  ${header}\n  width: 1px;\n}\n.y {\n  color: blue;\n}\n${tail}\n`;
+      const root = parser.parse(source).rootNode;
+      assert.equal(root.namedChildCount, 302, header);
+      const rule = root.firstNamedChild;
+      assert.deepEqual(
+        rule.descendantsOfType("property_declaration").map(node => node.text),
+        ["color: red;", "width: 1px;"],
+        header
+      );
+      assert.deepEqual(
+        rule.descendantsOfType("ERROR").map(node => node.text),
+        [header],
+        header
+      );
+    }
+    // A declaration missing its semicolon ends before the next declaration line.
+    const unfinished = parser.parse(`.a {\n  color: red\n  width: 1px;\n}\n.y {}\n`).rootNode;
+    assert.deepEqual(
+      unfinished.descendantsOfType("property_declaration").map(node => node.text),
+      ["color: red", "width: 1px;"]
+    );
+    assert.equal(unfinished.namedChildCount, 2);
+    // Groups, CSS if() branches, value lists and raw values may still continue onto declaration-like lines.
+    for (const source of [
+      "@if $a ==\n  $b { .x { y: z; } }",
+      "@each $k, $v in (\n  a: 1,\n  b: 2\n) { .x { w: $v; } }",
+      "@while $i >\n  0 { .x { y: z; } }",
+      "$m: (\n  key: value,\n  other: 1\n);",
+      ".a {\n  width: if(\n    style(--x): 1px;\n    else: 2px;\n  );\n}",
+      ".a {\n  transition:\n    opacity 1s,\n    transform 1s;\n}",
+      ":root {\n  --a: #fde>\n  --b: #f2b8b0;\n}",
+      '.a {\n  background: url(\n    "a.png"\n  );\n}'
+    ]) {
+      assert.equal(parser.parse(source).rootNode.hasError, false, source);
+    }
+  }
+  // A Sass url( payload never holds a declaration.
+  parser.setLanguage(Scss);
+  const url = parser.parse(
+    `.a {\n  color: red;\n  background: url(a.png\n  width: 1px;\n}\n.y {\n  color: blue;\n}\n${tail}\n`
+  ).rootNode;
+  assert.equal(url.namedChildCount, 302);
+});
+
 test("statement breaks after an earlier error keep incremental trees equal to fresh ones", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     const parser = new Parser().setLanguage(language);
     const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
-    for (const header of [".f >", ".f,", ".f", ".f .g,", ".f > .g:", "&:is(.)"]) {
+    for (const header of [".f >", ".f,", ".f", ".f .g,", ".f > .g:", "&:is(.)", "@if $f ==", "@each $f in", "a:f g"]) {
       const source = `.a {\n  * : 1;\n  ${header}\n  top: 0;\n}\n.y { color: blue; }\n`;
       // Reusing a recovered tree must not decide the break differently, even for an empty edit.
       for (let index = 0; index <= source.length; index++) {
