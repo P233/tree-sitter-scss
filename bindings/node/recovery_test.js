@@ -19,6 +19,14 @@ function position(source, index) {
   return { row: lines.length - 1, column: lines.at(-1).length };
 }
 
+function highlightRoles(captures, source) {
+  const roles = new Array(source.length);
+  for (const { name, node } of captures) {
+    if (!name.startsWith("_")) roles.fill(name, node.startIndex, node.endIndex);
+  }
+  return roles;
+}
+
 function editAndCompare(parser, query, tree, source, start, end, replacement) {
   const edited = source.slice(0, start) + replacement + source.slice(end);
   tree.edit({
@@ -45,6 +53,57 @@ function assertScope(root, source) {
   assert.equal(root.lastNamedChild.type, "rule_set", root.toString());
   assert.equal(root.lastNamedChild.text, ".after {}", source);
 }
+
+test("unfinished headers retain existing selector and function highlight roles", () => {
+  const cases = [
+    ["a b*{}", [["tag", "*"]]],
+    ["a b&{}", [["tag", "&"]]],
+    [
+      "@supports selector(:s(a,*",
+      [
+        ["function", "selector"],
+        ["attribute", "s"],
+        ["tag", "*"]
+      ]
+    ],
+    ["@function --f({@media{{}", [["function", "--f"]]],
+    ["a{;;:nth-child(2n+1\n}", [["number", "2n+1"]]]
+  ];
+  for (const language of [Scss, Scss.cssLanguage]) {
+    const parser = new Parser().setLanguage(language);
+    const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
+    for (const [source, expected] of cases) {
+      const tree = parser.parse(source);
+      assert.equal(tree.rootNode.hasError, true, source);
+      const captures = query.captures(tree.rootNode);
+      const roles = highlightRoles(captures, source);
+      for (const [role, text] of expected) {
+        const capture = captures.find(({ name, node }) => name === role && node.text === text);
+        assert.ok(capture, `${language.name}: ${source}: missing ${role} on ${text}`);
+        assert.deepEqual(
+          roles.slice(capture.node.startIndex, capture.node.endIndex),
+          new Array(text.length).fill(role),
+          `${language.name}: ${source}: overridden ${role} on ${text}`
+        );
+      }
+    }
+  }
+});
+
+test("damaged raw interpolation preserves following delimiter highlight roles", () => {
+  const source = ".a{--x:#{m.#{x};x;} a.a{}";
+  for (const language of [Scss, Scss.cssLanguage]) {
+    const parser = new Parser().setLanguage(language);
+    const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
+    const tree = parser.parse(source);
+    assert.equal(tree.rootNode.hasError, true);
+    const roles = highlightRoles(query.captures(tree.rootNode), source);
+    assert.equal(roles[source.indexOf("} a.a")], "punctuation.bracket");
+    // CSS keeps interpolation literal inside a raw group; SCSS retains the later selector delimiter.
+    assert.equal(roles[source.lastIndexOf(".")], language === Scss ? "punctuation.delimiter" : "string");
+    assert.equal(roles[source.length - 1], "punctuation.bracket");
+  }
+});
 
 test("query keywords are reclassified when a query call becomes an ordinary call", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
