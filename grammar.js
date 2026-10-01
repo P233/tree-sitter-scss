@@ -105,7 +105,7 @@ module.exports = grammar({
     $._namespace_prefix,
     $._incomplete_variable_prefix,
     $._missing_variable_name,
-    // Ends a selector line that cannot continue; only statement lists accept it.
+    // Ends a selector line that cannot continue; selector states reject it, so recovery resumes in a statement list.
     $._statement_break
   ],
   extras: $ => [/\s/, $.block_comment, $.inline_comment],

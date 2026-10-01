@@ -442,6 +442,31 @@ test("a statement typed above a declaration ends at its own line", () => {
       );
       assert.ok(errors[0].descendantsOfType(["class_selector", "tag_selector", "parent_selector"]).length, prefix);
     }
+    // Comments may separate the line from its declaration, which may take any declaration form.
+    for (const [header, trivia, declaration] of [
+      [".b,", " // c", "width: 1px;"],
+      [".b,", " /* c */", "width: 1px;"],
+      [".b,", "\n  /* c */", "width: 1px;"],
+      [".b,", "", "#{$p}: 1px;"],
+      [".b,", "", "margin:-1px;"],
+      [".b,", "", "*zoom: 1;"],
+      [".b >", "", "--x: 1;"]
+    ]) {
+      const source = `.a {\n  color: red;\n  ${header}${trivia}\n  ${declaration}\n}\n.y {\n  color: blue;\n}\n${tail}\n`;
+      const root = parser.parse(source).rootNode;
+      assert.equal(root.namedChildCount, 302, source);
+      const rule = root.firstNamedChild;
+      assert.deepEqual(
+        rule.descendantsOfType("property_declaration").map(node => node.text),
+        ["color: red;", declaration],
+        source
+      );
+      assert.deepEqual(
+        rule.descendantsOfType("ERROR").map(node => node.text),
+        [header],
+        source
+      );
+    }
     // A stray separator line stays an error instead of disappearing into the statement break.
     for (const separator of [",", "("]) {
       const rule = parser.parse(`.a {\n  color: red;\n  ${separator}\n  width: 1px;\n}\n`).rootNode.firstNamedChild;
@@ -454,18 +479,75 @@ test("a statement typed above a declaration ends at its own line", () => {
     const extend = parser.parse(`.a {\n  @extend .b\n    .c;\n}\n.after {}\n`).rootNode;
     assert.equal(extend.namedChildCount, 2);
     assert.equal(extend.lastNamedChild.text, ".after {}");
+    assert.deepEqual(
+      extend.descendantsOfType("ERROR").map(node => node.text),
+      [".c"]
+    );
     // A selector still continues on later lines when its block follows, even past the lookahead window.
     for (const selector of [
       ".b\n.c",
       ".b\n  c\n  d",
       ":is(.b\n  .c)",
       ".b // note\n  .c",
+      '.b\n  c#{map-get($m, "}")}',
+      ".b\n  c#{\n    $x\n  }",
       `.b\n  ${".c, ".repeat(400)}.d`,
       `.b${"\n  :c".repeat(128)}\n  /* ${"x".repeat(1 << 20)} */`
     ]) {
       const root = parser.parse(`.a {\n  ${selector} { color: red; }\n}`).rootNode;
       assert.equal(root.hasError, false, selector);
       assert.equal(root.descendantsOfType("complex_selector").length, 1, selector);
+    }
+  }
+});
+
+test("selector lines above another kind of statement keep one local error", () => {
+  const parser = new Parser();
+  const tail = Array.from({ length: 300 }, (_, index) => `.t${index} { margin: ${index}px; }`).join("\n");
+  const rules = Array.from({ length: 50 }, (_, index) => `.r${index} { a: b; }`).join("\n");
+  for (const language of [Scss, Scss.cssLanguage]) {
+    parser.setLanguage(language);
+    for (const [lines, error] of [
+      ["&:hover\n  .c", "&:hover\n  .c"],
+      ["&__x\n  .c", "&__x\n  .c"],
+      [".b\n  #c", ".b\n  #c"],
+      [".b\n  .c // note", ".b\n  .c"],
+      [".b\n  .c\n  /* c */\n  width: 1px;", ".b\n  .c"],
+      [".b\n  .c\n  /* c */\n  @include x;", ".b\n  .c"],
+      [".b\n  .c\n  /* c */\n  $x: 1;", ".b\n  .c"]
+    ]) {
+      const root = parser.parse(`.a {\n  color: red;\n  ${lines}\n}\n.y {\n  color: blue;\n}\n${tail}\n`).rootNode;
+      assert.equal(root.namedChildCount, 302, lines);
+      assert.deepEqual(
+        root.firstNamedChild.descendantsOfType("ERROR").map(node => node.text),
+        [error],
+        lines
+      );
+    }
+    for (const end of [".b\n  .c", ".a {\n  .b\n  .c"]) {
+      const root = parser.parse(`${rules}\n${end}`).rootNode;
+      assert.equal(root.namedChildCount, 51, end);
+      assert.deepEqual(
+        root.descendantsOfType("ERROR").map(node => node.text),
+        [end],
+        end
+      );
+    }
+  }
+});
+
+test("statement breaks after an earlier error keep incremental trees equal to fresh ones", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    const parser = new Parser().setLanguage(language);
+    const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
+    for (const header of [".f >", ".f,", ".f"]) {
+      const source = `.a {\n  * : 1;\n  ${header}\n  top: 0;\n}\n.y { color: blue; }\n`;
+      // Reusing a recovered tree must not decide the break differently, even for an empty edit.
+      for (let index = 0; index <= source.length; index++) {
+        editAndCompare(parser, query, parser.parse(source), source, index, index, "");
+      }
+      const start = source.indexOf("blue");
+      editAndCompare(parser, query, parser.parse(source), source, start, start + 4, "red");
     }
   }
 });
