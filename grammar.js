@@ -124,6 +124,7 @@ module.exports = grammar({
     [$.property_name, $.operator],
     [$._interpolated_identifier, $._expression_atom],
     [$._interpolated_identifier, $._raw_token],
+    [$._interpolated_identifier, $._interpolated_pseudo_name],
     [$.named_argument, $._expression_atom],
     [$._value_atom, $._calculation_atom],
     [$._value_atom, $._query_atom],
@@ -219,10 +220,27 @@ module.exports = grammar({
         seq($.namespace_selector, choice($.tag_selector, $.universal_selector), repeat($._compound_tail))
       ),
     _simple_selector: $ =>
-      choice($.tag_selector, $.universal_selector, $.parent_selector, $.keyframe_selector, $._subclass_selector),
+      choice(
+        $.tag_selector,
+        $.universal_selector,
+        $.parent_selector,
+        $.keyframe_selector,
+        $._subclass_selector,
+        alias($._interpolated_pseudo_selector, $.pseudo_selector)
+      ),
+    // Sass reads a selector after evaluating it, so an interpolation touching `(` is a pseudo call: `#{$sel}(.a)`.
+    _interpolated_pseudo_selector: $ => seq(alias($._interpolated_pseudo_name, $.pseudo_name), $.selector_arguments),
+    _interpolated_pseudo_name: $ =>
+      seq($.interpolation, optional(token.immediate(prec(1, NAME_FRAGMENT))), optional($._identifier_tail)),
     // Only an adjacent interpolation, as in `:not(.a)#{$b}`, extends the compound as a type-like
     // name. A name after whitespace needs the descendant token, so it cannot join from another statement.
-    _compound_tail: $ => choice($._subclass_selector, prec.right(alias($._identifier_tail, $.tag_selector))),
+    _compound_tail: $ =>
+      choice(
+        $._subclass_selector,
+        prec.right(alias($._identifier_tail, $.tag_selector)),
+        alias($._adjacent_pseudo_selector, $.pseudo_selector)
+      ),
+    _adjacent_pseudo_selector: $ => seq(alias($._identifier_tail, $.pseudo_name), $.selector_arguments),
     _subclass_selector: $ =>
       choice($.id_selector, $.class_selector, $.placeholder_selector, $.attribute_selector, $.pseudo_selector),
     tag_selector: $ => $._interpolated_identifier,
@@ -790,7 +808,8 @@ module.exports = grammar({
         $.string,
         alias($._unknown_statement_group, $.raw_group)
       ),
-    _unknown_statement_group: $ => seq("(", rawContent($), ")"),
+    // An interpolated pseudo call claims an adjacent `(` before the raw reading splits off, so accept it here too.
+    _unknown_statement_group: $ => seq(choice("(", alias(token.immediate("("), "(")), rawContent($), ")"),
     at_keyword: $ =>
       prec.right(
         seq(

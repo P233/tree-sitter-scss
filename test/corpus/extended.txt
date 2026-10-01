@@ -154,6 +154,13 @@ Interpolation continues a name only when adjacent
 (stylesheet (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (plain_value) (interpolation (variable_name))) (property_declaration (property_name) (plain_value (interpolation (variable_name)) (interpolation (variable_name))) (interpolation (variable_name))) (property_declaration (property_name) (call_expression (function_name) (arguments (argument (interpolation (variable_name)) (operator) (interpolation (variable_name)))))))) (rule_set (selectors (complex_selector (class_selector) (tag_selector (interpolation (variable_name)))))) (at_rule (at_keyword) (interpolation (variable_name))))
 
 ==================
+Interpolation touching selector arguments is a pseudo call
+==================
+@at-root #{$sel}(.x, [dir="rtl"]) #{&} {} .a > #{$p}(.b).c {} :not(.a)#{$p}(.b) {} @future { #{$p}(x); }
+---
+(stylesheet (at_root_statement (selectors (complex_selector (pseudo_selector (pseudo_name (interpolation (variable_name))) (selector_arguments (class_selector) (attribute_selector (attribute_name) (attribute_operator) (string (string_content))))) (tag_selector (interpolation (parent_selector)))))) (rule_set (selectors (complex_selector (class_selector) (combinator) (compound_selector (pseudo_selector (pseudo_name (interpolation (variable_name))) (selector_arguments (class_selector))) (class_selector))))) (rule_set (selectors (compound_selector (pseudo_selector (pseudo_name) (selector_arguments (class_selector))) (pseudo_selector (pseudo_name (interpolation (variable_name))) (selector_arguments (class_selector)))))) (at_rule (at_keyword) (declaration_block (raw_statement (plain_value (interpolation (variable_name))) (raw_group (plain_value))))))
+
+==================
 At-rule support queries name one at-keyword
 ==================
 @supports at-rule(@starting-style) {} @supports not at-rule(@container) and (display: grid) {} .a { width: if(supports(at-rule(@scope)): 1px; else: 2px); }
