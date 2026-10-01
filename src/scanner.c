@@ -710,14 +710,23 @@ static bool value_ends_on_line(TSLexer *lexer, bool css) {
   return false;
 }
 
-// Whether a control header meets a whole declaration line before its block opens; the token claims the header.
+// Whether an at-rule header meets a whole declaration line before its block opens; the token claims the header.
 static bool header_ends_early(TSLexer *lexer, bool css) {
   unsigned groups = 0;
+  // Within a group only the header's first line is checked, which keeps lookahead to a few bounded scans.
+  bool is_first_line = true;
   for (unsigned limit = LOOKAHEAD_LIMIT; limit && !lexer->eof(lexer); limit--) {
     int32_t character = lexer->lookahead;
-    if (line_break(character) && !groups) {
+    if (line_break(character) && (!groups || is_first_line)) {
+      is_first_line = false;
       while (css_space(lexer->lookahead)) lexer->advance(lexer, false);
-      return declaration_follows(lexer, css) && value_ends_on_line(lexer, css);
+      if (declaration_follows(lexer, css)) {
+        // An open group ends the header there only if it never closes.
+        return value_ends_on_line(lexer, css) && (!groups || !continues_past_line(lexer, css, false));
+      }
+      // A failed name check consumes no punctuation, so group counting goes on.
+      if (!groups) return false;
+      continue;
     }
     lexer->advance(lexer, false);
     // A comment after the header stays a comment rather than joining the error.
@@ -741,22 +750,40 @@ static bool header_ends_early(TSLexer *lexer, bool css) {
   return false;
 }
 
+// Longest at-rule name the header check knows (`font-feature-values`) plus its terminator.
+enum { AT_RULE_BUFFER = 20 };
+
+// At-rules whose header ends with a block or `;`: Sass directives as spelled, CSS ones in any case.
+static bool requires_block_or_end(const char name[AT_RULE_BUFFER]) {
+  static const char *const sass[] = {"if", "each", "for", "while", "at-root", "mixin"};
+  static const char *const css[] = {"media", "supports", "container", "scope", "keyframes", "-webkit-keyframes",
+                                    "-moz-keyframes", "-o-keyframes", "page", "font-face", "font-feature-values",
+                                    "font-palette-values", "counter-style", "starting-style", "view-transition",
+                                    "position-try", "property", "layer", "charset", "import", "namespace", "function"};
+  for (unsigned index = 0; index < sizeof(sass) / sizeof(*sass); index++) {
+    if (strcmp(name, sass[index]) == 0) return true;
+  }
+  char folded[AT_RULE_BUFFER];
+  memcpy(folded, name, sizeof(folded));
+  lowercase(folded);
+  for (unsigned index = 0; index < sizeof(css) / sizeof(*css); index++) {
+    if (strcmp(folded, css[index]) == 0) return true;
+  }
+  return false;
+}
+
 // No state accepts the token, so the parser skips the unfinished header as one error and resumes at the declaration.
 static bool scan_unfinished_header(TSLexer *lexer, bool css) {
   lexer->advance(lexer, false);
-  char name[KEYWORD_BUFFER];
+  char name[AT_RULE_BUFFER];
   unsigned length = 0;
-  while (length + 1 < KEYWORD_BUFFER && lexer->lookahead >= 'a' && lexer->lookahead <= 'z') {
+  while (length + 1 < AT_RULE_BUFFER && lexer->lookahead < 0x80 && name_character(lexer->lookahead)) {
     name[length++] = (char)lexer->lookahead;
     lexer->advance(lexer, false);
   }
   name[length] = '\0';
-  // Sass control directives are lowercase; other spellings, and an `@else` with no `@if`, are unknown at-rules.
-  if (name_character(lexer->lookahead) || lexer->lookahead == '\\' ||
-      (strcmp(name, "if") != 0 && strcmp(name, "each") != 0 && strcmp(name, "for") != 0 &&
-       strcmp(name, "while") != 0)) {
-    return false;
-  }
+  // Other at-rules, such as an `@else` with no `@if`, keep raw statements that may span lines.
+  if (name_character(lexer->lookahead) || lexer->lookahead == '\\' || !requires_block_or_end(name)) return false;
   lexer->mark_end(lexer);
   lexer->result_symbol = UNFINISHED_HEADER;
   return header_ends_early(lexer, css);
