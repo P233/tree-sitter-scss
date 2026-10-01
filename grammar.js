@@ -106,7 +106,9 @@ module.exports = grammar({
     $._incomplete_variable_prefix,
     $._missing_variable_name,
     // Ends a selector line that cannot continue; selector states reject it, so recovery resumes in a statement list.
-    $._statement_break
+    $._statement_break,
+    // A line between the `*` hack and its name; selector states never accept it.
+    $._star_line_break
   ],
   extras: $ => [/\s/, $.block_comment, $.inline_comment],
   word: $ => $._identifier,
@@ -179,7 +181,7 @@ module.exports = grammar({
     // As in Sass, a spaced colon touching a name before a block starts a pseudo selector instead.
     _nested_property: $ => seq(field("name", $.property_name), ":", optional(field("value", $._value)), $._block),
     // Sass lets a line separate the `*` hack from its name, so a selector line's end cannot end it.
-    property_name: $ => seq(optional(seq("*", optional($._statement_break))), $._interpolated_identifier),
+    property_name: $ => seq(optional(seq("*", optional($._star_line_break))), $._interpolated_identifier),
     // Aliasing this wrapper keeps `dashed_name` as a child of the aliased node.
     _wrapped_dashed_name: $ => $.dashed_name,
     // Custom properties and other author-defined `--` names share one node wherever they are a value or name.

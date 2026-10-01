@@ -544,7 +544,7 @@
                   "members": [
                     {
                       "type": "SYMBOL",
-                      "name": "_statement_break"
+                      "name": "_star_line_break"
                     },
                     {
                       "type": "BLANK"
@@ -9341,6 +9341,10 @@
     {
       "type": "SYMBOL",
       "name": "_statement_break"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_star_line_break"
     }
   ],
   "inline": [

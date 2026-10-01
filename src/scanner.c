@@ -27,6 +27,7 @@ enum TokenType {
   INCOMPLETE_VARIABLE_PREFIX,
   MISSING_VARIABLE_NAME,
   STATEMENT_BREAK,
+  STAR_LINE_BREAK,
 };
 
 // Dialect identity belongs to the immutable language entry, never to a buffer
@@ -175,9 +176,8 @@ static bool scan_number_comments(TSLexer *lexer, bool css) {
   return true;
 }
 
-static bool scan_number(TSLexer *lexer, bool css) {
-  bool leading_dot = lexer->lookahead == '.';
-  if (leading_dot) lexer->advance(lexer, false);
+// Scans a number whose leading dot, if any, the caller has consumed.
+static bool scan_number_digits(TSLexer *lexer, bool css, bool leading_dot) {
   if (!digit(lexer->lookahead)) return false;
   do { lexer->advance(lexer, false); } while (digit(lexer->lookahead));
   lexer->mark_end(lexer);
@@ -217,6 +217,12 @@ static bool scan_number(TSLexer *lexer, bool css) {
   }
   if (!scan_unit(lexer, css, false, &complex)) return false;
   return (!css && scan_number_comments(lexer, css)) || complex;
+}
+
+static bool scan_number(TSLexer *lexer, bool css) {
+  bool leading_dot = lexer->lookahead == '.';
+  if (leading_dot) lexer->advance(lexer, false);
+  return scan_number_digits(lexer, css, leading_dot);
 }
 
 // Longest keyword spelling (`important`, `-infinity`) plus its terminator.
@@ -503,10 +509,9 @@ static unsigned skip_comment(TSLexer *lexer, unsigned budget) {
 }
 
 // After a line break, a selector continues if its block opens, or a group around it closes, before the statement ends.
-static bool block_follows(TSLexer *lexer, bool css, bool *is_ended_on_first_line) {
+static bool block_follows(TSLexer *lexer, bool css) {
   int32_t quote = 0;
   unsigned groups = 0;
-  bool has_crossed_line = false;
   for (unsigned limit = LOOKAHEAD_LIMIT; !lexer->eof(lexer); limit--) {
     if (!limit) return true;
     int32_t character = lexer->lookahead;
@@ -535,10 +540,8 @@ static bool block_follows(TSLexer *lexer, bool css, bool *is_ended_on_first_line
     } else if (character == '{') {
       return true;
     } else if (character == ';' || character == '}') {
-      *is_ended_on_first_line = character == ';' && !has_crossed_line;
       return false;
     }
-    if (!has_crossed_line) has_crossed_line = line_break(character);
   }
   return false;
 }
@@ -580,11 +583,40 @@ static bool selector_separator(int32_t character) {
   return character == ',' || character == '>' || character == '+' || character == '~' || character == '(';
 }
 
-// Whether the separator under the lexer ends a selector line above a declaration; the token claims the separator.
-static bool separator_ends_statement(TSLexer *lexer, bool css) {
-  lexer->advance(lexer, false);
-  lexer->mark_end(lexer);
+// A separator, or a compound-part start touching the compound before it, can leave a selector line unfinished.
+static bool tail_start(int32_t character, bool is_touching) {
+  return selector_separator(character) ||
+         (is_touching && (character == '.' || character == ':' || character == '#' || character == '[' ||
+                          character == '%' || character == '|'));
+}
+
+// Whether only such punctuation ends the line above a declaration; the token claims it.
+static bool tail_ends_statement(TSLexer *lexer, bool css) {
   unsigned budget = LOOKAHEAD_LIMIT;
+  unsigned interpolations = 0;
+  for (; budget; budget--) {
+    int32_t character = lexer->lookahead;
+    if (character == ' ' || character == '\t') {
+      lexer->advance(lexer, false);
+      continue;
+    }
+    if (character == '#') {
+      lexer->advance(lexer, false);
+      if (lexer->lookahead == '{') {
+        lexer->advance(lexer, false);
+        interpolations++;
+      }
+    } else if (character == '}' && interpolations) {
+      lexer->advance(lexer, false);
+      interpolations--;
+    } else if (tail_start(character, true) || character == ')' || character == ']') {
+      lexer->advance(lexer, false);
+    } else {
+      break;
+    }
+    lexer->mark_end(lexer);
+  }
+  if (!budget) return false;
   bool has_crossed_line = false;
   for (;;) {
     while (css_space(lexer->lookahead)) {
@@ -720,7 +752,8 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     return !skip_interpolation(lexer, css, host);
   }
   if ((valid_symbols[DESCENDANT] || valid_symbols[SPACE_BEFORE_COLON]) &&
-      (css_space(lexer->lookahead) || selector_separator(lexer->lookahead))) {
+      (css_space(lexer->lookahead) || tail_start(lexer->lookahead, true))) {
+    bool has_space = css_space(lexer->lookahead);
     bool has_crossed_line = false;
     while (css_space(lexer->lookahead)) {
       has_crossed_line |= line_break(lexer->lookahead);
@@ -730,24 +763,22 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     lexer->mark_end(lexer);
     int32_t first = lexer->lookahead;
     if (!has_crossed_line && valid_symbols[DESCENDANT] && !valid_symbols[STATEMENT_BREAK] &&
-        selector_separator(first)) {
+        tail_start(first, !has_space)) {
       lexer->result_symbol = STATEMENT_BREAK;
-      return separator_ends_statement(lexer, css);
+      return tail_ends_statement(lexer, css);
     }
     // Without a descendant, other whitespace-led tokens such as `true` in `(a true)` still get scanned below.
-    if (first == ':' || valid_symbols[DESCENDANT]) {
+    if (has_space && (first == ':' || valid_symbols[DESCENDANT])) {
       lexer->result_symbol = first == ':' ? SPACE_BEFORE_COLON : DESCENDANT;
       bool is_ambiguous_start = first == ':' || first == '-' || first == '|';
       if (is_ambiguous_start ? selector_start_after(lexer) : selector_start(first)) {
         if (!has_crossed_line) return true;
-        // Another line continues the selector unless its statement is seen to end first.
-        bool is_ended_on_line = false;
-        if (first == ':') return block_follows(lexer, css, &is_ended_on_line);
-        is_ended_on_line = declaration_follows(lexer, css);
-        if (!is_ended_on_line && block_follows(lexer, css, &is_ended_on_line)) return true;
-        // Selector states never accept a break, so ending on that line returns recovery to the statement list.
-        lexer->result_symbol = STATEMENT_BREAK;
-        return is_ended_on_line;
+        // A spaced colon on its own line may still belong to a declaration above it.
+        if (first == ':') return block_follows(lexer, css);
+        // Another line continues the statement unless it starts a declaration, which selector states never accept.
+        if (!declaration_follows(lexer, css)) return true;
+        lexer->result_symbol = valid_symbols[STAR_LINE_BREAK] ? STAR_LINE_BREAK : STATEMENT_BREAK;
+        return true;
       }
       if (is_ambiguous_start) return false;
     }
@@ -771,6 +802,26 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     bool complex = false;
     lexer->result_symbol = DIMENSION_UNIT;
     return scan_unit(lexer, css, true, &complex);
+  }
+  // Recovering from an unfinished selector lexes the punctuation that ended its line again in the statement list.
+  if (valid_symbols[STATEMENT_BREAK] && valid_symbols[STATEMENT_COMMENT_START] && !valid_symbols[DESCENDANT]) {
+    bool is_touching = true;
+    while (lexer->lookahead == ' ' || lexer->lookahead == '\t') {
+      is_touching = false;
+      lexer->advance(lexer, true);
+    }
+    if (tail_start(lexer->lookahead, is_touching)) {
+      if (lexer->lookahead == '.') {
+        lexer->advance(lexer, false);
+        if (digit(lexer->lookahead)) {
+          return (valid_symbols[SCALAR_NUMBER] || valid_symbols[DIMENSION_NUMBER]) &&
+                 scan_number_digits(lexer, css, true) && valid_symbols[lexer->result_symbol];
+        }
+        lexer->mark_end(lexer);
+      }
+      lexer->result_symbol = STATEMENT_BREAK;
+      return tail_ends_statement(lexer, css);
+    }
   }
   while (css_space(lexer->lookahead)) lexer->advance(lexer, true);
   if (valid_symbols[STATEMENT_COMMENT_START] && lexer->lookahead == '/') {

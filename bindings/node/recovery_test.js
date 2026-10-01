@@ -423,8 +423,27 @@ test("a statement typed above a declaration ends at its own line", () => {
         prefix
       );
     }
-    // Longer headers, and a compound ending in a separator above a declaration, end at their line too.
-    for (const prefix of ["a b", ".b .c", ".b > .c", ".b,", ".b >", "&:is("]) {
+    // Longer headers, and lines ending in punctuation that cannot complete them, end at their line too.
+    // That punctuation goes with the statement break, so the error covers the selector before it.
+    for (const [prefix, error] of [
+      ["a b", "a b"],
+      [".b .c", ".b .c"],
+      [".b > .c", ".b > .c"],
+      [".b,", ".b"],
+      [".b >", ".b"],
+      ["&:is(", "&:is"],
+      [".b .c,", ".b .c"],
+      [".b .c >", ".b .c"],
+      ["a|b,", "a|b"],
+      [".c:", ".c"],
+      [".b > .c:", ".b > .c"],
+      [".b.", ".b"],
+      ["&:is(.", "&:is"],
+      ["&:is(.)", "&:is"],
+      ["&:is(.c, .)", "&:is(.c"],
+      [".b-#{", ".b-"],
+      [".b-#{}", ".b-"]
+    ]) {
       const source = `.a {\n  color: red;\n  ${prefix}\n  width: 1px;\n}\n.y {\n  color: blue;\n}\n${tail}\n`;
       const root = parser.parse(source).rootNode;
       assert.equal(root.namedChildCount, 302, prefix);
@@ -437,7 +456,7 @@ test("a statement typed above a declaration ends at its own line", () => {
       const errors = rule.descendantsOfType("ERROR");
       assert.deepEqual(
         errors.map(node => node.text),
-        [prefix],
+        [error],
         prefix
       );
       assert.ok(errors[0].descendantsOfType(["class_selector", "tag_selector", "parent_selector"]).length, prefix);
@@ -463,10 +482,19 @@ test("a statement typed above a declaration ends at its own line", () => {
       );
       assert.deepEqual(
         rule.descendantsOfType("ERROR").map(node => node.text),
-        [header],
+        [".b"],
         source
       );
     }
+    // A separator after the `*` hack still ends its line; recovery reads the hack with the next declaration.
+    const star = parser.parse(
+      `.a {\n  color: red;\n  *,\n  width: 1px;\n}\n.y {\n  color: blue;\n}\n${tail}\n`
+    ).rootNode;
+    assert.equal(star.namedChildCount, 302);
+    assert.deepEqual(
+      star.firstNamedChild.descendantsOfType("ERROR").map(node => node.text),
+      [","]
+    );
     // A stray separator line stays an error instead of disappearing into the statement break.
     for (const separator of [",", "("]) {
       const rule = parser.parse(`.a {\n  color: red;\n  ${separator}\n  width: 1px;\n}\n`).rootNode.firstNamedChild;
@@ -475,14 +503,11 @@ test("a statement typed above a declaration ends at its own line", () => {
         [separator]
       );
     }
-    // Sass rejects extending a complex selector; the line still ends without absorbing the next rule.
+    // A line break inside a statement is whitespace, so this reads as the complex selector Sass refuses to extend.
     const extend = parser.parse(`.a {\n  @extend .b\n    .c;\n}\n.after {}\n`).rootNode;
+    assert.equal(extend.hasError, false);
     assert.equal(extend.namedChildCount, 2);
-    assert.equal(extend.lastNamedChild.text, ".after {}");
-    assert.deepEqual(
-      extend.descendantsOfType("ERROR").map(node => node.text),
-      [".c"]
-    );
+    assert.equal(extend.descendantsOfType("extend_statement")[0].descendantsOfType("complex_selector").length, 1);
     // A selector still continues on later lines when its block follows, even past the lookahead window.
     for (const selector of [
       ".b\n.c",
@@ -514,7 +539,12 @@ test("selector lines above another kind of statement keep one local error", () =
       [".b\n  .c // note", ".b\n  .c"],
       [".b\n  .c\n  /* c */\n  width: 1px;", ".b\n  .c"],
       [".b\n  .c\n  /* c */\n  @include x;", ".b\n  .c"],
-      [".b\n  .c\n  /* c */\n  $x: 1;", ".b\n  .c"]
+      [".b\n  .c\n  /* c */\n  $x: 1;", ".b\n  .c"],
+      [".b\n  .c;", ".b\n  .c"],
+      [".b\n  color;", ".b\n  color"],
+      [".b\n  c", ".b\n  c"],
+      [".b\n  c d", ".b\n  c d"],
+      ["&:hover\n  span", "&:hover\n  span"]
     ]) {
       const root = parser.parse(`.a {\n  color: red;\n  ${lines}\n}\n.y {\n  color: blue;\n}\n${tail}\n`).rootNode;
       assert.equal(root.namedChildCount, 302, lines);
@@ -540,7 +570,7 @@ test("statement breaks after an earlier error keep incremental trees equal to fr
   for (const language of [Scss, Scss.cssLanguage]) {
     const parser = new Parser().setLanguage(language);
     const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
-    for (const header of [".f >", ".f,", ".f"]) {
+    for (const header of [".f >", ".f,", ".f", ".f .g,", ".f > .g:", "&:is(.)"]) {
       const source = `.a {\n  * : 1;\n  ${header}\n  top: 0;\n}\n.y { color: blue; }\n`;
       // Reusing a recovered tree must not decide the break differently, even for an empty edit.
       for (let index = 0; index <= source.length; index++) {
