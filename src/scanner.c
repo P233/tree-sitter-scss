@@ -762,7 +762,7 @@ static bool css_eof(const TSLexer *lexer) {
   return source->eof(source);
 }
 
-static bool css_lex_input(TSLexer *source, TSStateId state, bool (*lex)(TSLexer *, TSStateId)) {
+static bool css_lex(TSLexer *source, TSStateId state) {
   // Generated lexers use advance, mark_end and eof; external scanners continue
   // using the original lexer and their existing dialect-aware escape routine.
   CssLexer input = {
@@ -775,17 +775,9 @@ static bool css_lex_input(TSLexer *source, TSStateId state, bool (*lex)(TSLexer 
     },
     .source = source,
   };
-  bool result = lex(&input.lexer, state);
+  bool result = tree_sitter_scss()->lex_fn(&input.lexer, state);
   source->result_symbol = input.lexer.result_symbol;
   return result;
-}
-
-static bool css_lex(TSLexer *lexer, TSStateId state) {
-  return css_lex_input(lexer, state, tree_sitter_scss()->lex_fn);
-}
-
-static bool css_lex_keywords(TSLexer *lexer, TSStateId state) {
-  return css_lex_input(lexer, state, tree_sitter_scss()->keyword_lex_fn);
 }
 
 #if defined(_WIN32)
@@ -805,7 +797,7 @@ SCSS_PUBLIC const TSLanguage *tree_sitter_stylesheet_css(void) {
     language = *tree_sitter_scss();
     language.name = "stylesheet-css";
     language.lex_fn = css_lex;
-    language.keyword_lex_fn = css_lex_keywords;
+    // Literal keyword matching has no escapes; CRLF trivia needs no adapter.
     language.external_scanner.create = css_scanner_create;
     atomic_store_explicit(&initialized, 2, memory_order_release);
   } else {

@@ -38,7 +38,7 @@ The Tree-sitter runtime owns trees and incremental reuse. A host edits the old t
 - Whitespace before a colon has one external token shared by declarations and selector combinations. The grammar resolves those readings; the scanner does not repeatedly search for a block after each spaced pseudo. Cross-line recovery retains its existing lookahead window.
 - Interpolation pairing uses the existing 1,024-step budget and 64-step nested-opener charge. Local frame capacity is derived from that budget, including the final opener that exhausts it. There is no independent depth policy, recursive scan, heap growth or frame cleanup path.
 - The CSS descriptor is published once with acquire/release synchronization. This protects concurrent native callers and must not be replaced with an unsynchronized flag.
-- CSS CRLF normalization preserves original positions. The adapter is required for the dialect contract, not a removable compatibility shim.
+- CSS CRLF normalization preserves original positions in the main lexer. Literal keyword matching shares the generated keyword lexer directly; it has no identifier escapes to normalize. External scans retain their own dialect-aware escape routine.
 - Grammar external-token order and the scanner enum must agree. Generate and test after changing either side; never hand-edit generated C to change syntax.
 - Public nodes, fields, anonymous punctuation, ranges, ERROR/MISSING status and ordered captures are compatibility surfaces. “Both parses succeed” is insufficient equivalence evidence.
 - All development CLI invocations go through `runTreeSitter`, using `build/tree-sitter` in the current checkout. A same-named grammar compiled elsewhere cannot supply its library.

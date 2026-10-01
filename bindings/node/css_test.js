@@ -23,6 +23,7 @@ test("CSS CRLF escapes retain identifier boundaries and original source ranges",
   ];
   const query = new Parser.Query(Scss.cssLanguage, Scss.HIGHLIGHTS_QUERY);
   for (const source of [
+    "@media\r\nscreen\r\nand\r\n(color) { .a:is(.b, .c) { width: calc(1px + 2px); color: red !IMPORTANT; } }",
     ".a:l\\61\r\nng(en) {}",
     ".a { width: c\\61\r\nlc(pi); }",
     "@m\\65\r\ndia screen { .x\\31\r\nb { image: u\\72\r\nl(foo); } }",
