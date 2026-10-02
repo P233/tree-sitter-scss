@@ -622,8 +622,8 @@ static bool declaration_rest(TSLexer *lexer, bool css, bool has_name) {
   return css_space(next) || !(name_start(next) || next == '\\' || next == '#' || next == ':');
 }
 
-// A name, which may carry the `*` hack or interpolation, followed by a colon that cannot start a pseudo-class.
-static bool declaration_follows(TSLexer *lexer, bool css) {
+// The name-level check: a name, which may carry the `*` hack or interpolation, then a colon no pseudo-class takes.
+static bool declaration_name_follows(TSLexer *lexer, bool css) {
   if (lexer->lookahead == '*') lexer->advance(lexer, false);
   if (lexer->lookahead == '-') lexer->advance(lexer, false);
   if (lexer->lookahead == '-') lexer->advance(lexer, false);
@@ -683,7 +683,7 @@ static bool tail_ends_statement(TSLexer *lexer, bool css) {
     budget = skip_comment(lexer, budget);
     if (!budget) return false;
   }
-  return has_crossed_line && declaration_follows(lexer, css);
+  return has_crossed_line && declaration_name_follows(lexer, css);
 }
 
 // Whether the value after a declaration colon ends with `;` on its own line, unlike a map or list entry.
@@ -713,6 +713,11 @@ static bool value_ends_on_line(TSLexer *lexer, bool css) {
   return false;
 }
 
+// The line-level check after a declaration colon: the value ends on its line, outside any group still open around it.
+static bool declaration_line_rest(TSLexer *lexer, bool css) {
+  return value_ends_on_line(lexer, css) && !continues_past_line(lexer, css, false);
+}
+
 // Whether an at-rule header meets a whole declaration line before its block opens; the token claims the header.
 static bool header_ends_early(TSLexer *lexer, bool css) {
   unsigned groups = 0;
@@ -723,9 +728,9 @@ static bool header_ends_early(TSLexer *lexer, bool css) {
     if (line_break(character) && (!groups || is_first_line)) {
       is_first_line = false;
       while (css_space(lexer->lookahead)) lexer->advance(lexer, false);
-      if (declaration_follows(lexer, css)) {
-        // An open group ends the header there only if it never closes.
-        return value_ends_on_line(lexer, css) && (!groups || !continues_past_line(lexer, css, false));
+      // An open group ends the header there only if it never closes.
+      if (declaration_name_follows(lexer, css)) {
+        return groups ? declaration_line_rest(lexer, css) : value_ends_on_line(lexer, css);
       }
       // A failed name check consumes only a name, its interpolation and the whitespace after it.
       if (!groups) return false;
@@ -846,14 +851,13 @@ static bool simple_css_var(TSLexer *lexer) {
 // Whether this line, whose name is partly read, is a whole declaration outside any group still open around it.
 static bool value_ends_before(TSLexer *lexer, bool css, bool has_name) {
   lexer->result_symbol = STATEMENT_BREAK;
-  return declaration_rest(lexer, css, has_name) && value_ends_on_line(lexer, css) &&
-         !continues_past_line(lexer, css, false);
+  return declaration_rest(lexer, css, has_name) && declaration_line_rest(lexer, css);
 }
 
 // The same from the start of the line, where a name may begin with the `*` hack or dashes.
 static bool value_ends_before_line(TSLexer *lexer, bool css) {
   lexer->result_symbol = STATEMENT_BREAK;
-  return declaration_follows(lexer, css) && value_ends_on_line(lexer, css) && !continues_past_line(lexer, css, false);
+  return declaration_name_follows(lexer, css) && declaration_line_rest(lexer, css);
 }
 
 // `word` holds `length` characters already consumed by the caller; a name that is no keyword may end the value instead.
@@ -958,7 +962,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
         // A spaced colon on its own line may still belong to a declaration above it.
         if (first == ':') return continues_past_line(lexer, css, true);
         // Another line continues the statement unless it starts a declaration, which selector states never accept.
-        if (!declaration_follows(lexer, css)) return true;
+        if (!declaration_name_follows(lexer, css)) return true;
         lexer->result_symbol = valid_symbols[STAR_LINE_BREAK] ? STAR_LINE_BREAK : STATEMENT_BREAK;
         return true;
       }
@@ -1085,8 +1089,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
   }
   // Mark before the lookahead below, so a payload that starts no declaration keeps its own end.
   lexer->mark_end(lexer);
-  bool is_declaration = is_name && has_colon && css_space(lexer->lookahead) && value_ends_on_line(lexer, css) &&
-                        !continues_past_line(lexer, css, false);
+  bool is_declaration = is_name && has_colon && css_space(lexer->lookahead) && declaration_line_rest(lexer, css);
   // A `name:` payload starting a declaration line ends the url( as a statement break, which includes it.
   lexer->result_symbol = is_declaration ? STATEMENT_BREAK : LITERAL_CSS_URL;
   return content;
