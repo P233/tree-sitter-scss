@@ -354,11 +354,11 @@ test("nested interpolation pairs while its openers fit the lookahead window", ()
     // Freeze the visible pairing boundary, including the opener that exhausts the window.
     for (const depth of [12, 15, 16, 17, 24]) {
       const root = parse(`/* ${open.repeat(depth)}value${close.repeat(depth)} */ .after {}`).rootNode;
-      assert.equal(root.descendantsOfType("interpolation").length, Math.min(depth, open === "#{" ? 16 : 15));
+      assert.equal(root.descendantsOfType("interpolation").length, Math.min(depth, 16));
       assert.equal(root.lastNamedChild.text, ".after {}");
     }
   }
-  // Every nested opener uses part of the window, so the outer levels of deeper nesting stay literal.
+  // Every opener still open uses part of the window, so the outer levels of deeper nesting stay literal.
   const root = parse(`/* ${"#{".repeat(1000)}value${"}".repeat(1000)} */ .after {}`).rootNode;
   const paired = root.descendantsOfType("interpolation").length;
   assert.ok(paired >= 12 && paired < 32, String(paired));

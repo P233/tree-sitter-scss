@@ -374,6 +374,8 @@ static bool ends_literal_host(int32_t host, int32_t character, int32_t next) {
 // Every nested opener spends NESTED_OPENER_COST from the caller's budget, at most LOOKAHEAD_LIMIT, which it returns.
 // The final opener can exhaust it, so round up; no independent depth limit is needed.
 static InterpolationStep skip_interpolation(TSLexer *lexer, bool css, int32_t host, unsigned budget) {
+  // The frame capacity below holds only while the budget stays within LOOKAHEAD_LIMIT.
+  if (budget > LOOKAHEAD_LIMIT) budget = LOOKAHEAD_LIMIT;
   InterpolationContext context = {0};
   InterpolationContext parents[(LOOKAHEAD_LIMIT + NESTED_OPENER_COST - 1) / NESTED_OPENER_COST];
   unsigned depth = 0;
@@ -428,7 +430,10 @@ static InterpolationStep skip_interpolation(TSLexer *lexer, bool css, int32_t ho
         } else if (strcmp(name, "url") == 0 && lexer->lookahead == '(') {
           lexer->advance(lexer, false);
           context.groups++;
-          while (css_space(lexer->lookahead) && !line_break(lexer->lookahead)) lexer->advance(lexer, false);
+          while (budget && css_space(lexer->lookahead) && !line_break(lexer->lookahead)) {
+            budget--;
+            lexer->advance(lexer, false);
+          }
           // Strings, Sass variables, and nested calls use ordinary expression
           // trivia. An unquoted URL instead owns its slashes and braces.
           if (lexer->lookahead != '"' && lexer->lookahead != '\'' && (css || lexer->lookahead != '$')) {
@@ -485,6 +490,8 @@ static InterpolationStep skip_interpolation(TSLexer *lexer, bool css, int32_t ho
         break;
       }
       context = parents[--depth];
+      // A closed opener returns its charge, so only openers still open limit the depth.
+      budget += NESTED_OPENER_COST;
     }
   }
   if (matched && has_crossed_host_end) {
@@ -599,7 +606,8 @@ static bool continues_past_line(TSLexer *lexer, bool css, bool is_selector) {
 
 // Finishes a name, which may contain interpolation, and whether a colon that cannot start a pseudo-class follows it.
 static bool declaration_rest(TSLexer *lexer, bool css, bool has_name) {
-  for (unsigned budget = LOOKAHEAD_LIMIT; budget; budget--) {
+  unsigned budget = LOOKAHEAD_LIMIT;
+  for (; budget; budget--) {
     if (has_name ? name_character(lexer->lookahead) : name_start(lexer->lookahead)) {
       lexer->advance(lexer, false);
     } else if (lexer->lookahead == '#') {
@@ -616,7 +624,7 @@ static bool declaration_rest(TSLexer *lexer, bool css, bool has_name) {
     has_name = true;
   }
   if (!has_name) return false;
-  while (css_space(lexer->lookahead)) lexer->advance(lexer, false);
+  for (; budget && css_space(lexer->lookahead); budget--) lexer->advance(lexer, false);
   if (lexer->lookahead != ':') return false;
   lexer->advance(lexer, false);
   int32_t next = lexer->lookahead;
@@ -679,10 +687,11 @@ static bool tail_ends_statement(TSLexer *lexer, bool css) {
   if (!budget) return false;
   bool has_crossed_line = false;
   for (;;) {
-    while (css_space(lexer->lookahead)) {
+    for (; budget && css_space(lexer->lookahead); budget--) {
       has_crossed_line |= line_break(lexer->lookahead);
       lexer->advance(lexer, false);
     }
+    if (!budget) return false;
     if (lexer->lookahead != '/') break;
     lexer->advance(lexer, false);
     if (lexer->lookahead != '/' && lexer->lookahead != '*') return false;
@@ -733,7 +742,8 @@ static bool header_ends_early(TSLexer *lexer, bool css) {
     int32_t character = lexer->lookahead;
     if (line_break(character) && (!groups || is_first_line)) {
       is_first_line = false;
-      while (css_space(lexer->lookahead)) lexer->advance(lexer, false);
+      for (; limit && css_space(lexer->lookahead); limit--) lexer->advance(lexer, false);
+      if (!limit) return false;
       // An open group ends the header there only if it never closes.
       if (declaration_name_follows(lexer, css)) {
         return groups ? declaration_line_rest(lexer, css) : value_ends_on_line(lexer, css);

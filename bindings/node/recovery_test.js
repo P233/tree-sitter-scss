@@ -669,7 +669,13 @@ test("unfinished at-rule headers and declaration values end before a declaration
       assert.equal(parser.parse(`${source}.b { c: d; }\n`).rootNode.hasError, false, source);
     }
     // A declaration missing its semicolon ends before the next declaration line, also a `*` hack one.
-    for (const declaration of ["width: 1px;", "*zoom: 1;"]) {
+    // Long or many closed interpolations still leave the next line a whole declaration.
+    for (const declaration of [
+      "width: 1px;",
+      "*zoom: 1;",
+      `q: ${'#{"#{$a}"}'.repeat(15)};`,
+      `q: #{${"a".repeat(900)}};`
+    ]) {
       const unfinished = parser.parse(`.a {\n  color: red\n  ${declaration}\n}\n.y {}\n`).rootNode;
       assert.deepEqual(
         unfinished.descendantsOfType("property_declaration").map(node => node.text),
