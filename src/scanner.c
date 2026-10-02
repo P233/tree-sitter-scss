@@ -347,6 +347,11 @@ typedef struct {
   bool url;
 } InterpolationContext;
 
+typedef struct {
+  bool is_matched;
+  unsigned budget;
+} InterpolationStep;
+
 // Steps a bounded lookahead may take, each at least one character; the
 // longest interpolation in the reference corpus has 121. A nested opener costs
 // extra, so a run of unclosed openers ends the scan after a few of them.
@@ -366,13 +371,12 @@ static bool ends_literal_host(int32_t host, int32_t character, int32_t next) {
 // lines, but never leaves the opener's containers: it fails at a block,
 // statement, or declaration boundary, at the closer of a group the expression
 // does not own, at the end of the host comment, and at the lookahead limit.
-// Every nested opener spends NESTED_OPENER_COST from the same decreasing budget.
+// Every nested opener spends NESTED_OPENER_COST from the caller's budget, at most LOOKAHEAD_LIMIT, which it returns.
 // The final opener can exhaust it, so round up; no independent depth limit is needed.
-static bool skip_interpolation(TSLexer *lexer, bool css, int32_t host) {
+static InterpolationStep skip_interpolation(TSLexer *lexer, bool css, int32_t host, unsigned budget) {
   InterpolationContext context = {0};
   InterpolationContext parents[(LOOKAHEAD_LIMIT + NESTED_OPENER_COST - 1) / NESTED_OPENER_COST];
   unsigned depth = 0;
-  unsigned budget = LOOKAHEAD_LIMIT;
   bool has_crossed_host_end = false;
   bool matched = false;
   while (budget && !lexer->eof(lexer)) {
@@ -500,7 +504,7 @@ static bool skip_interpolation(TSLexer *lexer, bool css, int32_t host) {
       else if (character == '}') matched = false;
     }
   }
-  return matched;
+  return (InterpolationStep){matched, budget};
 }
 
 // Skips a comment after its `/`, one budget step per character, and returns the budget left.
@@ -540,7 +544,7 @@ static CodeStep skip_code_unit(TSLexer *lexer, bool css, int32_t character, unsi
     if (!lexer->eof(lexer)) lexer->advance(lexer, false);
   } else if (character == '#' && lexer->lookahead == '{') {
     lexer->advance(lexer, false);
-    skip_interpolation(lexer, css, HOST_CODE);
+    budget = skip_interpolation(lexer, css, HOST_CODE, budget).budget;
   } else if (character == '"' || character == '\'') {
     // CSS strings end at a line break, so an unfinished one cannot hide the rest of the statement.
     while (budget && !lexer->eof(lexer) && !line_break(lexer->lookahead)) {
@@ -552,7 +556,7 @@ static CodeStep skip_code_unit(TSLexer *lexer, bool css, int32_t character, unsi
         if (!lexer->eof(lexer)) lexer->advance(lexer, false);
       } else if (inner == '#' && lexer->lookahead == '{' && !css) {
         lexer->advance(lexer, false);
-        skip_interpolation(lexer, css, HOST_CODE);
+        budget = skip_interpolation(lexer, css, HOST_CODE, budget).budget;
       }
     }
   } else {
@@ -603,7 +607,9 @@ static bool declaration_rest(TSLexer *lexer, bool css, bool has_name) {
       if (lexer->lookahead != '{') return false;
       lexer->advance(lexer, false);
       // Interpolation may hold quotes and braces of its own.
-      if (!skip_interpolation(lexer, css, HOST_CODE)) return false;
+      InterpolationStep step = skip_interpolation(lexer, css, HOST_CODE, budget);
+      if (!step.is_matched || !step.budget) return false;
+      budget = step.budget;
     } else {
       break;
     }
@@ -933,7 +939,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     int32_t host = literal_token == LITERAL_DOUBLE_INTERPOLATION   ? '"'
                    : literal_token == LITERAL_SINGLE_INTERPOLATION ? '\''
                                                                    : HOST_COMMENT;
-    return !skip_interpolation(lexer, css, host);
+    return !skip_interpolation(lexer, css, host, LOOKAHEAD_LIMIT).is_matched;
   }
   bool has_crossed_line = false;
   if ((valid_symbols[DESCENDANT] || valid_symbols[SPACE_BEFORE_COLON]) &&

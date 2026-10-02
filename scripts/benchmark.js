@@ -27,7 +27,8 @@ const sources = {
   unmatched: ['.a { content: "' + "#{ x ".repeat(10000) + '"; } .after {}'],
   "spaced-pseudos": ["a" + " :b".repeat(20000) + " { color: red; } .after {}"],
   "multiline-pseudos": ["a" + "\n:b".repeat(20000) + " { color: red; } .after {}"],
-  "long-comment-lines": ["a" + "\n:b".repeat(128) + "\n/*" + "x".repeat(1 << 20) + "*/ { color: red; } .after {}"]
+  "long-comment-lines": ["a" + "\n:b".repeat(128) + "\n/*" + "x".repeat(1 << 20) + "*/ { color: red; } .after {}"],
+  "interpolated-values": [".a {\n" + `  p: x\n  q: #{${"a".repeat(900)}};\n`.repeat(500) + "}\n.after {}"]
 };
 if (values.corpus) {
   sources.corpus = readFileSync(values.corpus, "utf8")

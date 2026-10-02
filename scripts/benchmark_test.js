@@ -98,7 +98,8 @@ for (const forcedGc of [true, false]) {
       "unmatched",
       "spaced-pseudos",
       "multiline-pseudos",
-      "long-comment-lines"
+      "long-comment-lines",
+      "interpolated-values"
     ];
     assert.deepEqual(Object.keys(output.workloads), workloads);
     // Each dialect reports every workload plus the incremental edit.
