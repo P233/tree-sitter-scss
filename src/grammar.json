@@ -9490,7 +9490,8 @@
     }
   ],
   "inline": [
-    "_nested_property"
+    "_nested_property",
+    "_statement"
   ],
   "supertypes": [],
   "reserved": {}
