@@ -352,40 +352,6 @@ static bool scan_literal_interpolation(TSLexer *lexer, unsigned token) {
   return true;
 }
 
-// These var() forms have the same argument nodes as an ordinary call. Let the
-// internal lexer own them so unchanged calls do not carry external tokens.
-// Anything escaped, interpolated, grouped, or multi-token uses the CSS fallback
-// grammar instead. Lookahead also invalidates this choice when arguments change.
-static bool simple_css_var(TSLexer *lexer) {
-  lexer->advance(lexer, false); // Opening parenthesis.
-  while (css_space(lexer->lookahead)) lexer->advance(lexer, false);
-  if (lexer->lookahead != '-') return false;
-  lexer->advance(lexer, false);
-  if (lexer->lookahead != '-') return false;
-  lexer->advance(lexer, false);
-  while (name_character(lexer->lookahead)) lexer->advance(lexer, false);
-  while (css_space(lexer->lookahead)) lexer->advance(lexer, false);
-  if (lexer->lookahead == ')') return true;
-  if (lexer->lookahead != ',') return false;
-  lexer->advance(lexer, false);
-  while (css_space(lexer->lookahead)) lexer->advance(lexer, false);
-  if (lexer->lookahead == '#') {
-    lexer->advance(lexer, false);
-    unsigned digits = 0;
-    while (hex_digit(lexer->lookahead)) {
-      lexer->advance(lexer, false);
-      digits++;
-    }
-    if (digits != 3 && digits != 4 && digits != 6 && digits != 8) return false;
-  } else if (name_start(lexer->lookahead)) {
-    while (name_character(lexer->lookahead)) lexer->advance(lexer, false);
-  } else {
-    return false;
-  }
-  while (css_space(lexer->lookahead)) lexer->advance(lexer, false);
-  return lexer->lookahead == ')';
-}
-
 // `word` holds `length` characters already consumed by the caller.
 static bool scan_keyword(TSLexer *lexer, const bool *valid_symbols, bool css, char *word, unsigned length) {
   bool escaped = false;
@@ -404,7 +370,7 @@ static bool scan_keyword(TSLexer *lexer, const bool *valid_symbols, bool css, ch
   if (css && valid_symbols[CSS_VAR_FUNCTION_NAME] && lexer->lookahead == '(' && strcmp(folded, "var") == 0) {
     lexer->mark_end(lexer);
     lexer->result_symbol = CSS_VAR_FUNCTION_NAME;
-    return !simple_css_var(lexer);
+    return true;
   } else if (!css && !escaped && (strcmp(word, "true") == 0 || strcmp(word, "false") == 0)) {
     token = SASS_BOOLEAN;
   } else if (!css && !escaped && strcmp(word, "null") == 0) {

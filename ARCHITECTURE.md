@@ -37,7 +37,7 @@ The Tree-sitter runtime owns trees and incremental reuse. A host edits the old t
 
 The product is a reading-oriented parser for complete supported CSS/SCSS files. Root statements select rules or directives from their syntax; selector names are identifiers, with no HTML tag registry. Declaration blocks resolve properties at a declaration colon while retaining nested selectors, variables, at-rules and nested properties. Colons inside selectors and groups are not declaration boundaries.
 
-The grammar owns interpolation and balanced groups. The scanner no longer predicts the next declaration line, repairs unfinished headers or variables, or searches ahead to decide whether an unmatched interpolation should be literal. Its remaining lookahead resolves real lexical boundaries: number/unit/subtraction, keywords, priority, namespace prefixes, CSS `var()` and complete `@if`/`@else` chains. The `IF_END` dependency stays because adding or repairing an else must invalidate reuse of the previous complete if node.
+The grammar owns interpolation, balanced groups and CSS `var()` arguments. The scanner recognizes the CSS `var()` name without reading its arguments or choosing between ordinary and fallback call paths. It no longer predicts the next declaration line, repairs unfinished headers or variables, or searches ahead to decide whether an unmatched interpolation should be literal. Its remaining lookahead resolves real lexical boundaries: number/unit/subtraction, keywords, priority, namespace prefixes and complete `@if`/`@else` chains. The `IF_END` dependency stays because adding or repairing an else must invalidate reuse of the previous complete if node.
 
 Malformed trees, local recovery scope and damaged-input colors are outside the compatibility contract. Tree-sitter's own recovery remains available. Complete inputs, including those reached by repairing a damaged tree, must retain correct source ranges, structure and ordered highlight captures. This does not add a second parser, host-side classifier, cache, mutable dialect flag or full-reparse requirement.
 
@@ -134,10 +134,20 @@ A native probe walks the retained tree with Tree-sitter 0.25.1's internal subtre
 
 Across 384 fixture/corpus inputs in both entries, all 765 baseline error-free cases retain identical public tree structure, ranges and ordered captures. The aligned 10,000-edit comparison has zero error-free tree/capture differences and no candidate incremental or repaired-input mismatches. Damaged-input tree/capture differences remain informational. The complete repository check also passes.
 
+### 2026-10-05 CSS var argument ownership
+
+The third pass removes `simple_css_var`, which read arguments ahead of the parser to route simple CSS `var()` calls through ordinary function syntax. Every CSS `var()` call now uses the existing CSS fallback grammar; the scanner only recognizes its name. This removes 34 scanner lines, with no new state, token, grammar production or generated table change. The existing test retains its public argument-tree assertions and stops asserting which internal token path produced them. SCSS still uses ordinary call arguments, while CSS still groups everything after the first comma as one fallback.
+
+Against independently rebuilt `5e2a8e2`, three alternating runs on the same environment and frozen 335-file corpus show effectively unchanged ordinary performance. The corpus parse/combined medians are 73.111/273.797 → 73.358/275.319 ms for SCSS and 75.892/276.126 → 76.056/277.604 ms for CSS, differences below 0.6%. No general speedup is claimed.
+
+The same runner with an additional 1,000-rule workload containing three simple `var()` calls per rule measures the affected path directly. CSS parsing falls from 11.410 to 10.750 ms (5.8%) and parsing plus captures from 48.165 to 47.456 ms (1.5%). The unchanged SCSS path moves from 10.629/47.091 to 10.698/47.386 ms. Numeric incremental replacement remains effectively unchanged. Parser, query and workload hashes match between revisions; scanner hashes are stable within each revision.
+
+All 765 baseline error-free fixture/corpus combinations retain identical public trees, ranges and ordered captures. The aligned 10,000-edit comparison has no tree or capture differences, including damaged inputs, and no incremental/repair mismatches. The complete repository check, strict C scanner compilation and ESLint MCP pass. Wallaby has no data for the changed CSS test; native Node tests supply the execution evidence.
+
 ## Retained boundaries and further work
 
 Keep the CSS adapter, atomic descriptor publication, context-specific groups, generated headers, fresh-process preview and standard CLI HTML renderer. They still protect concrete lexical, concurrency or tooling boundaries. Generic flattening of all groups loses distinctions between selectors, call arguments, query conditions and raw CSS.
 
-Complete control-chain grouping and public editor-facing structural wrappers remain after both passes. Unlike the inlined hidden dispatchers, they have downstream consumers; removing them requires a coordinated schema/query and host-consumer migration. Coarsening math constants, map keys, query-feature colors or legacy syntax is a separate behavior decision.
+Complete control-chain grouping and public editor-facing structural wrappers remain after these simplifications. Unlike the inlined hidden dispatchers, they have downstream consumers; removing them requires a coordinated schema/query and host-consumer migration. Coarsening math constants, map keys, query-feature colors or legacy syntax is a separate behavior decision.
 
 Large declaration blocks can still limit incremental reuse because of selector/property ambiguity. The two `query_group` highlight patterns can be expensive to compile or execute with long comment runs. Their complete-input color roles are retained here; any subsequent optimization needs corresponding capture and performance evidence.

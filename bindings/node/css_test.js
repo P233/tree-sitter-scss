@@ -385,17 +385,10 @@ test("ordinary CSS has identical syntax trees and captures through both language
   assert.deepEqual(captures(Scss.cssLanguage, cssTree), captures(Scss, scssTree));
 });
 
-test("simple CSS var calls retain ordinary argument nodes without external name tokens", () => {
+test("simple CSS var calls retain ordinary argument nodes", () => {
   const source = `.a { color: var(--text, #333); background: VAR(--bg, transparent);
     border: var(--border); outline: var(--色, #aabbccdd); }`;
-  const parser = new Parser();
-  const symbols = [];
-  parser.setLogger((message, parameters) => {
-    if (message === "lexed_lookahead") symbols.push(parameters.sym);
-  });
-  const cssTree = parse(source, parser);
-  assert.ok(symbols.includes("_identifier"));
-  assert.ok(!symbols.includes("function_name"));
+  const cssTree = parse(source);
   const scssTree = parse(source, new Parser(), undefined, Scss);
   assert.equal(cssTree.rootNode.toString(), scssTree.rootNode.toString());
   assert.deepEqual(
