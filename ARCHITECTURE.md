@@ -167,19 +167,19 @@ All 765 baseline error-free fixture/corpus combinations retain identical public 
 
 ### 2026-10-05 statement-break measurements
 
-Against `514a38f`, which still accepted Internet Explorer–only syntax, the scanner grows from 559 to 932 lines and external tokens from 20 to 24. States go from 2,064 to 2,050 (2,030 without that syntax and before the breaks) and large states from 469 to 463. The node schema regains `variable_name`'s recovery-only `$` and `identifier` children; making `variable_name` a leaf again changed corpus parsing by less than the noise. Three alternating runs on the machine, runtime and frozen 335-file corpus above gave these medians (milliseconds, before → after):
+Against `514a38f`, which still accepted Internet Explorer–only syntax, the scanner grows from 559 to 932 lines and external tokens from 20 to 24. States go from 2,064 to 2,050 (2,030 without that syntax and before the breaks) and large states from 469 to 463. The node schema regains `variable_name`'s recovery-only `$` and `identifier` children; making `variable_name` a leaf again changed corpus parsing by less than the noise. Three alternating runs on the machine, runtime and frozen 335-file corpus above, with both revisions reading the same fixture and matching workload hashes, gave these medians (milliseconds, before → after):
 
 | Workload                         | Entry |         Parse | Parse + captures |
 | -------------------------------- | ----- | ------------: | ---------------: |
-| 72,918-byte stress fixture       | SCSS  | 3.471 → 3.578 |  12.420 → 12.388 |
-| 335-file corpus                  | SCSS  | 78.41 → 80.08 |  288.11 → 291.31 |
-| 335-file corpus                  | CSS   | 80.97 → 82.99 |  292.52 → 295.95 |
-| 20,000 multiline pseudos         | SCSS  | 22.30 → 23.09 |    86.27 → 86.27 |
-| Interpolated values              | SCSS  | 34.82 → 38.79 |    40.63 → 45.39 |
-| Typing on a blank line, p95 key  | SCSS  | 1.928 → 0.588 |                — |
-| Typing before a declaration, p95 | SCSS  | 1.985 → 1.956 |                — |
+| 72,408-byte stress fixture       | SCSS  | 3.425 → 3.625 |  11.821 → 12.409 |
+| 335-file corpus                  | SCSS  | 77.86 → 80.05 |  286.70 → 289.28 |
+| 335-file corpus                  | CSS   | 80.01 → 82.38 |  288.54 → 290.97 |
+| 20,000 multiline pseudos         | SCSS  | 22.05 → 23.04 |    85.15 → 87.50 |
+| Interpolated values              | SCSS  | 34.29 → 38.69 |    40.04 → 45.20 |
+| Typing on a blank line, p95 key  | SCSS  | 1.920 → 0.579 |                — |
+| Typing before a declaration, p95 | SCSS  | 1.930 → 1.924 |                — |
 
-Ordinary parsing costs 2–3% more, and parsing plus captures about 1%. On the blank line the typing counters fall from 3,238 KB of changed ranges and 65 quarter-file keys to 53 KB and 2, the two keys that open and close a comment; before a declaration on its own line they fall from 2,776 KB and 56 to 2,519 KB and 50. Over 1,000 seeded single-character insertions of letters, digits and spaces into the 692,771-byte concatenation of the corpus's SCSS files, each followed by its revert, edits leaving fewer than half the top-level rules fall from 31 to 0, edits changing more than half the file from 45 to 0, and the p99 reparse from 21.6 to 1.5 ms; the CSS concatenation falls from 36 to 0 such edits. In the 12,000-edit comparison against `514a38f`, every error-free difference comes from an inserted `*` forming a property hack, and the incremental mismatches, all on damaged input, also occur at `514a38f`.
+Ordinary parsing costs 3–6% more; corpus parsing plus captures costs about 1% more. On the blank line the typing counters fall from 3,238 KB of changed ranges and 65 quarter-file keys to 53 KB and 2, the two keys that open and close a comment; before a declaration on its own line they fall from 2,776 KB and 56 to 2,519 KB and 50. Over 1,000 seeded single-character insertions of letters, digits and spaces into the 692,771-byte concatenation of the corpus's SCSS files, each followed by its revert, edits leaving fewer than half the top-level rules fall from 31 to 0, edits changing more than half the file from 45 to 0, and the p99 reparse from 21.6 to 1.5 ms; the CSS concatenation falls from 36 to 0 such edits. In the 12,000-edit comparison against `514a38f`, every error-free difference comes from an inserted `*` forming a property hack, and the incremental mismatches, all on damaged input, also occur at `514a38f`.
 
 ## Retained boundaries and further work
 
