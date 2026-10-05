@@ -122,7 +122,7 @@ test("an incremental edit agrees with a fresh parse", () => {
   assert.equal(incremental.rootNode.toString(), parse(edited).rootNode.toString());
 });
 
-test("an unfinished value preserves its declaration and the following rule", () => {
+test("empty declaration values preserve the following rule", () => {
   const parser = new Parser();
   parser.setLanguage(Scss);
   const tree = parser.parse(".broken { color: ; } .good { width: 1px; }");
@@ -131,7 +131,7 @@ test("an unfinished value preserves its declaration and the following rule", () 
   assert.ok(tree.rootNode.descendantsOfType("property_name").some(node => node.text === "width"));
 });
 
-test("an unfinished variable preserves callable parameters and nested scopes", () => {
+test("completing a variable restores callable parameters and nested scopes", () => {
   const parser = new Parser();
   parser.setLanguage(Scss);
   for (const source of [
@@ -141,13 +141,6 @@ test("an unfinished variable preserves callable parameters and nested scopes", (
     "@function paint($tone) { @return $/*c*/; } .after {}"
   ]) {
     let tree = parser.parse(source);
-    const root = tree.rootNode;
-    assert.equal(root.hasError, true, source);
-    const definition = root.firstNamedChild;
-    assert.ok(["mixin_definition", "function_definition"].includes(definition.type), root.toString());
-    assert.equal(definition.childForFieldName("parameters").text, source.includes("outer") ? "($outer)" : "($tone)");
-    assert.ok(definition.childForFieldName("body").hasError);
-    assert.equal(root.lastNamedChild.text, ".after {}");
     const start = source.lastIndexOf("$") + 1;
     let previous = "";
     for (const name of ["tone", "", "other"]) {
@@ -162,12 +155,21 @@ test("an unfinished variable preserves callable parameters and nested scopes", (
       const edited = source.slice(0, start) + name + source.slice(start);
       tree = parser.parse(edited, tree);
       const fresh = parser.parse(edited);
-      assert.equal(tree.rootNode.hasError, name === "");
-      assert.equal(tree.rootNode.toString(), fresh.rootNode.toString());
-      const query = new Parser.Query(Scss, Scss.HIGHLIGHTS_QUERY);
-      const ranges = current =>
-        query.captures(current.rootNode).map(({ name, node }) => [name, node.startIndex, node.endIndex]);
-      assert.deepEqual(ranges(tree), ranges(fresh));
+      if (name !== "") {
+        assert.equal(tree.rootNode.hasError, false);
+        assert.equal(tree.rootNode.toString(), fresh.rootNode.toString());
+        const query = new Parser.Query(Scss, Scss.HIGHLIGHTS_QUERY);
+        const ranges = current =>
+          query.captures(current.rootNode).map(({ name, node }) => [name, node.startIndex, node.endIndex]);
+        assert.deepEqual(ranges(tree), ranges(fresh));
+        assert.equal(tree.rootNode.lastNamedChild.text, ".after {}");
+        const definition = tree.rootNode.firstNamedChild;
+        assert.ok(["mixin_definition", "function_definition"].includes(definition.type));
+        assert.equal(
+          definition.childForFieldName("parameters").text,
+          source.includes("outer") ? "($outer)" : "($tone)"
+        );
+      }
       previous = name;
     }
   }

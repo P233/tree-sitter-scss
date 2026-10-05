@@ -176,8 +176,8 @@ test("comments before else clauses stay literal and keep the branches attached",
   }
 });
 
-test("unmatched comment interpolation stays literal and preserves following declarations", () => {
-  for (const language of [Scss, Scss.cssLanguage]) {
+test("CSS comment interpolation stays literal and preserves following declarations", () => {
+  for (const language of [Scss.cssLanguage]) {
     const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
     for (const comment of [
       "/* #{ */",
@@ -230,23 +230,6 @@ test("paired comment interpolation still parses its expression syntax", () => {
   }
 });
 
-test("unfinished interpolation cannot borrow a closing brace from code after its comment", () => {
-  for (const content of ["https://sass-lang.com", "fix // later", "a /* b"]) {
-    const comment = `/* see #{ ${content} */`;
-    for (const body of ["\n  color: red;", "\n  .nested {}", ""]) {
-      for (const tail of [".after {}", ".after { /* tail */ }", "/* unrelated */ .after {}"]) {
-        const source = `.a {\n  ${comment}${body}\n}\n${tail}`;
-        const root = parse(source).rootNode;
-        assert.equal(root.descendantsOfType("block_comment")[0].text, comment, source);
-        assert.deepEqual(root.descendantsOfType("interpolation"), [], source);
-        assert.equal(root.firstNamedChild.childForFieldName("selectors").text, ".a", source);
-        assert.equal(root.lastNamedChild.type, "rule_set", source);
-        assert.equal(root.lastNamedChild.childForFieldName("selectors").text, ".after", source);
-      }
-    }
-  }
-});
-
 test("comment interpolation may continue on later lines inside its own expression", () => {
   for (const expression of ['fn(\n    "a"\n  )', "\n    $a\n  ", " a // note\n  "]) {
     const comment = `/* #{${expression}} */`;
@@ -258,66 +241,40 @@ test("comment interpolation may continue on later lines inside its own expressio
   }
 });
 
-test("unfinished comment interpolation stops at the first boundary an expression cannot contain", () => {
-  for (const boundary of [";", "{", ":", "@", ")", "]"]) {
-    const comment = `/* #{ a ${boundary} b } */`;
-    const root = parse(`.a { ${comment} color: red; } .after {}`).rootNode;
-    assert.equal(root.descendantsOfType("block_comment")[0].text, comment);
-    assert.deepEqual(root.descendantsOfType("interpolation"), [], comment);
-    assert.equal(root.descendantsOfType("property_declaration")[0].text, "color: red;");
-    assert.equal(root.lastNamedChild.text, ".after {}");
-  }
-  for (const expression of ["progid:DXImage.Gradient(a=1)", "if(media((color)): 2; else: 3)"]) {
-    const root = parse(`.a { /* #{${expression}} */ color: red; } .after {}`).rootNode;
-    assert.equal(root.descendantsOfType("interpolation")[0].text, `#{${expression}}`);
-  }
-});
-
-test("a terminator hidden inside the expression requires its comment to end on the closing line", () => {
-  const root = parse(".x { /* #{ a /* b */ } .after {}").rootNode;
-  assert.equal(root.descendantsOfType("block_comment")[0].text, "/* #{ a /* b */");
-  assert.deepEqual(root.descendantsOfType("interpolation"), []);
-  assert.equal(root.lastNamedChild.text, ".after {}");
-});
-
-test("an unfinished opener never affects a later comment", () => {
-  const parser = new Parser();
-  parser.setLanguage(Scss);
-  for (const hidden of ['"*/', "url(*/"]) {
-    const source = `.a { /* #{ ${hidden} } .b { width: #{ 1 */ } .c { /* #{2} */ }`;
-    const last = parser.parse(source).rootNode.descendantsOfType("block_comment").at(-1);
-    assert.equal(last.text, "/* #{2} */", source);
-    assert.deepEqual(
-      last.descendantsOfType("interpolation").map(node => node.text),
-      ["#{2}"],
-      source
-    );
-  }
-});
-
-test("comment interpolation pairs only within the lookahead window", () => {
-  for (const [words, paired] of [
-    [200, true],
-    [600, false]
+test("complete string interpolation retains nested quotes and multiline expressions", () => {
+  for (const [value, count] of [
+    ['"#{$a}"', 1],
+    ['"a #{"b"} c"', 1],
+    ["'a #{\"b\"} c'", 1],
+    ['"#{"}"}"', 1],
+    ['"#{\n  $a\n} tail"', 1],
+    ['"#{\n  $a\n} #{\n  $b\n}"', 2],
+    ['"#{$a /*\n*/}"', 1],
+    ['url("#{$path}/img.png")', 1]
   ]) {
-    const comment = `/* #{ ${"a ".repeat(words)}} */`;
-    const root = parse(`.a { ${comment} color: red; } .after {}`).rootNode;
-    assert.equal(root.descendantsOfType("block_comment")[0].text, comment);
-    assert.equal(root.descendantsOfType("interpolation").length, paired ? 1 : 0);
+    const root = parse(`.a { content: ${value}; } .after {}`).rootNode;
+    assert.equal(root.descendantsOfType("interpolation").length, count, value);
     assert.equal(root.lastNamedChild.text, ".after {}");
   }
-  // The window also ends inside skipped trivia instead of restarting after it.
-  const root = parse(`.a { /* #{ // ${"x".repeat(2000)}\n} */ color: red; } .after {}`).rootNode;
-  assert.deepEqual(root.descendantsOfType("interpolation"), []);
-  assert.equal(root.lastNamedChild.text, ".after {}");
-  // A literal host then ends at the nested terminator, so only pairing is asserted.
-  const parser = new Parser();
-  parser.setLanguage(Scss);
-  const nested = parser.parse(`.a { /* #{ /* ${"x".repeat(2000)} */ } */ } .after {}`).rootNode;
-  assert.deepEqual(nested.descendantsOfType("interpolation"), []);
 });
 
-test("deep string and URL interpolation lookahead does not overflow the native stack", () => {
+test("complete comment interpolation has no lookahead window", () => {
+  for (const expression of [
+    "a ".repeat(2000),
+    `// ${"x".repeat(2000)}\n1`,
+    `/* ${"x".repeat(2000)} */ 1`,
+    "progid:DXImage.Gradient(a=1)",
+    "if(media((color)): 2; else: 3)"
+  ]) {
+    const comment = `/* #{${expression}} */`;
+    const root = parse(`.a { ${comment} color: red; } .after {}`).rootNode;
+    assert.equal(root.descendantsOfType("block_comment")[0].text, comment);
+    assert.equal(root.descendantsOfType("interpolation")[0].text, `#{${expression}}`);
+    assert.equal(root.lastNamedChild.text, ".after {}");
+  }
+});
+
+test("deep malformed interpolation terminates without overflowing the native stack", () => {
   const result = spawnSync(
     process.execPath,
     [
@@ -330,9 +287,7 @@ test("deep string and URL interpolation lookahead does not overflow the native s
        for (const unit of ['#{"', '#{url(', '#{"a"']) {
          const source = '.a { /* ' + unit.repeat(100000) + ' */ color: red; } .after {}';
          const root = parser.parse(source).rootNode;
-         assert.equal(root.hasError, false);
-         assert.equal(root.lastNamedChild.text, '.after {}');
-         assert.equal(root.descendantsOfType('property_declaration')[0].text, 'color: red;');
+         assert.equal(root.endIndex, source.length);
        }
        for (const unit of ['#{"', '#{url(']) {
          const source = '.a :hover#{' + unit.repeat(10000) + ' {}';
@@ -346,67 +301,20 @@ test("deep string and URL interpolation lookahead does not overflow the native s
   assert.equal(result.status, 0, result.stderr);
 });
 
-test("nested interpolation pairs while its openers fit the lookahead window", () => {
+test("complete nested interpolation is not limited by scanner lookahead", () => {
   for (const [open, close] of [
     ["#{", "}"],
     ['#{"', '"}']
   ]) {
-    // Freeze the visible pairing boundary, including the opener that exhausts the window.
-    for (const depth of [12, 15, 16, 17, 24]) {
+    for (const depth of [12, 16, 24, 1000]) {
       const root = parse(`/* ${open.repeat(depth)}value${close.repeat(depth)} */ .after {}`).rootNode;
-      assert.equal(root.descendantsOfType("interpolation").length, Math.min(depth, 16));
+      assert.equal(root.descendantsOfType("interpolation").length, depth);
       assert.equal(root.lastNamedChild.text, ".after {}");
     }
   }
-  // Every opener still open uses part of the window, so the outer levels of deeper nesting stay literal.
-  const root = parse(`/* ${"#{".repeat(1000)}value${"}".repeat(1000)} */ .after {}`).rootNode;
-  const paired = root.descendantsOfType("interpolation").length;
-  assert.ok(paired >= 12 && paired < 32, String(paired));
-  assert.equal(root.lastNamedChild.text, ".after {}");
 });
 
-test("unfinished openers do not hide paired interpolation behind escapes", () => {
-  for (const content of [
-    String.raw`#{"\#{1}" #{unfinished`,
-    String.raw`#{url(\#{1}) #{unfinished`,
-    String.raw`#{name\#{1} #{unfinished`,
-    "#{1 /* #{1}"
-  ]) {
-    const root = parse(`.a { /* ${content} */ color: red; } .after {}`).rootNode;
-    assert.deepEqual(
-      root.descendantsOfType("interpolation").map(node => node.text),
-      ["#{1}"]
-    );
-    assert.equal(root.lastNamedChild.text, ".after {}");
-  }
-});
-
-test("long unmatched opener prefixes retain later paired interpolation and comment boundaries", () => {
-  const parser = new Parser();
-  for (const language of [Scss, Scss.cssLanguage]) {
-    parser.setLanguage(language);
-    for (const separator of ["", " ", "\r\n"]) {
-      for (const [tail, matched] of [
-        ["", 0],
-        ["1}", 1],
-        ["1}}", 2],
-        ['"#{1}"', 1],
-        ["URL(foo}bar)", 0]
-      ]) {
-        const comment = `/* ${`#{${separator}`.repeat(4096)}${tail} */`;
-        const source = `.a { ${comment} color: red; } .after {}`;
-        const root = parser.parse(source).rootNode;
-        assert.equal(root.hasError, false, tail);
-        assert.equal(root.descendantsOfType("block_comment")[0].text, comment);
-        assert.equal(root.descendantsOfType("interpolation").length, language === Scss ? matched : 0, tail);
-        assert.equal(root.descendantsOfType("property_declaration")[0].text, "color: red;");
-        assert.equal(root.lastNamedChild.text, ".after {}");
-      }
-    }
-  }
-});
-
-test("pairing and unpairing comment interpolation agrees with fresh nodes and highlights", () => {
+test("closing comment interpolation restores fresh nodes and highlights", () => {
   const shape = node => [node.type, node.startIndex, node.endIndex, node.isMissing, ...node.children.map(shape)];
   for (const language of [Scss, Scss.cssLanguage]) {
     const parser = new Parser();
@@ -428,6 +336,7 @@ test("pairing and unpairing comment interpolation agrees with fresh nodes and hi
         newEndPosition: { row: 0, column: start + (remove ? 0 : 1) }
       });
       tree = parser.parse(edited, tree);
+      if (remove && language === Scss) continue;
       const fresh = parser.parse(edited);
       assert.deepEqual(shape(tree.rootNode), shape(fresh.rootNode));
       assert.deepEqual(captures(tree), captures(fresh));

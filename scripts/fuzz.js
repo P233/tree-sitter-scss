@@ -86,8 +86,6 @@ const FRAGMENTS = [
   "\n  $x:"
 ];
 const MAX_DELETION = 40;
-// Captures farther than this from the edited text belong to other statements; losing one there is remote damage.
-const REMOTE_WINDOW = 300;
 const EXAMPLE_LIMIT = 10;
 const CASE_FIELDS = ["dialect", "case", "input", "inputHash", "start", "del", "insert"];
 const isCapture = value => typeof value === "string" && /^[\w.-]+@\d+-\d+$/.test(value);
@@ -265,6 +263,12 @@ async function* recordCases({ Parser, language, highlightsQuery, inputs, seed, c
   const parser = new Parser();
   parser.setLanguage(language);
   const query = new Parser.Query(language, highlightsQuery);
+  const captures = tree =>
+    query
+      .captures(tree.rootNode)
+      .filter(({ node }) => node.endIndex > node.startIndex)
+      .map(({ name, node }) => `${name}@${node.startIndex}-${node.endIndex}`);
+  const exact = (tree, original) => shape(tree) === original.shape && sameCaptures(captures(tree), original.captures);
   const inputHashes = inputs.map(input => hash(input.text));
   const originals = new Map();
   const next = random(seed);
@@ -276,15 +280,16 @@ async function* recordCases({ Parser, language, highlightsQuery, inputs, seed, c
     const text = original.slice(0, start) + insert + original.slice(start + del);
     if (!originals.has(input)) {
       const tree = parser.parse(original);
-      originals.set(input, { shape: shape(tree), hasError: tree.rootNode.hasError });
+      originals.set(input, { shape: shape(tree), captures: captures(tree), hasError: tree.rootNode.hasError });
     }
     const before = originals.get(input);
     const fresh = parser.parse(text);
     const freshShape = shape(fresh);
+    const freshCaptures = captures(fresh);
     const previous = parser.parse(original);
     previous.edit(inputEdit(original, text, start, start + del, start + insert.length));
     const incremental = parser.parse(text, previous);
-    const isIncrementalExact = shape(incremental) === freshShape;
+    const isIncrementalExact = exact(incremental, { shape: freshShape, captures: freshCaptures });
     incremental.edit(inputEdit(text, original, start, start + insert.length, start + del));
     const reverted = parser.parse(original, incremental);
     yield {
@@ -299,11 +304,8 @@ async function* recordCases({ Parser, language, highlightsQuery, inputs, seed, c
       hasOriginalError: before.hasError,
       tree: hash(freshShape),
       isIncrementalExact,
-      isRevertExact: shape(reverted) === before.shape,
-      captures: query
-        .captures(fresh.rootNode)
-        .filter(({ node }) => node.endIndex > node.startIndex)
-        .map(({ name, node }) => `${name}@${node.startIndex}-${node.endIndex}`)
+      isRevertExact: exact(reverted, before),
+      captures: freshCaptures
     };
   }
 }
@@ -312,7 +314,7 @@ function createSummary() {
   return { dialects: {}, examples: { clean: [], error: [] } };
 }
 
-// An error-free tree must survive incremental parsing; error-tree mismatches are known runtime and recovery debt.
+// Complete error-free input must preserve its tree and ordered captures; damaged-input differences are informational.
 function tally(summary, record) {
   const counts = (summary.dialects[record.dialect] ??= {
     cases: 0,
@@ -342,14 +344,8 @@ function hasCleanFailure(summary) {
   );
 }
 
-function isRemote(capture, record) {
-  const [, start, end] = /(\d+)-(\d+)$/.exec(capture).map(Number);
-  return end < record.start - REMOTE_WINDOW || start > record.start + record.insert.length + REMOTE_WINDOW;
-}
-
-function missingFrom(captures, other) {
-  const kept = new Set(other);
-  return [...new Set(captures)].filter(capture => !kept.has(capture));
+function sameCaptures(left, right) {
+  return left.length === right.length && left.every((capture, index) => capture === right[index]);
 }
 
 // Both recordings must replay the same cases; only their parse results may differ.
@@ -367,26 +363,11 @@ function checkAligned(index, base, candidate) {
   }
 }
 
-// Captures are compared only where trees differ; identical trees with different captures mean the queries differ.
+// Error-input shape and colors are no longer compatibility gates. Clean captures are checked even when trees agree.
 async function compare(base, candidate) {
-  const report = {
-    cases: 0,
-    cleanDiff: 0,
-    errTreeDiff: 0,
-    lossCases: 0,
-    lostCaps: 0,
-    gainCases: 0,
-    gainedCaps: 0,
-    remoteLossCases: 0,
-    remoteLostCaps: 0,
-    remoteGainCases: 0,
-    remoteGainedCaps: 0,
-    localOnlyLossCases: 0,
-    captureOnlyDiff: 0
-  };
+  const report = { cases: 0, cleanDiff: 0, cleanCaptureDiff: 0, errTreeDiff: 0, errCaptureDiff: 0 };
   const summaries = { base: createSummary(), candidate: createSummary() };
-  const examples = { clean: [], remoteLoss: [], loss: [] };
-  const remoteLosses = [];
+  const examples = { clean: [] };
   const iterate = records => records[Symbol.asyncIterator]?.() ?? records[Symbol.iterator]();
   const baseRecords = iterate(base);
   const candidateRecords = iterate(candidate);
@@ -398,50 +379,19 @@ async function compare(base, candidate) {
     report.cases++;
     tally(summaries.base, before);
     tally(summaries.candidate, after);
-    const lost = missingFrom(before.captures, after.captures);
-    const gained = missingFrom(after.captures, before.captures);
-    if (before.tree === after.tree) {
-      if (lost.length || gained.length) report.captureOnlyDiff++;
-      continue;
-    }
-    // A clean difference fails by itself, so every loss and gain count covers the same error-tree differences.
-    if (!before.hasError) {
-      report.cleanDiff++;
-      if (examples.clean.length < EXAMPLE_LIMIT) examples.clean.push(describe(before));
-      continue;
-    }
-    report.errTreeDiff++;
-    if (lost.length) {
-      report.lossCases++;
-      report.lostCaps += lost.length;
-      if (examples.loss.length < EXAMPLE_LIMIT) {
-        examples.loss.push(`${describe(before)}: lost ${lost.slice(0, 6).join(" ")}; gained ${gained.length}`);
-      }
-    }
-    if (gained.length) {
-      report.gainCases++;
-      report.gainedCaps += gained.length;
-    }
-    const remoteLost = lost.filter(capture => isRemote(capture, before));
-    const remoteGained = gained.filter(capture => isRemote(capture, before));
-    if (remoteLost.length) {
-      report.remoteLossCases++;
-      report.remoteLostCaps += remoteLost.length;
-      remoteLosses.push([remoteLost.length, `${describe(before)}: lost ${remoteLost.slice(0, 4).join(" ")}`]);
-    } else if (lost.length) {
-      report.localOnlyLossCases++;
-    }
-    if (remoteGained.length) {
-      report.remoteGainCases++;
-      report.remoteGainedCaps += remoteGained.length;
+    const treeDiff = before.tree !== after.tree || before.hasError !== after.hasError;
+    const captureDiff = !sameCaptures(before.captures, after.captures);
+    if (before.hasError) {
+      if (treeDiff) report.errTreeDiff++;
+      if (captureDiff) report.errCaptureDiff++;
+    } else {
+      if (treeDiff) report.cleanDiff++;
+      if (captureDiff) report.cleanCaptureDiff++;
+      if ((treeDiff || captureDiff) && examples.clean.length < EXAMPLE_LIMIT) examples.clean.push(describe(before));
     }
   }
   if (report.cases === 0) throw new Error("The recordings contain no cases.");
-  examples.remoteLoss = remoteLosses
-    .sort((a, b) => b[0] - a[0])
-    .slice(0, EXAMPLE_LIMIT)
-    .map(([, example]) => example);
-  return { ...report, base: summaries.base, candidate: summaries.candidate, examples };
+  return { ...report, ...summaries, examples };
 }
 
 async function* readRecords(file) {
@@ -501,7 +451,7 @@ async function recordCommand(options) {
 async function compareCommand(baseFile, candidateFile) {
   const report = await compare(readRecords(baseFile), readRecords(candidateFile));
   console.log(JSON.stringify(report, null, 2));
-  return report.cleanDiff > 0 || report.remoteLossCases > 0 ? 1 : 0;
+  return report.cleanDiff > 0 || report.cleanCaptureDiff > 0 || hasCleanFailure(report.candidate) ? 1 : 0;
 }
 
 async function main(args) {

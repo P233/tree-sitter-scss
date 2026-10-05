@@ -14,12 +14,21 @@ for (const forcedGc of [true, false]) {
     let collected = false;
     let output;
     const source = readFileSync(join(__dirname, "benchmark.js"), "utf8");
-    const scss = { name: "scss", cssLanguage: { name: "css" } };
+    const scss = { name: "scss", cssLanguage: { name: "css" }, HIGHLIGHTS_QUERY: "test query" };
     const point = (text, index) => {
       const lines = text.slice(0, index).split("\n");
       return { row: lines.length - 1, column: lines.at(-1).length };
     };
     class Parser {
+      static Query = class {
+        constructor() {
+          clock += 7;
+        }
+        captures() {
+          clock += 2;
+          return ["tag", "property"];
+        }
+      };
       setLanguage(language) {
         this.language = language;
       }
@@ -50,12 +59,10 @@ for (const forcedGc of [true, false]) {
         clock++;
         this.latestTree = {
           text,
-          rootNode: { hasError: true },
+          rootNode: { hasError: false },
           edit(edit) {
             this.edited = edit;
-          },
-          // One kilobyte per key stays below a quarter of the typing template.
-          getChangedRanges: () => [{ startIndex: 0, endIndex: 1024 }]
+          }
         };
         return this.latestTree;
       }
@@ -111,49 +118,37 @@ for (const forcedGc of [true, false]) {
 
     assert.equal(peakPendingTrees, 1000, "only a single small/nested batch may accumulate retired trees");
     assert.equal(pendingTrees, 0, "the final dialect must also drain before memory reporting");
-    assert.equal(
-      editedTrees,
-      2 * (220 + 2 * 543),
-      "both dialects retain the existing edit counts and type every key at both insertion points"
-    );
+    assert.equal(editedTrees, 2 * 220, "both dialects retain numeric incremental samples");
     const workloads = [
       "small",
       "stress",
       "medium",
       "large",
       "nested",
-      "unmatched",
       "spaced-pseudos",
       "multiline-pseudos",
-      "long-comment-lines",
-      "interpolated-values"
+      "long-comment-lines"
     ];
-    const typing = ["typing-blank", "typing-same-line"];
-    // Every measured input has a hash; the incremental edit reuses the large workload's text.
-    assert.deepEqual(Object.keys(output.workloads), [...workloads, ...typing]);
-    // Each dialect reports every workload plus the incremental edit and both typing insertion points.
+    assert.deepEqual(Object.keys(output.workloads), workloads);
     assert.deepEqual(
-      output.results.map(result => `${result.dialect}:${result.workload}`),
-      ["scss", "css"].flatMap(dialect =>
-        [...workloads, "edit-large", ...typing].map(workload => `${dialect}:${workload}`)
-      )
+      output.results.map(result => result.dialect),
+      ["scss", "css"]
     );
-    for (const result of output.results.filter(({ workload }) => typing.includes(workload))) {
-      const { keys, changedKB, keysChangingQuarterFile, errorKeys } = result;
+    for (const { queryCompileMs, results } of output.results) {
+      assert.equal(queryCompileMs, 7, "compile the query once outside parse and capture timing");
       assert.deepEqual(
-        { keys, changedKB, keysChangingQuarterFile, errorKeys },
-        {
-          keys: 543,
-          changedKB: 543,
-          keysChangingQuarterFile: 0,
-          errorKeys: 543
-        }
+        results.map(result => result.workload),
+        [...workloads, "edit-large"]
       );
+      for (const result of results) {
+        assert.deepEqual(result.parse, { p50Ms: 1, p95Ms: 1 });
+        if (result.workload === "edit-large") continue;
+        assert.deepEqual(result.highlight, { p50Ms: 2, p95Ms: 2 });
+        assert.deepEqual(result.total, { p50Ms: 3, p95Ms: 3 });
+        assert.equal(result.captures, 2);
+        assert.equal(result.errorFiles, 0);
+      }
     }
-    assert.ok(
-      output.results.every(result => result.p50Ms === 1 && result.p95Ms === 1),
-      "cleanup must be untimed"
-    );
     assert.equal(output.gcBetweenParseSamples, forcedGc);
     assert.equal(output.maxRssKiB, 123);
     assert.equal(output.processRssAfterCleanupBytes, 456);

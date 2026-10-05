@@ -453,21 +453,6 @@ test("incremental CSS var edits across simple and raw fallbacks retain fresh tre
   }
 });
 
-test("CSS optimizations keep earlier SCSS declarations outside malformed statement recovery", () => {
-  const declaration = '$theme: (red blue: 2px, "x": (a: 3px));';
-  const parser = new Parser();
-  parser.setLanguage(Scss);
-  for (const value of ['m"ap.get($theme, "x")', 'm\'ap.get($theme, "x")', 'map."get($theme, "x")']) {
-    const tree = parser.parse(`${declaration} .card { margin: ${value}; }\n.after { color: red; }`);
-    assert.equal(tree.rootNode.hasError, true);
-    assert.equal(tree.rootNode.type, "stylesheet");
-    const earlier = tree.rootNode.firstNamedChild;
-    assert.equal(earlier.type, "variable_declaration");
-    assert.equal(earlier.text, declaration);
-    assert.equal(earlier.hasError, false);
-  }
-});
-
 test("interleaved CSS and SCSS parsers retain independent dialect identities", () => {
   const source = '.a { content: "#{$color}"; --value: #{$color}; }';
   const cssParser = new Parser();

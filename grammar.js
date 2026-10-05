@@ -102,19 +102,10 @@ module.exports = grammar({
     $._subtraction_minus,
     $._statement_comment_start,
     $._if_end,
-    $._namespace_prefix,
-    $._incomplete_variable_prefix,
-    $._missing_variable_name,
-    // Ends a selector line that cannot continue; selector states reject it, so recovery resumes in a statement list.
-    $._statement_break,
-    // A line between the `*` hack and its name; selector states never accept it.
-    $._star_line_break,
-    // Never valid: a cut-off at-rule header or a line of leading punctuation above a declaration is one error.
-    $._unfinished_header
+    $._namespace_prefix
   ],
   extras: $ => [/\s/, $.block_comment, $.inline_comment],
   word: $ => $._identifier,
-  // Keep nested properties in their declaration's reduction so malformed headers recover locally.
   // Avoid hidden wrappers for completed statements and subclass selector choices.
   inline: $ => [$._nested_property, $._statement, $._subclass_selector],
   conflicts: $ => [
@@ -148,7 +139,6 @@ module.exports = grammar({
             $.variable_declaration,
             $._at_rule,
             ";",
-            $._statement_break,
             "<!--",
             "-->"
           )
@@ -184,10 +174,8 @@ module.exports = grammar({
     _declaration_priority: $ => seq(alias($._important_bang, "!"), alias(keyword("important", true), "important")),
     // As in Sass, a spaced colon touching a name before a block starts a pseudo selector instead.
     _nested_property: $ => seq(field("name", $.property_name), ":", optional(field("value", $._value)), $._block),
-    // Sass lets a line separate the `*` hack from its name, so a selector line's end cannot end it.
-    // A `*` touching a plain name can only be the hack, so that reading wins equal-cost recoveries.
-    property_name: $ =>
-      seq(optional(choice(prec.dynamic(1, "*"), seq("*", $._star_line_break))), $._interpolated_identifier),
+    // Share whitespace with the universal-selector reading until the declaration colon resolves it.
+    property_name: $ => seq(optional(seq("*", optional($._descendant))), $._interpolated_identifier),
     // Aliasing this wrapper keeps `dashed_name` as a child of the aliased node.
     _wrapped_dashed_name: $ => $.dashed_name,
     // Custom properties and other author-defined `--` names share one node wherever they are a value or name.
@@ -260,11 +248,11 @@ module.exports = grammar({
         "[",
         optional($.namespace_selector),
         alias($._interpolated_identifier, $.attribute_name),
-        // No statement break runs inside brackets, so `[a=]` being typed parses; a modifier still needs a value.
         optional(
           seq(
             $.attribute_operator,
-            optional(seq(choice($.string, $.plain_value), optional(alias($._identifier, $.attribute_modifier))))
+            choice($.string, $.plain_value),
+            optional(alias($._identifier, $.attribute_modifier))
           )
         ),
         "]"
@@ -476,13 +464,7 @@ module.exports = grammar({
     map_entry: $ => seq(field("key", $._space_value), ":", field("value", $._space_value)),
     spread: () => "...",
     operator: $ => choice("+", "-", "*", "/", "%", "==", "!=", "<", "<=", ">", ">=", $._sass_operator),
-    // The scanner never emits _missing_variable_name: recovery inserts it for
-    // a bare prefix. Reusing IDENTIFIER here could join a name across extras.
-    variable_name: $ =>
-      choice(
-        token(seq("$", IDENTIFIER)),
-        seq(alias($._incomplete_variable_prefix, "$"), alias($._missing_variable_name, "identifier"))
-      ),
+    variable_name: () => token(seq("$", IDENTIFIER)),
     boolean: $ => $._sass_boolean,
     null: $ => $._sass_null,
     hex_color: () => token(seq("#", /(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})/)),
@@ -694,7 +676,7 @@ module.exports = grammar({
       ),
     content_statement: $ => seq($._content_head, ";"),
     _content_head: $ => seq(directive("content"), optional(alias($._mixin_arguments, $.arguments))),
-    // Retain else lookahead, but allow an unfinished branch to recover inside its enclosing block.
+    // Else lookahead keeps complete control chains attached after incremental updates.
     if_statement: $ =>
       prec.right(
         seq(directive("if"), field("condition", $._value), $._block, repeat($.else_clause), optional($._if_end))
@@ -724,8 +706,7 @@ module.exports = grammar({
     query_statement: $ => seq($._query_head, choice(";", $._block)),
     _query_head: $ =>
       choice(
-        // A stray block recovers as a missing selector or bare `@media` at equal cost; prefer the selector.
-        prec.dynamic(-1, directive("media")),
+        directive("media"),
         seq(directive("media"), field("prelude", $._query_value)),
         seq(
           choice(directive("supports"), directive("container"), directive("import")),
@@ -801,9 +782,7 @@ module.exports = grammar({
         // The competing selector reading lexes whitespace between items as a descendant.
         seq(
           $._raw_statement_item,
-          repeat(
-            seq(optional(choice($._descendant, $._space_before_colon, $._statement_break)), $._raw_statement_item)
-          ),
+          repeat(seq(optional(choice($._descendant, $._space_before_colon)), $._raw_statement_item)),
           ";"
         )
       ),
@@ -831,7 +810,7 @@ function braced(body) {
 }
 
 function declarationBlock($, statement, property = $._property) {
-  const item = choice(statement, alias($._statement_comment, $.block_comment), $._statement_break);
+  const item = choice(statement, alias($._statement_comment, $.block_comment));
   return choice(repeat1(item), seq(repeat(item), choice(alias(property, $.property_declaration), $._final_statement)));
 }
 

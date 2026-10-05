@@ -63,11 +63,11 @@ test("the same seed and inputs reproduce identical records", async () => {
   }
 });
 
-test("recording compares incremental and reverted trees with fresh parses of the same text", async () => {
+test("recording compares incremental and reverted trees and captures with fresh parses", async () => {
   // A stand-in parser whose tree is its text, optionally altered whenever it reuses an old tree.
-  const parserFor = isReuseBroken => {
-    const tree = text => ({
-      rootNode: { hasError: false },
+  const parserFor = (isReuseBroken, isCaptureBroken) => {
+    const tree = (text, reused) => ({
+      rootNode: { hasError: false, reused, startIndex: 0, endIndex: text.length },
       edit() {},
       walk: () => ({
         nodeIsNamed: true,
@@ -81,24 +81,30 @@ test("recording compares incremental and reverted trees with fresh parses of the
     });
     return class {
       static Query = class {
-        captures() {
-          return [];
+        captures(node) {
+          return [{ name: isCaptureBroken && node.reused ? "number" : "property", node }];
         }
       };
       setLanguage() {}
       parse(text, previous) {
-        return tree(previous && isReuseBroken ? `${text}!` : text);
+        return tree(previous && isReuseBroken ? `${text}!` : text, Boolean(previous));
       }
     };
   };
   const inputs = [{ id: "rule", text: ".a { color: red; }" }];
-  for (const isReuseBroken of [false, true]) {
+  for (const [isReuseBroken, isCaptureBroken] of [
+    [false, false],
+    [true, false],
+    [false, true]
+  ]) {
     const options = { language: { name: "stub" }, highlightsQuery: "", inputs, seed: 3, cases: 20 };
-    const results = await Array.fromAsync(recordCases({ Parser: parserFor(isReuseBroken), ...options }));
+    const results = await Array.fromAsync(
+      recordCases({ Parser: parserFor(isReuseBroken, isCaptureBroken), ...options })
+    );
     assert.ok(results.some(result => result.del || result.insert));
     for (const result of results) {
-      assert.equal(result.isIncrementalExact, !isReuseBroken, JSON.stringify(result));
-      assert.equal(result.isRevertExact, !isReuseBroken, JSON.stringify(result));
+      assert.equal(result.isIncrementalExact, !isReuseBroken && !isCaptureBroken, JSON.stringify(result));
+      assert.equal(result.isRevertExact, !isReuseBroken && !isCaptureBroken, JSON.stringify(result));
     }
   }
 });
@@ -123,7 +129,8 @@ test("edits use the Node binding's positions and keep whole characters", async (
   for (const language of languages) {
     for (const result of await record(language, [{ id: "non-ascii", text: NON_ASCII }], 5, 300)) {
       assert.ok(!splitsPair(result.start) && !splitsPair(result.start + result.del), JSON.stringify(result));
-      assert.ok(result.isIncrementalExact && result.isRevertExact, JSON.stringify(result));
+      if (!result.hasError) assert.ok(result.isIncrementalExact, JSON.stringify(result));
+      assert.ok(result.isRevertExact, JSON.stringify(result));
     }
   }
 });
@@ -226,49 +233,31 @@ test("corpus inputs follow the Tree-sitter test format", () => {
   assert.ok(inputs.some(input => input.id === "examples/highlight-stress.scss"));
 });
 
-test("comparison separates clean, local and remote differences", async () => {
+test("comparison checks clean trees and ordered captures independently", async () => {
   const base = [
     recorded({ case: 0, hasError: false }),
     recorded({ case: 1 }),
-    recorded({ case: 2, captures: ["tag@690-700", "tag@1301-1305"] }),
-    recorded({ case: 3, captures: ["tag@690-699", "tag@1302-1305"] }),
-    recorded({ case: 4 }),
-    recorded({ case: 5 }),
-    recorded({ case: 6, hasError: false, captures: ["tag@1400-1404"] }),
-    recorded({ case: 7, hasError: false })
+    recorded({ case: 2, hasError: false }),
+    recorded({ case: 3, hasError: false }),
+    recorded({ case: 4 })
   ];
   const candidate = [
-    recorded({ case: 0, tree: "changed" }),
-    recorded({ case: 1, tree: "changed", captures: ["property@990-995"] }),
-    recorded({ case: 2, tree: "changed", captures: [] }),
-    recorded({ case: 3, tree: "changed", captures: [] }),
-    recorded({ case: 4, tree: "changed", captures: [...base[4].captures, "tag@2000-2004"] }),
-    recorded({ case: 5, captures: ["type@990-995"], isIncrementalExact: false }),
-    recorded({ case: 6, tree: "changed", captures: ["tag@2000-2004"] }),
-    recorded({ case: 7, tree: "changed", captures: ["number@1001-1003"] })
+    recorded({ case: 0, hasError: false, tree: "changed" }),
+    recorded({ case: 1, tree: "changed", captures: [] }),
+    recorded({ case: 2, hasError: false, captures: ["property@990-995"] }),
+    recorded({ case: 3, hasError: false, captures: [...base[3].captures].reverse() }),
+    recorded({ case: 4, captures: [], isIncrementalExact: false })
   ];
   const report = await compare(base, candidate);
   assert.deepEqual(Object.fromEntries(Object.entries(report).filter(([, value]) => typeof value === "number")), {
-    cases: 8,
-    cleanDiff: 3,
-    errTreeDiff: 4,
-    lossCases: 3,
-    lostCaps: 5,
-    gainCases: 1,
-    gainedCaps: 1,
-    remoteLossCases: 1,
-    remoteLostCaps: 2,
-    remoteGainCases: 1,
-    remoteGainedCaps: 1,
-    localOnlyLossCases: 2,
-    captureOnlyDiff: 1
+    cases: 5,
+    cleanDiff: 1,
+    cleanCaptureDiff: 2,
+    errTreeDiff: 1,
+    errCaptureDiff: 2
   });
-  assert.equal(report.remoteLossCases + report.localOnlyLossCases, report.lossCases);
   assert.deepEqual(report.candidate.dialects.scss.incrementalMismatches, { clean: 0, error: 1 });
   assert.equal(report.examples.clean.length, 3);
-  assert.equal(report.examples.remoteLoss.length, 1);
-  assert.match(report.examples.remoteLoss[0], /scss #3 a\.scss at 1000 -0 \+";": lost tag@690-699 tag@1302-1305$/);
-
   await assert.rejects(compare([base[0]], [recorded({ insert: "{" })]), /not aligned at line 1: insert ";" vs "\{"/);
   await assert.rejects(compare(base.slice(0, 2), candidate.slice(0, 1)), /the candidate ends at line 2/);
   await assert.rejects(compare([], []), /contain no cases/);
@@ -289,8 +278,21 @@ test("comparison and recording exit statuses follow their acceptance rules", t =
   assert.equal(run([recorded()], [local]).status, 0);
   assert.equal(run([recorded()], [recorded({ tree: "changed", captures: [] })]).status, 0);
   const remote = run([recorded({ captures: ["tag@1400-1404"] })], [recorded({ tree: "changed", captures: [] })]);
-  assert.equal(remote.status, 1, remote.stderr);
-  assert.equal(JSON.parse(remote.stdout).remoteLossCases, 1);
+  assert.equal(remote.status, 0, remote.stderr);
+  assert.equal(JSON.parse(remote.stdout).errCaptureDiff, 1);
+  const clean = recorded({ hasError: false });
+  assert.equal(run([clean], [{ ...clean, captures: [] }]).status, 1, "capture-only losses must fail");
+  assert.equal(
+    run([clean], [{ ...clean, captures: [...clean.captures].reverse() }]).status,
+    1,
+    "capture order matters"
+  );
+  assert.equal(run([clean], [{ ...clean, isIncrementalExact: false }]).status, 1);
+  assert.equal(
+    run([recorded()], [recorded({ isRevertExact: false })]).status,
+    1,
+    "repair to a clean original must agree"
+  );
   assert.equal(run([recorded({ hasError: false })], [recorded({ tree: "changed" })]).status, 1);
   const misaligned = run([recorded()], [recorded({ start: 1 })]);
   assert.equal(misaligned.status, 2);

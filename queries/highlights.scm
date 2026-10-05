@@ -50,8 +50,6 @@
  (include_statement "." @punctuation.delimiter)
  (selector_arguments "." @punctuation.delimiter)
  (dotted_value "." @punctuation.delimiter)]
-; Recovery can leave separators without a selector or module owner.
-(ERROR ["." "::"] @punctuation.delimiter)
 ; Query and type operators retain their structural role.
 [(query_statement (operator) @operator)
  (query_group (operator) @operator)
