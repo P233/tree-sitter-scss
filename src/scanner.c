@@ -24,6 +24,10 @@ enum TokenType {
   STATEMENT_COMMENT_START,
   IF_END,
   NAMESPACE_PREFIX,
+  INCOMPLETE_VARIABLE_PREFIX,
+  MISSING_VARIABLE_NAME,
+  STATEMENT_BREAK,
+  UNFINISHED_HEADER,
 };
 
 // Dialect identity belongs to the immutable language entry, never to a buffer
@@ -342,6 +346,299 @@ static bool selector_start_after(TSLexer *lexer) {
   return can_start_name;
 }
 
+static bool line_break(int32_t character) {
+  return character == '\n' || character == '\r' || character == '\f';
+}
+
+// Steps one statement-break lookahead may take, each at least one character, so a scan never walks the whole file.
+enum { LOOKAHEAD_LIMIT = 1024 };
+
+// Consumes interpolation after its `#{`; its closer must follow on the same line.
+static bool skip_line_interpolation(TSLexer *lexer, unsigned *budget) {
+  for (unsigned depth = 1; depth;) {
+    if (!*budget || lexer->eof(lexer) || line_break(lexer->lookahead)) return false;
+    (*budget)--;
+    int32_t character = lexer->lookahead;
+    lexer->advance(lexer, false);
+    if (character == '{') depth++;
+    if (character == '}') depth--;
+  }
+  return true;
+}
+
+// Consumes a comment after its `/` and returns whether it crossed a line; a line comment stops before its break.
+static bool skip_comment(TSLexer *lexer, unsigned *budget) {
+  bool is_block = lexer->lookahead == '*';
+  bool is_after_star = false;
+  bool has_crossed_line = false;
+  lexer->advance(lexer, false);
+  for (; *budget && !lexer->eof(lexer); (*budget)--) {
+    int32_t character = lexer->lookahead;
+    if (!is_block && line_break(character)) break;
+    has_crossed_line |= line_break(character);
+    lexer->advance(lexer, false);
+    if (is_block && is_after_star && character == '/') break;
+    is_after_star = character == '*';
+  }
+  return has_crossed_line;
+}
+
+// Consumes a quoted string after its quote and returns whether it closed; strings end at a line break.
+static bool skip_string(TSLexer *lexer, int32_t quote, unsigned *budget) {
+  for (; *budget && !lexer->eof(lexer) && !line_break(lexer->lookahead); (*budget)--) {
+    int32_t character = lexer->lookahead;
+    lexer->advance(lexer, false);
+    if (character == quote) return true;
+    if (character == '\\' && !line_break(lexer->lookahead)) lexer->advance(lexer, false);
+  }
+  return false;
+}
+
+// Whether the consumed `character` opens a string, block comment or interpolation, which skip_unit consumes.
+static bool opens_unit(TSLexer *lexer, int32_t character) {
+  return character == '"' || character == '\'' || (character == '#' && lexer->lookahead == '{') ||
+         (character == '/' && lexer->lookahead == '*');
+}
+
+// Consumes the rest of a unit that opens_unit accepted and returns whether it closed within the budget.
+static bool skip_unit(TSLexer *lexer, int32_t character, unsigned *budget) {
+  if (character == '#') {
+    lexer->advance(lexer, false);
+    return skip_line_interpolation(lexer, budget);
+  }
+  if (character == '/') {
+    skip_comment(lexer, budget);
+    return *budget && !lexer->eof(lexer);
+  }
+  return skip_string(lexer, character, budget);
+}
+
+// The rest of this line is a value ending with `;` outside any group, as a declaration line is.
+static bool value_ends_on_line(TSLexer *lexer, unsigned *budget) {
+  unsigned groups = 0;
+  while (*budget && !lexer->eof(lexer) && !line_break(lexer->lookahead)) {
+    (*budget)--;
+    int32_t character = lexer->lookahead;
+    lexer->advance(lexer, false);
+    if (opens_unit(lexer, character)) {
+      if (!skip_unit(lexer, character, budget)) return false;
+    } else if (character == '/' && lexer->lookahead == '/' && !groups) {
+      return false;
+    } else if (character == '(' || character == '[') {
+      groups++;
+    } else if (character == ')' || character == ']') {
+      if (!groups) return false;
+      groups--;
+    } else if (character == '{' || character == '}') {
+      return false;
+    } else if (character == ';' && !groups) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Whether a group still open around this point may close before the next block; an unknown answer counts as yes.
+static bool group_closes_ahead(TSLexer *lexer, unsigned *budget) {
+  unsigned groups = 0;
+  while (!lexer->eof(lexer)) {
+    if (!*budget) return true;
+    (*budget)--;
+    int32_t character = lexer->lookahead;
+    lexer->advance(lexer, false);
+    if (opens_unit(lexer, character)) {
+      if (!skip_unit(lexer, character, budget)) return true;
+    } else if (character == '/' && lexer->lookahead == '/' && !groups) {
+      skip_comment(lexer, budget);
+    } else if (character == '(' || character == '[') {
+      groups++;
+    } else if (character == ')' || character == ']') {
+      if (!groups) return true;
+      groups--;
+    } else if (character == '{' || character == '}') {
+      return false;
+    }
+  }
+  return false;
+}
+
+// Inside a group, a declaration line's value ends on the line and the group never closes after it.
+static bool group_line_rest(TSLexer *lexer, unsigned *budget) {
+  return value_ends_on_line(lexer, budget) && !group_closes_ahead(lexer, budget);
+}
+
+typedef enum { NO_DECLARATION, DECLARATION, TOUCHING_COLON } DeclarationStart;
+
+// Reads a declaration name and its colon; a name touching the colon may still be a pseudo-class.
+static DeclarationStart declaration_start(TSLexer *lexer, bool has_name, unsigned *budget) {
+  if (!has_name) {
+    if (lexer->lookahead == '-') lexer->advance(lexer, false);
+    if (lexer->lookahead == '-') lexer->advance(lexer, false);
+  }
+  for (; *budget; has_name = true) {
+    (*budget)--;
+    if (has_name ? name_character(lexer->lookahead) : name_start(lexer->lookahead)) {
+      lexer->advance(lexer, false);
+    } else if (lexer->lookahead == '#') {
+      lexer->advance(lexer, false);
+      if (lexer->lookahead != '{') return NO_DECLARATION;
+      lexer->advance(lexer, false);
+      if (!skip_line_interpolation(lexer, budget)) return NO_DECLARATION;
+    } else {
+      break;
+    }
+  }
+  if (!has_name) return NO_DECLARATION;
+  for (; *budget && css_space(lexer->lookahead); (*budget)--) lexer->advance(lexer, false);
+  if (lexer->lookahead != ':') return NO_DECLARATION;
+  lexer->advance(lexer, false);
+  int32_t next = lexer->lookahead;
+  if (next == ':') return NO_DECLARATION;
+  // A minus before a digit starts a negative value.
+  if (next == '-') {
+    lexer->advance(lexer, false);
+    return digit(lexer->lookahead) || lexer->lookahead == '.' ? DECLARATION : TOUCHING_COLON;
+  }
+  bool is_touching = name_start(next) || next == '\\' || next == '#';
+  return css_space(next) || !is_touching ? DECLARATION : TOUCHING_COLON;
+}
+
+// A declaration starts here: its name and colon, and its whole line when the colon touches a name.
+static bool declaration_name_follows(TSLexer *lexer, unsigned *budget) {
+  DeclarationStart start = declaration_start(lexer, false, budget);
+  return start == DECLARATION || (start == TOUCHING_COLON && value_ends_on_line(lexer, budget));
+}
+
+// A combinator or comma, or a compound part touching the compound before it, can leave a selector line unfinished.
+static bool tail_start(int32_t character, bool is_touching) {
+  return character == ',' || character == '>' || character == '+' || character == '~' ||
+         (is_touching && (character == '.' || character == ':' || character == '#' || character == '[' ||
+                          character == '%' || character == '|' || character == '('));
+}
+
+// Whether only such punctuation ends the line above a declaration; the token claims it.
+static bool tail_ends_statement(TSLexer *lexer, unsigned token) {
+  unsigned budget = LOOKAHEAD_LIMIT;
+  unsigned interpolations = 0;
+  bool is_touching = true;
+  for (; budget; budget--) {
+    int32_t character = lexer->lookahead;
+    if (character == ' ' || character == '\t') {
+      lexer->advance(lexer, false);
+      is_touching = false;
+      continue;
+    }
+    // A pseudo's parenthesis touches it; after a space, `(` opens a value group instead.
+    if (character == '(' && !is_touching) break;
+    if (character == '#') {
+      lexer->advance(lexer, false);
+      if (lexer->lookahead == '{') {
+        lexer->advance(lexer, false);
+        interpolations++;
+      }
+    } else if ((character == '}' || character == '$') && interpolations) {
+      // `#{}` and `#{$}` being typed leave the line unfinished too.
+      lexer->advance(lexer, false);
+      if (character == '}') interpolations--;
+    } else if (tail_start(character, true) || character == ')' || character == ']') {
+      lexer->advance(lexer, false);
+    } else {
+      break;
+    }
+    is_touching = true;
+    lexer->mark_end(lexer);
+  }
+  bool has_crossed_line = false;
+  while (budget) {
+    if (css_space(lexer->lookahead)) {
+      has_crossed_line |= line_break(lexer->lookahead);
+      lexer->advance(lexer, false);
+      budget--;
+    } else if (lexer->lookahead == '/') {
+      lexer->advance(lexer, false);
+      if (lexer->lookahead != '/' && lexer->lookahead != '*') return false;
+      has_crossed_line |= skip_comment(lexer, &budget);
+    } else {
+      break;
+    }
+  }
+  lexer->result_symbol = token;
+  return budget && has_crossed_line && declaration_name_follows(lexer, &budget);
+}
+
+// Whether a header meets a declaration line before its block; the never-valid token covers the header.
+static bool header_ends_early(TSLexer *lexer) {
+  unsigned groups = 0;
+  // Within a group only the header's first line counts, so a header runs the declaration checks at most twice.
+  bool is_first_line = true;
+  for (unsigned budget = LOOKAHEAD_LIMIT; budget && !lexer->eof(lexer);) {
+    int32_t character = lexer->lookahead;
+    if (line_break(character) && (!groups || is_first_line)) {
+      is_first_line = false;
+      for (; budget && css_space(lexer->lookahead); budget--) lexer->advance(lexer, false);
+      // An open group ends the header there only if it never closes.
+      if (declaration_start(lexer, false, &budget) != NO_DECLARATION) {
+        return groups ? group_line_rest(lexer, &budget) : value_ends_on_line(lexer, &budget);
+      }
+      if (!groups) return false;
+      continue;
+    }
+    budget--;
+    lexer->advance(lexer, false);
+    if (character == '/' && (lexer->lookahead == '*' || lexer->lookahead == '/')) {
+      // A comment after the header stays a comment rather than joining the error.
+      skip_comment(lexer, &budget);
+      continue;
+    }
+    if (opens_unit(lexer, character)) {
+      if (!skip_unit(lexer, character, &budget)) return false;
+    } else if (character == '(' || character == '[') {
+      groups++;
+    } else if (character == ')' || character == ']') {
+      if (!groups) return false;
+      groups--;
+    } else if (character == '{' || character == '}' || character == ';') {
+      return false;
+    }
+    if (!css_space(character)) lexer->mark_end(lexer);
+  }
+  return false;
+}
+
+// Claims a block at-rule typed among declarations: Sass directives as spelled, nestable CSS ones in any case.
+static bool scan_unfinished_header(TSLexer *lexer) {
+  static const char *const names[] = {"if", "each", "for", "while", "at-root",
+                                      "media", "supports", "container", "layer", "scope", "starting-style"};
+  enum { SASS_NAMES = 5, NAME_BUFFER = 15 };
+  lexer->advance(lexer, false);
+  char name[NAME_BUFFER];
+  unsigned length = 0;
+  while (length + 1 < NAME_BUFFER && lexer->lookahead < 0x80 && name_character(lexer->lookahead)) {
+    name[length++] = (char)lexer->lookahead;
+    lexer->advance(lexer, false);
+  }
+  name[length] = '\0';
+  if (name_character(lexer->lookahead) || lexer->lookahead == '\\') return false;
+  char folded[NAME_BUFFER];
+  memcpy(folded, name, sizeof(folded));
+  lowercase(folded);
+  bool is_known = false;
+  for (unsigned index = 0; index < sizeof(names) / sizeof(*names); index++) {
+    is_known |= strcmp(index < SASS_NAMES ? name : folded, names[index]) == 0;
+  }
+  if (!is_known) return false;
+  lexer->mark_end(lexer);
+  lexer->result_symbol = UNFINISHED_HEADER;
+  return header_ends_early(lexer);
+}
+
+// Whether a later value line, whose name may be partly read, is a whole declaration; the break ends the value above.
+static bool value_ends_before(TSLexer *lexer, bool has_name) {
+  unsigned budget = LOOKAHEAD_LIMIT;
+  lexer->result_symbol = STATEMENT_BREAK;
+  return declaration_start(lexer, has_name, &budget) != NO_DECLARATION && value_ends_on_line(lexer, &budget);
+}
+
 static bool scan_literal_interpolation(TSLexer *lexer, unsigned token) {
   if (lexer->lookahead != '#') return false;
   lexer->advance(lexer, false);
@@ -352,14 +649,14 @@ static bool scan_literal_interpolation(TSLexer *lexer, unsigned token) {
   return true;
 }
 
-// `word` holds `length` characters already consumed by the caller.
-static bool scan_keyword(TSLexer *lexer, const bool *valid_symbols, bool css, char *word, unsigned length) {
+// `word` holds `length` consumed characters; a name that is no keyword may start a declaration ending the value.
+static bool scan_keyword(TSLexer *lexer, const bool *valid_symbols, bool css, char *word, unsigned length,
+                         bool can_end_value) {
   bool escaped = false;
-  if (!scan_identifier(lexer, word, length, css, &escaped)) {
-    return false;
-  }
+  bool has_name = length ? name_character(lexer->lookahead) || lexer->lookahead == '\\' : name_start(lexer->lookahead);
+  if (!scan_identifier(lexer, word, length, css, &escaped)) return can_end_value && value_ends_before(lexer, has_name);
   // Interpolation extends the identifier; no keyword may claim its prefix.
-  if (lexer->lookahead == '#') return false;
+  if (lexer->lookahead == '#') return can_end_value && value_ends_before(lexer, true);
   // Literal names may be Sass functions; word operators still allow grouped operands.
   if (!css && lexer->lookahead == '(' &&
       (strcmp(word, "true") == 0 || strcmp(word, "false") == 0 || strcmp(word, "null") == 0)) return false;
@@ -383,7 +680,7 @@ static bool scan_keyword(TSLexer *lexer, const bool *valid_symbols, bool css, ch
     if (lexer->lookahead == '.' || lexer->lookahead == '(') return false;
     if (strcmp(folded, "pi") != 0 && strcmp(folded, "e") != 0 && strcmp(folded, "infinity") != 0 &&
         strcmp(folded, "-infinity") != 0 && strcmp(folded, "nan") != 0) {
-      return false;
+      return can_end_value && value_ends_before(lexer, true);
     }
     token = CALCULATION_CONSTANT;
   }
@@ -401,7 +698,11 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     // The completed if node owns this dependency, so adding an else invalidates reuse.
     lexer->mark_end(lexer);
     lexer->result_symbol = IF_END;
-    return !(skip_trivia(lexer) && scan_else_keyword(lexer));
+    if (!(skip_trivia(lexer) && scan_else_keyword(lexer))) return true;
+    // An else header cut off by a declaration line is skipped as one error, with the trivia before it.
+    lexer->mark_end(lexer);
+    lexer->result_symbol = UNFINISHED_HEADER;
+    return header_ends_early(lexer);
   }
   // CSS text hosts keep interpolation literal. SCSS always uses the grammar's expression parser.
   // Check before skipping whitespace, which belongs to the host's content.
@@ -410,14 +711,35 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
                       : valid_symbols[LITERAL_COMMENT_INTERPOLATION] ? LITERAL_COMMENT_INTERPOLATION
                                                                      : -1;
   if (literal_token >= 0) return css && scan_literal_interpolation(lexer, literal_token);
-  if ((valid_symbols[DESCENDANT] || valid_symbols[SPACE_BEFORE_COLON]) && css_space(lexer->lookahead)) {
-    while (css_space(lexer->lookahead)) lexer->advance(lexer, true);
+  bool has_crossed_line = false;
+  // Whitespace in a selector, or punctuation that may leave a selector line unfinished.
+  bool is_selector_gap =
+    ((valid_symbols[DESCENDANT] || valid_symbols[SPACE_BEFORE_COLON]) && css_space(lexer->lookahead)) ||
+    (valid_symbols[DESCENDANT] && !valid_symbols[STATEMENT_BREAK] && tail_start(lexer->lookahead, true));
+  if (is_selector_gap) {
+    bool has_space = css_space(lexer->lookahead);
+    // A break decided across a line ends at the end of the line above, leaving the next line its whitespace.
     lexer->mark_end(lexer);
+    while (css_space(lexer->lookahead)) {
+      has_crossed_line |= line_break(lexer->lookahead);
+      lexer->advance(lexer, true);
+    }
+    if (!has_crossed_line) lexer->mark_end(lexer);
     int32_t first = lexer->lookahead;
-    if (first == ':' || valid_symbols[DESCENDANT]) {
+    if (!has_crossed_line && valid_symbols[DESCENDANT] && !valid_symbols[STATEMENT_BREAK] &&
+        tail_start(first, !has_space)) {
+      return tail_ends_statement(lexer, STATEMENT_BREAK);
+    }
+    if (has_space && (first == ':' || valid_symbols[DESCENDANT])) {
       lexer->result_symbol = first == ':' ? SPACE_BEFORE_COLON : DESCENDANT;
-      if (first == ':' || first == '-' || first == '|') return selector_start_after(lexer);
-      if (selector_start(first)) return true;
+      bool is_ambiguous_start = first == ':' || first == '-' || first == '|';
+      if (is_ambiguous_start ? selector_start_after(lexer) : selector_start(first)) {
+        unsigned budget = LOOKAHEAD_LIMIT;
+        // A selector ends before a declaration name, on its line or the next; recovery resumes in the statement list.
+        if (first != ':' && declaration_name_follows(lexer, &budget)) lexer->result_symbol = STATEMENT_BREAK;
+        return true;
+      }
+      if (is_ambiguous_start) return false;
     }
   }
   // Only valid right after a number: Sass subtracts on an unspaced minus (`1-1`), CSS keeps a signed number.
@@ -440,7 +762,37 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     lexer->result_symbol = DIMENSION_UNIT;
     return scan_unit(lexer, css, true, &complex);
   }
-  while (css_space(lexer->lookahead)) lexer->advance(lexer, true);
+  // Recovering from an unfinished selector lexes the punctuation that ended its line again in the statement list.
+  if (valid_symbols[STATEMENT_BREAK] && valid_symbols[STATEMENT_COMMENT_START] && !valid_symbols[DESCENDANT]) {
+    bool is_touching = true;
+    while (lexer->lookahead == ' ' || lexer->lookahead == '\t') {
+      is_touching = false;
+      lexer->advance(lexer, true);
+    }
+    if (tail_start(lexer->lookahead, is_touching)) {
+      return tail_ends_statement(lexer, STATEMENT_BREAK);
+    }
+  }
+  // A declaration value, also one in a feature query, accepts `!important`; maps, arguments and raw values do not.
+  bool is_value_state = valid_symbols[IMPORTANT_BANG] && !valid_symbols[STATEMENT_BREAK] &&
+                        (valid_symbols[SASS_BOOLEAN] || valid_symbols[SASS_NULL] || valid_symbols[SASS_OPERATOR] ||
+                         valid_symbols[CALCULATION_CONSTANT] || valid_symbols[CSS_VAR_FUNCTION_NAME]);
+  // Zero width at the end of the line above: a declaration that starts the next line ends the value before it.
+  bool is_url = valid_symbols[LITERAL_CSS_URL] && !valid_symbols[STATEMENT_BREAK];
+  if ((is_value_state || is_url) && css_space(lexer->lookahead)) lexer->mark_end(lexer);
+  while (css_space(lexer->lookahead)) {
+    has_crossed_line |= line_break(lexer->lookahead);
+    lexer->advance(lexer, true);
+  }
+  bool can_end_value = has_crossed_line && is_value_state;
+  if (valid_symbols[STATEMENT_BREAK] && valid_symbols[STATEMENT_COMMENT_START]) {
+    if (lexer->lookahead == '@') return scan_unfinished_header(lexer);
+    // Once shifted, a line-leading combinator or interpolation reaches no break site, so skip such a line as one error.
+    int32_t first = lexer->lookahead;
+    if (first == '>' || first == '+' || first == '~' || first == '#') {
+      return tail_ends_statement(lexer, UNFINISHED_HEADER);
+    }
+  }
   if (valid_symbols[STATEMENT_COMMENT_START] && lexer->lookahead == '/') {
     return scan_statement_comment_start(lexer);
   }
@@ -449,12 +801,20 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
       (name_start(lexer->lookahead) || lexer->lookahead == '-' || lexer->lookahead == '\\')) {
     return scan_namespace_prefix(lexer, css);
   }
+  // A `$` that does not start a name is unfinished; recovery supplies the missing name. CSS URL payloads own `$`.
+  if (valid_symbols[INCOMPLETE_VARIABLE_PREFIX] && !(css && valid_symbols[LITERAL_CSS_URL]) &&
+      lexer->lookahead == '$') {
+    lexer->advance(lexer, false);
+    lexer->mark_end(lexer);
+    lexer->result_symbol = INCOMPLETE_VARIABLE_PREFIX;
+    return !name_start(lexer->lookahead) && lexer->lookahead != '-' && lexer->lookahead != '\\';
+  }
   if (valid_symbols[SCALAR_NUMBER] || valid_symbols[DIMENSION_NUMBER]) {
     if (lexer->lookahead == '-') {
       lexer->advance(lexer, false);
       if (!digit(lexer->lookahead) && lexer->lookahead != '.') {
         char word[KEYWORD_BUFFER] = "-";
-        return scan_keyword(lexer, valid_symbols, css, word, 1);
+        return scan_keyword(lexer, valid_symbols, css, word, 1, can_end_value);
       }
     }
     if (digit(lexer->lookahead) || lexer->lookahead == '.') {
@@ -469,18 +829,31 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
   if ((css && valid_symbols[CSS_VAR_FUNCTION_NAME]) || valid_symbols[CALCULATION_CONSTANT] ||
       (!css && (valid_symbols[SASS_BOOLEAN] || valid_symbols[SASS_NULL] || valid_symbols[SASS_OPERATOR]))) {
     char word[KEYWORD_BUFFER];
-    return scan_keyword(lexer, valid_symbols, css, word, 0);
+    return scan_keyword(lexer, valid_symbols, css, word, 0, can_end_value);
+  }
+  unsigned budget = LOOKAHEAD_LIMIT;
+  // A Sass url( payload is never a declaration, so one on a later line ends an unclosed url( above it.
+  if (!css && is_url && has_crossed_line) {
+    lexer->result_symbol = STATEMENT_BREAK;
+    return declaration_start(lexer, false, &budget) != NO_DECLARATION && group_line_rest(lexer, &budget);
   }
   if (!css || !valid_symbols[LITERAL_CSS_URL]) return false;
   bool content = false;
+  // A payload on a later line shaped `name:` may instead start a declaration below an unclosed url(.
+  bool is_name = has_crossed_line && (name_start(lexer->lookahead) || lexer->lookahead == '-');
+  bool has_colon = false;
   while (!lexer->eof(lexer) && !css_space(lexer->lookahead) &&
          lexer->lookahead != '(' && lexer->lookahead != ')' &&
          lexer->lookahead != '"' && lexer->lookahead != '\'' && lexer->lookahead != '\\') {
+    if (has_colon || !(name_character(lexer->lookahead) || lexer->lookahead == ':')) is_name = false;
+    has_colon |= lexer->lookahead == ':';
     lexer->advance(lexer, false);
     content = true;
   }
+  // Mark before the lookahead below, so a payload that starts no declaration keeps its own end.
   lexer->mark_end(lexer);
-  lexer->result_symbol = LITERAL_CSS_URL;
+  bool is_declaration = is_name && has_colon && css_space(lexer->lookahead) && group_line_rest(lexer, &budget);
+  lexer->result_symbol = is_declaration ? STATEMENT_BREAK : LITERAL_CSS_URL;
   return content;
 }
 

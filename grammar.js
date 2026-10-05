@@ -102,7 +102,14 @@ module.exports = grammar({
     $._subtraction_minus,
     $._statement_comment_start,
     $._if_end,
-    $._namespace_prefix
+    $._namespace_prefix,
+    $._incomplete_variable_prefix,
+    // Never emitted: recovery inserts it after a bare `$`.
+    $._missing_variable_name,
+    // Ends a statement before a declaration; selector states reject it, so recovery resumes in the statement list.
+    $._statement_break,
+    // Never valid: a cut-off at-rule header or a line of leading punctuation above a declaration is one error.
+    $._unfinished_header
   ],
   extras: $ => [/\s/, $.block_comment, $.inline_comment],
   word: $ => $._identifier,
@@ -158,6 +165,7 @@ module.exports = grammar({
             $.variable_declaration,
             $._at_rule,
             ";",
+            $._statement_break,
             "<!--",
             "-->"
           )
@@ -269,8 +277,7 @@ module.exports = grammar({
         optional(
           seq(
             $.attribute_operator,
-            choice($.string, $.plain_value),
-            optional(alias($._identifier, $.attribute_modifier))
+            optional(seq(choice($.string, $.plain_value), optional(alias($._identifier, $.attribute_modifier))))
           )
         ),
         "]"
@@ -475,7 +482,11 @@ module.exports = grammar({
     map_entry: $ => seq(field("key", $._space_value), ":", field("value", $._space_value)),
     spread: () => "...",
     operator: $ => choice("+", "-", "*", "/", "%", "==", "!=", "<", "<=", ">", ">=", $._sass_operator),
-    variable_name: () => token(seq("$", IDENTIFIER)),
+    variable_name: $ =>
+      choice(
+        token(seq("$", IDENTIFIER)),
+        seq(alias($._incomplete_variable_prefix, "$"), alias($._missing_variable_name, "identifier"))
+      ),
     boolean: $ => $._sass_boolean,
     null: $ => $._sass_null,
     hex_color: () => token(seq("#", /(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})/)),
@@ -793,7 +804,9 @@ module.exports = grammar({
         // The competing selector reading lexes whitespace between items as a descendant.
         seq(
           $._raw_statement_item,
-          repeat(seq(optional(choice($._descendant, $._space_before_colon)), $._raw_statement_item)),
+          repeat(
+            seq(optional(choice($._descendant, $._space_before_colon, $._statement_break)), $._raw_statement_item)
+          ),
           ";"
         )
       ),
@@ -821,7 +834,7 @@ function braced(body) {
 }
 
 function declarationBlock($, statement, property = $._property) {
-  const item = choice(statement, alias($._statement_comment, $.block_comment));
+  const item = choice(statement, alias($._statement_comment, $.block_comment), $._statement_break);
   return choice(repeat1(item), seq(repeat(item), choice(alias(property, $.property_declaration), $._final_statement)));
 }
 

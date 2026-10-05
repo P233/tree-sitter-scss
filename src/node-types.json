@@ -4445,6 +4445,11 @@
     }
   },
   {
+    "type": "variable_name",
+    "named": true,
+    "fields": {}
+  },
+  {
     "type": "while_statement",
     "named": true,
     "fields": {
@@ -4580,6 +4585,10 @@
   },
   {
     "type": "#{",
+    "named": false
+  },
+  {
+    "type": "$",
     "named": false
   },
   {
@@ -4899,6 +4908,10 @@
     "named": false
   },
   {
+    "type": "identifier",
+    "named": false
+  },
+  {
     "type": "if",
     "named": false
   },
@@ -4966,10 +4979,6 @@
   {
     "type": "using",
     "named": false
-  },
-  {
-    "type": "variable_name",
-    "named": true
   },
   {
     "type": "with",

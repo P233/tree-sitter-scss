@@ -62,7 +62,9 @@ for (const forcedGc of [true, false]) {
           rootNode: { hasError: false },
           edit(edit) {
             this.edited = edit;
-          }
+          },
+          // One kilobyte per key stays below a quarter of the typing template.
+          getChangedRanges: () => [{ startIndex: 0, endIndex: 1024 }]
         };
         return this.latestTree;
       }
@@ -118,7 +120,11 @@ for (const forcedGc of [true, false]) {
 
     assert.equal(peakPendingTrees, 1000, "only a single small/nested batch may accumulate retired trees");
     assert.equal(pendingTrees, 0, "the final dialect must also drain before memory reporting");
-    assert.equal(editedTrees, 2 * 220, "both dialects retain numeric incremental samples");
+    assert.equal(
+      editedTrees,
+      2 * (220 + 2 * 639),
+      "both dialects retain numeric incremental samples and type every key at both insertion points"
+    );
     const workloads = [
       "small",
       "stress",
@@ -127,9 +133,12 @@ for (const forcedGc of [true, false]) {
       "nested",
       "spaced-pseudos",
       "multiline-pseudos",
-      "long-comment-lines"
+      "long-comment-lines",
+      "interpolated-values"
     ];
-    assert.deepEqual(Object.keys(output.workloads), workloads);
+    const typing = ["typing-blank", "typing-same-line"];
+    // Every measured input has a hash; the incremental edit reuses the large workload's text.
+    assert.deepEqual(Object.keys(output.workloads), [...workloads, ...typing]);
     assert.deepEqual(
       output.results.map(result => result.dialect),
       ["scss", "css"]
@@ -138,10 +147,23 @@ for (const forcedGc of [true, false]) {
       assert.equal(queryCompileMs, 7, "compile the query once outside parse and capture timing");
       assert.deepEqual(
         results.map(result => result.workload),
-        [...workloads, "edit-large"]
+        [...workloads, "edit-large", ...typing]
       );
       for (const result of results) {
         assert.deepEqual(result.parse, { p50Ms: 1, p95Ms: 1 });
+        if (typing.includes(result.workload)) {
+          const { keys, changedKB, keysChangingQuarterFile, errorKeys } = result;
+          assert.deepEqual(
+            { keys, changedKB, keysChangingQuarterFile, errorKeys },
+            {
+              keys: 639,
+              changedKB: 639,
+              keysChangingQuarterFile: 0,
+              errorKeys: 0
+            }
+          );
+          continue;
+        }
         if (result.workload === "edit-large") continue;
         assert.deepEqual(result.highlight, { p50Ms: 2, p95Ms: 2 });
         assert.deepEqual(result.total, { p50Ms: 3, p95Ms: 3 });
