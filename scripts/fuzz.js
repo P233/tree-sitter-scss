@@ -76,7 +76,14 @@ const FRAGMENTS = [
   "url(a.png)",
   '"a',
   "p {",
-  "}\n"
+  "}\n",
+  // Enter, then an unfinished head: the next existing line follows it, as when a statement is typed above another.
+  "\n  >",
+  "\n  &[d=]",
+  "\n  #{}",
+  "\n  .b .",
+  "\n  @media (",
+  "\n  $x:"
 ];
 const MAX_DELETION = 40;
 // Captures farther than this from the edited text belong to other statements; losing one there is remote damage.

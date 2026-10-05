@@ -15,24 +15,47 @@ for (const forcedGc of [true, false]) {
     let output;
     const source = readFileSync(join(__dirname, "benchmark.js"), "utf8");
     const scss = { name: "scss", cssLanguage: { name: "css" } };
+    const point = (text, index) => {
+      const lines = text.slice(0, index).split("\n");
+      return { row: lines.length - 1, column: lines.at(-1).length };
+    };
     class Parser {
       setLanguage(language) {
         this.language = language;
       }
-      parse(_text, oldTree) {
+      parse(text, oldTree) {
         if (oldTree) {
           assert.equal(pendingTrees, 0, "retired trees must drain before the next edit sample");
           assert.equal(oldTree, this.latestTree, "incremental samples must retain the previous tree");
-          assert.equal(oldTree.edited, true);
+          const { edited } = oldTree;
+          // The edit must describe exactly how the new text differs from the edited tree's text.
+          assert.equal(text.slice(0, edited.startIndex), oldTree.text.slice(0, edited.startIndex));
+          assert.equal(text.slice(edited.newEndIndex), oldTree.text.slice(edited.oldEndIndex));
+          assert.deepEqual(
+            // Copies the benchmark context's points into this realm, which strict deep equality requires.
+            [edited.startPosition, edited.oldEndPosition, edited.newEndPosition].map(({ row, column }) => ({
+              row,
+              column
+            })),
+            [
+              point(oldTree.text, edited.startIndex),
+              point(oldTree.text, edited.oldEndIndex),
+              point(text, edited.newEndIndex)
+            ]
+          );
           editedTrees++;
         }
         pendingTrees++;
         peakPendingTrees = Math.max(peakPendingTrees, pendingTrees);
         clock++;
         this.latestTree = {
-          edit() {
-            this.edited = true;
-          }
+          text,
+          rootNode: { hasError: true },
+          edit(edit) {
+            this.edited = edit;
+          },
+          // One kilobyte per key stays below a quarter of the typing template.
+          getChangedRanges: () => [{ startIndex: 0, endIndex: 1024 }]
         };
         return this.latestTree;
       }
@@ -88,7 +111,11 @@ for (const forcedGc of [true, false]) {
 
     assert.equal(peakPendingTrees, 1000, "only a single small/nested batch may accumulate retired trees");
     assert.equal(pendingTrees, 0, "the final dialect must also drain before memory reporting");
-    assert.equal(editedTrees, 440, "both dialects retain the existing warmup and measured edit counts");
+    assert.equal(
+      editedTrees,
+      2 * (220 + 2 * 543),
+      "both dialects retain the existing edit counts and type every key at both insertion points"
+    );
     const workloads = [
       "small",
       "stress",
@@ -101,12 +128,28 @@ for (const forcedGc of [true, false]) {
       "long-comment-lines",
       "interpolated-values"
     ];
-    assert.deepEqual(Object.keys(output.workloads), workloads);
-    // Each dialect reports every workload plus the incremental edit.
+    const typing = ["typing-blank", "typing-same-line"];
+    // Every measured input has a hash; the incremental edit reuses the large workload's text.
+    assert.deepEqual(Object.keys(output.workloads), [...workloads, ...typing]);
+    // Each dialect reports every workload plus the incremental edit and both typing insertion points.
     assert.deepEqual(
       output.results.map(result => `${result.dialect}:${result.workload}`),
-      ["scss", "css"].flatMap(dialect => [...workloads, "edit-large"].map(workload => `${dialect}:${workload}`))
+      ["scss", "css"].flatMap(dialect =>
+        [...workloads, "edit-large", ...typing].map(workload => `${dialect}:${workload}`)
+      )
     );
+    for (const result of output.results.filter(({ workload }) => typing.includes(workload))) {
+      const { keys, changedKB, keysChangingQuarterFile, errorKeys } = result;
+      assert.deepEqual(
+        { keys, changedKB, keysChangingQuarterFile, errorKeys },
+        {
+          keys: 543,
+          changedKB: 543,
+          keysChangingQuarterFile: 0,
+          errorKeys: 543
+        }
+      );
+    }
     assert.ok(
       output.results.every(result => result.p50Ms === 1 && result.p95Ms === 1),
       "cleanup must be untimed"
