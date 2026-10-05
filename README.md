@@ -72,7 +72,7 @@ A later capture of the same range overrides an earlier one, as in the Tree-sitte
 ## Known limits
 
 - Escaped keywords such as `c\61 lc`, `@m\65 dia`, and `:l\61 ng` get generic syntax instead of their specialized forms; escaped calculation constants and CSS `var()` are still recognized. Escaped `!important` and escapes inside `An+B` may produce a parse error. CSS consumes CRLF as one escape terminator and SCSS does not, so `.x\31`, CRLF, `b` is a descendant selector in SCSS.
-- The `*` property hack may touch its name or precede whitespace. Other forms, such as `*#{$p}: 1` or `.zoom: 1`, can produce a parse error, although Sass accepts them.
+- Internet Explorer–only syntax is not supported: the `*` property hack, `alpha(opacity=50)` arguments, `progid:` filters and `expression()` parse as local errors. A leading `_` is an ordinary name character.
 - Typed `attr()` unions such as `attr(data-width type(<length> | <percentage>), 10px)` produce a parse error.
 - A descendant combinator is read from whitespace directly before the next compound, so `.a /* c */.b` is one compound and `svg /* c */|a` keeps its namespace prefix. A name glued to a preceding simple selector, as in `[x]a`, is a parse error; Sass reads a descendant.
 - Unspaced subtraction after `)` reads as a negative number: `fn()-1` and `($s)-1` end with the number `-1`.

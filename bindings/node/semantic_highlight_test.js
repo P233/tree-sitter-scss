@@ -272,12 +272,11 @@ test("custom names are variables and raw payload tokens keep CSS roles in both d
   }
 });
 
-test("dashed names still serve as module namespaces, dotted words, and equals arguments", () => {
-  const result = captures('@use "x" as --a; $x: --a.$b, --a.fn(1), --a.b, alpha(--c=1);', Scss);
+test("dashed names still serve as module namespaces and dotted words", () => {
+  const result = captures('@use "x" as --a; $x: --a.$b, --a.fn(1), --a.b;', Scss);
   assert.deepEqual(
     result.filter(({ name }) => name === "module").map(({ node }) => node.text),
     ["--a", "--a", "--a"]
   );
   assertRole(result, "--a.b", "constant");
-  assertRole(result, "--c", "variable");
 });

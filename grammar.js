@@ -5,7 +5,7 @@ const IDENTIFIER = new RegExp(`(?:--|-?${NAME_START})(?:[-_a-zA-Z0-9\\u0080-\\u{
 const SIMPLE_UNIT = new RegExp(`${NAME_START}(?:[_a-zA-Z0-9\\u0080-\\u{10ffff}]|${ESCAPE.source})*`, "u");
 const URL_NAME = keyword("url", true);
 const URL_WORD = token(prec(1, /[^\s()"'\\#$]+/));
-const RAW_FUNCTION_NAMES = ["element", "-moz-element", "expression"];
+const RAW_FUNCTION_NAMES = ["element", "-moz-element"];
 const MATH_FUNCTIONS = [
   "calc",
   "min",
@@ -127,7 +127,6 @@ module.exports = grammar({
     [$.property_name, $.tag_selector, $._raw_statement_item],
     [$.tag_selector, $._variable],
     [$.property_name, $.tag_selector],
-    [$.property_name, $.operator],
     [$._interpolated_identifier, $._expression_atom],
     [$._interpolated_identifier, $.raw_value],
     [$._interpolated_identifier, $._at_rule_head],
@@ -194,8 +193,7 @@ module.exports = grammar({
     _declaration_priority: $ => seq(alias($._important_bang, "!"), alias(keyword("important", true), "important")),
     // As in Sass, a spaced colon touching a name before a block starts a pseudo selector instead.
     _nested_property: $ => seq(field("name", $.property_name), ":", optional(field("value", $._value)), $._block),
-    // Share whitespace with the universal-selector reading until the declaration colon resolves it.
-    property_name: $ => seq(optional(seq("*", optional($._descendant))), $._interpolated_identifier),
+    property_name: $ => $._interpolated_identifier,
     // Aliasing this wrapper keeps `dashed_name` as a child of the aliased node.
     _wrapped_dashed_name: $ => $.dashed_name,
     // Custom properties and other author-defined `--` names share one node wherever they are a value or name.
@@ -388,17 +386,10 @@ module.exports = grammar({
         $.spread
       ),
     _value_atom: $ => choice($._expression_atom, $.map, $.list),
-    arguments: $ => argumentList(choice($._argument, alias($._equals_argument, $.argument))),
+    arguments: $ => argumentList($._argument),
     // Each comma item is exactly one named child; a positional item of several atoms is an `argument`.
     _argument: $ => choice($.named_argument, $.feature_query, $._value_atom, $.argument),
     argument: $ => seq($._value_atom, repeat1($._value_atom)),
-    // Sass keeps IE's alpha(opacity=50) form: a name, a single equals, and a value.
-    _equals_argument: $ =>
-      seq(
-        choice(alias($._identifier, $.plain_value), alias($._wrapped_dashed_name, $.plain_value)),
-        alias("=", $.operator),
-        $._space_value
-      ),
     _mixin_arguments: $ => argumentList($._argument, "("),
     named_argument: $ => seq(field("name", $.variable_name), ":", field("value", $._space_value)),
     call_expression: $ =>
@@ -560,7 +551,7 @@ module.exports = grammar({
       ),
     special_call: $ =>
       seq(
-        alias(choice($._raw_function_word, /-[a-z]+-calc/, /progid:[a-zA-Z.]+/), $.function_name),
+        alias(choice($._raw_function_word, /-[a-z]+-calc/), $.function_name),
         token.immediate("("),
         optional($.raw_value),
         ")"

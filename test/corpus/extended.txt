@@ -133,11 +133,11 @@ Dashed query features
 (stylesheet (query_statement (call_expression (function_name) (query_group (plain_value (dashed_name)))) (operator) (call_expression (function_name) (query_group (plain_value (dashed_name)) (operator) (number)))) (query_statement (query_group (plain_value (dashed_name))) (operator) (query_group (plain_value))))
 
 ==================
-Content names, single-equals arguments, and url() calls
+Content names and url() calls
 ==================
-@mixin m { @content($b: 2); } .a { filter: alpha(opacity=50); background: url(fn($u)); }
+@mixin m { @content($b: 2); } .a { background: url(fn($u)); }
 ---
-(stylesheet (mixin_definition (function_name) (declaration_block (content_statement (arguments (named_argument (variable_name) (number)))))) (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (call_expression (function_name) (arguments (argument (plain_value) (operator) (number))))) (property_declaration (property_name) (url (function_name) (call_expression (function_name) (arguments (variable_name))))))))
+(stylesheet (mixin_definition (function_name) (declaration_block (content_statement (arguments (named_argument (variable_name) (number)))))) (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (url (function_name) (call_expression (function_name) (arguments (variable_name))))))))
 
 ==================
 Deprecated elseif clauses

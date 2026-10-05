@@ -930,11 +930,6 @@ $stress-path: "../icons";
   // R43.05: [*] Preserve the literal # before interpolation in element() arguments.
   background: element(##{$stress-name});
   background: -moz-element(#abc);
-  // R43.06: [LEGACY] Keep expression() contents in its special raw-expression context.
-  // This fixture tests source syntax and is not applied as a page stylesheet.
-  width: expression(document.body.clientWidth > 600 ? "600px" : "auto");
-  // R43.07: [LEGACY] Preserve the progid prefix, member dots, and named raw arguments.
-  filter: progid:DXImageTransform.Microsoft.Alpha(Opacity=50);
 }
 
 // === 44 Generic, interpolated, and escaped at-rules ======================
@@ -1133,9 +1128,6 @@ $stress-tag: a;
   color: RGB(1 2 3);
   // R52.05: Recognize the Sass-specific two-argument rgba() color form.
   background-color: rgba(#abc, .5);
-  // R52.06: [LEGACY] Keep IE star and underscore property hacks within the property name.
-  *zoom: 1;
-  _height: 1px;
 }
 
 // === 53 Interpolation spacing, comments, and empty statements ============

@@ -117,13 +117,6 @@ $x: true, tr\75 e, falsehood, #abcdfoo, #abc;
 //                                                       ^ property
 //                                                               ^ string
 
-.x { width: expression(document.body > 2 ? "yes" : "no"); }
-//          ^ function
-//                     ^ string
-//                                   ^ operator.expression
-//                                     ^ number
-//                                            ^ string
-
 @supports (display: grid) { .x {} }
 // <- keyword.directive
 //         ^ property

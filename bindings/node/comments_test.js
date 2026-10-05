@@ -263,7 +263,6 @@ test("complete comment interpolation has no lookahead window", () => {
     "a ".repeat(2000),
     `// ${"x".repeat(2000)}\n1`,
     `/* ${"x".repeat(2000)} */ 1`,
-    "progid:DXImage.Gradient(a=1)",
     "if(media((color)): 2; else: 3)"
   ]) {
     const comment = `/* #{${expression}} */`;

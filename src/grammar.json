@@ -515,42 +515,8 @@
       ]
     },
     "property_name": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "CHOICE",
-          "members": [
-            {
-              "type": "SEQ",
-              "members": [
-                {
-                  "type": "STRING",
-                  "value": "*"
-                },
-                {
-                  "type": "CHOICE",
-                  "members": [
-                    {
-                      "type": "SYMBOL",
-                      "name": "_descendant"
-                    },
-                    {
-                      "type": "BLANK"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "type": "BLANK"
-            }
-          ]
-        },
-        {
-          "type": "SYMBOL",
-          "name": "_interpolated_identifier"
-        }
-      ]
+      "type": "SYMBOL",
+      "name": "_interpolated_identifier"
     },
     "_wrapped_dashed_name": {
       "type": "SYMBOL",
@@ -2688,22 +2654,8 @@
               "type": "SEQ",
               "members": [
                 {
-                  "type": "CHOICE",
-                  "members": [
-                    {
-                      "type": "SYMBOL",
-                      "name": "_argument"
-                    },
-                    {
-                      "type": "ALIAS",
-                      "content": {
-                        "type": "SYMBOL",
-                        "name": "_equals_argument"
-                      },
-                      "named": true,
-                      "value": "argument"
-                    }
-                  ]
+                  "type": "SYMBOL",
+                  "name": "_argument"
                 },
                 {
                   "type": "REPEAT",
@@ -2715,22 +2667,8 @@
                         "value": ","
                       },
                       {
-                        "type": "CHOICE",
-                        "members": [
-                          {
-                            "type": "SYMBOL",
-                            "name": "_argument"
-                          },
-                          {
-                            "type": "ALIAS",
-                            "content": {
-                              "type": "SYMBOL",
-                              "name": "_equals_argument"
-                            },
-                            "named": true,
-                            "value": "argument"
-                          }
-                        ]
+                        "type": "SYMBOL",
+                        "name": "_argument"
                       }
                     ]
                   }
@@ -2794,47 +2732,6 @@
             "type": "SYMBOL",
             "name": "_value_atom"
           }
-        }
-      ]
-    },
-    "_equals_argument": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "CHOICE",
-          "members": [
-            {
-              "type": "ALIAS",
-              "content": {
-                "type": "SYMBOL",
-                "name": "_identifier"
-              },
-              "named": true,
-              "value": "plain_value"
-            },
-            {
-              "type": "ALIAS",
-              "content": {
-                "type": "SYMBOL",
-                "name": "_wrapped_dashed_name"
-              },
-              "named": true,
-              "value": "plain_value"
-            }
-          ]
-        },
-        {
-          "type": "ALIAS",
-          "content": {
-            "type": "STRING",
-            "value": "="
-          },
-          "named": true,
-          "value": "operator"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "_space_value"
         }
       ]
     },
@@ -3732,10 +3629,6 @@
           {
             "type": "STRING",
             "value": "-moz-element"
-          },
-          {
-            "type": "STRING",
-            "value": "expression"
           }
         ]
       }
@@ -5047,10 +4940,6 @@
               {
                 "type": "PATTERN",
                 "value": "-[a-z]+-calc"
-              },
-              {
-                "type": "PATTERN",
-                "value": "progid:[a-zA-Z.]+"
               }
             ]
           },
@@ -9254,10 +9143,6 @@
     [
       "property_name",
       "tag_selector"
-    ],
-    [
-      "property_name",
-      "operator"
     ],
     [
       "_interpolated_identifier",

@@ -63,7 +63,6 @@ const FRAGMENTS = [
   ".b, .c",
   "&:is(.c",
   "*",
-  "*zoom",
   "\n  .b\n",
   "--y: {",
   "@if",

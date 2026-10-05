@@ -230,19 +230,9 @@ test("dashed query features may stand alone or start a range", () => {
 
 test("mixin, function, and url() arguments follow Sass argument rules", () => {
   const { tree } = parse(
-    "@mixin m { @content($b: 2, $rest...); } .a { filter: alpha(opacity=$o); x: foo(a = b); background: url(fn($u)) url(map-get($m, a)) url(a.png); }"
+    "@mixin m { @content($b: 2, $rest...); } .a { background: url(fn($u)) url(map-get($m, a)) url(a.png); }"
   );
   assert.deepEqual(texts(tree, "named_argument"), ["$b: 2"]);
-  assert.deepEqual(
-    tree.rootNode
-      .descendantsOfType("operator")
-      .filter(node => node.text === "=")
-      .map(node => [node.parent.type, node.parent.text]),
-    [
-      ["argument", "opacity=$o"],
-      ["argument", "a = b"]
-    ]
-  );
   const urls = tree.rootNode.descendantsOfType("url");
   assert.deepEqual(
     urls.map(node => node.namedChildren[1].type),

@@ -183,8 +183,6 @@ test("spaced colons preserve declaration values and blockless selector boundarie
 
 test("line breaks inside valid statements never end them early", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
-    const declaration = parse(".x {\n  *\n  width: 1px;\n}", language).descendantsOfType("property_declaration")[0];
-    assert.equal(declaration.text, "*\n  width: 1px;");
     assert.equal(
       parse(".x { @extend :is(.a\n  .b) !optional; }", language).descendantsOfType("complex_selector")[0].text,
       ".a\n  .b"
@@ -390,7 +388,6 @@ test("argument lists wrap multi-atom items and keep single atoms direct", () => 
     ["argument", "a b"],
     ["plain_value", "c"]
   ]);
-  assert.deepEqual(argumentsOf(".a { filter: alpha(opacity=50); }"), [["argument", "opacity=50"]]);
   assert.deepEqual(shape(parse("@container style(--y > 1) {}", Scss).descendantsOfType("query_group")[0]), [
     ["plain_value", "--y"],
     ["operator", ">"],
