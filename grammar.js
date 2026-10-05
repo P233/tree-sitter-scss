@@ -109,7 +109,7 @@ module.exports = grammar({
     $._statement_break,
     // A line between the `*` hack and its name; selector states never accept it.
     $._star_line_break,
-    // Never valid: an at-rule header cut off by a declaration line is skipped as one error.
+    // Never valid: a cut-off at-rule header or a line of leading punctuation above a declaration is one error.
     $._unfinished_header
   ],
   extras: $ => [/\s/, $.block_comment, $.inline_comment],
@@ -260,11 +260,11 @@ module.exports = grammar({
         "[",
         optional($.namespace_selector),
         alias($._interpolated_identifier, $.attribute_name),
+        // No statement break runs inside brackets, so `[a=]` being typed parses; a modifier still needs a value.
         optional(
           seq(
             $.attribute_operator,
-            choice($.string, $.plain_value),
-            optional(alias($._identifier, $.attribute_modifier))
+            optional(seq(choice($.string, $.plain_value), optional(alias($._identifier, $.attribute_modifier))))
           )
         ),
         "]"

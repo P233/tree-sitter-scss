@@ -1036,8 +1036,14 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     has_crossed_line |= line_break(lexer->lookahead);
     lexer->advance(lexer, true);
   }
-  if (valid_symbols[STATEMENT_BREAK] && valid_symbols[STATEMENT_COMMENT_START] && lexer->lookahead == '@') {
-    return scan_unfinished_header(lexer, css);
+  if (valid_symbols[STATEMENT_BREAK] && valid_symbols[STATEMENT_COMMENT_START]) {
+    if (lexer->lookahead == '@') return scan_unfinished_header(lexer, css);
+    // Once shifted, a line-leading combinator or interpolation reaches no break site, so skip such a line as one error.
+    int32_t first = lexer->lookahead;
+    if (first == '>' || first == '+' || first == '~' || first == '#') {
+      lexer->result_symbol = UNFINISHED_HEADER;
+      return tail_ends_statement(lexer, css);
+    }
   }
   bool can_end_value = has_crossed_line && is_value_state;
   // Sass reads a line-leading `*` as multiplication, but a `*` hack declaration still ends the value.

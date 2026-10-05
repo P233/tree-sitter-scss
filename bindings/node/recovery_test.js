@@ -406,7 +406,31 @@ test("a statement typed above a declaration ends at its own line", () => {
   const tail = Array.from({ length: 300 }, (_, index) => `.t${index} { margin: ${index}px; }`).join("\n");
   for (const language of [Scss, Scss.cssLanguage]) {
     parser.setLanguage(language);
-    for (const prefix of ["c", "color", "m10", ".b", "&-x", "&", "#id", "[data-x]", ".b.c", ".b:hover", "&:is(.c)"]) {
+    for (const prefix of [
+      "c",
+      "color",
+      "m10",
+      ".b",
+      "&-x",
+      "&",
+      "#id",
+      "[data-x]",
+      ".b.c",
+      ".b:hover",
+      "&:is(.c)",
+      // Unfinished heads: a line-leading combinator or interpolation, an attribute operator before its value, or an open query group.
+      ">",
+      "+",
+      "~",
+      "> .",
+      "> #{}",
+      "#{",
+      "#{}",
+      "#{$}",
+      "&[d=]",
+      ".b [d~=]",
+      "@media ("
+    ]) {
       const source = `.a {\n  color: red;\n  ${prefix}\n  width: 1px;\n}\n.y {\n  color: blue;\n}\n${tail}\n`;
       const root = parser.parse(source).rootNode;
       assert.equal(root.namedChildCount, 302, prefix);
@@ -422,6 +446,24 @@ test("a statement typed above a declaration ends at its own line", () => {
         [prefix],
         prefix
       );
+    }
+    // The attribute rows end their line because an operator before its value parses, as an editing tolerance.
+    assert.equal(parser.parse("[a=] {}").rootNode.hasError, false);
+    // Known debt: no break site runs inside an unpaired or empty `[`, so these lines still absorb the file.
+    for (const prefix of ["&[d", "&[d=", ".b []"]) {
+      const source = `.a {\n  color: red;\n  ${prefix}\n  width: 1px;\n}\n.y {\n  color: blue;\n}\n${tail}\n`;
+      assert.notEqual(parser.parse(source).rootNode.namedChildCount, 302, prefix);
+    }
+    // Known debt: after a stray separator's error, the never-valid token of a leading-punctuation line merges with it.
+    for (const line of [
+      "color: red; ,\n  #{}",
+      "color: red;\n  ,\n  #{}",
+      "color: red;\n  , #{}",
+      "color: red;\n  , #{",
+      "color: red; ,\n  >"
+    ]) {
+      const source = `.a {\n  ${line}\n  width: 1px;\n}\n.y {\n  color: blue;\n}\n${tail}\n`;
+      assert.notEqual(parser.parse(source).rootNode.namedChildCount, 302, line);
     }
     // The error stays on the unfinished line even when the declaration below has a shorter name.
     for (const prefix of ["c", "overflo"]) {
@@ -516,6 +558,32 @@ test("a statement typed above a declaration ends at its own line", () => {
       assert.deepEqual(
         rule.descendantsOfType("ERROR").map(node => node.text),
         [separator]
+      );
+    }
+    // Punctuation after another statement on its line joins the break, but a compound start after a space is reported.
+    for (const [line, errors] of [
+      ["color: red;#{}", []],
+      ["color: red; >", []],
+      ["color: red; + .", []],
+      ["color: red; .", ["."]],
+      ["color: red; #", ["#"]],
+      ["color: red; #{}", ["#{}"]],
+      ["color: red;\t#{$}", ["#{$}"]],
+      ["color: red; /* c */ #{} >", ["#{} >"]]
+    ]) {
+      const source = `.a {\n  ${line}\n  width: 1px;\n}\n.y {\n  color: blue;\n}\n${tail}\n`;
+      const root = parser.parse(source).rootNode;
+      assert.equal(root.namedChildCount, 302, line);
+      const rule = root.firstNamedChild;
+      assert.deepEqual(
+        rule.descendantsOfType("property_declaration").map(node => node.text),
+        ["color: red;", "width: 1px;"],
+        line
+      );
+      assert.deepEqual(
+        rule.descendantsOfType("ERROR").map(node => node.text),
+        errors,
+        line
       );
     }
     // A line break inside a statement is whitespace, so this reads as the complex selector Sass refuses to extend.
@@ -755,7 +823,9 @@ test("statement breaks after an earlier error keep incremental trees equal to fr
       "@each $f in",
       "@at-root",
       "@media f",
-      "a:f g"
+      "a:f g",
+      ">",
+      "#{$}"
     ]) {
       const source = `.a {\n  * : 1;\n  ${header}\n  top: 0;\n}\n.y { color: blue; }\n`;
       // Reusing a recovered tree must not decide the break differently, even for an empty edit.
