@@ -112,10 +112,32 @@ Ordinary complete-file totals are effectively unchanged, with small observed imp
 
 Across 57 unchanged fixture/corpus inputs in both entries, all 111 baseline error-free cases retained identical complete tree structure/ranges and ordered captures. The 10,000-edit seeded run had no error-free incremental or repaired-input mismatch; two differences were confined to damaged input. Native tests also cover complete interpolation beyond the removed lookahead window.
 
+### 2026-10-05 hidden-dispatcher measurements
+
+The second pass inlines ten existing hidden selector, argument, at-rule, value and raw-token helpers. The grammar keeps their definitions for readability, while runtime trees omit their dispatcher nodes. Public nodes, fields, node schema and highlight queries remain unchanged. Inlining exposes conflicts at the containing productions: declared conflicts increase from 19 to 25, grammar source grows by 20 lines, states from 2,051 to 2,064, large states from 454 to 469, and generated C from 3,988,238 to 4,011,967 bytes (0.6%). This pass reduces runtime allocations rather than authored source size.
+
+Against independently rebuilt `60ba1d8`, the same machine, runtime and timing method above produced these medians of three alternating runs. The frozen local corpus contains 335 files (44 CSS, 291 SCSS), totaling 941,050 bytes; both language entries accept every corpus file. It includes related local projects, so it is not an independent or industry-wide sample. Workload, query and scanner hashes matched across all runs.
+
+| Workload                   | Entry |           Parse |  Parse + captures |
+| -------------------------- | ----- | --------------: | ----------------: |
+| 72,918-byte stress fixture | SCSS  |   3.699 → 3.295 |   12.212 → 11.749 |
+| 1,000 rules                | SCSS  |   7.902 → 6.588 |   29.778 → 28.039 |
+| 1,000 rules                | CSS   |   8.087 → 6.746 |   30.459 → 28.618 |
+| 335-file corpus            | SCSS  | 85.950 → 73.847 | 293.479 → 276.154 |
+| 335-file corpus            | CSS   | 86.229 → 78.919 | 290.387 → 286.038 |
+| 20,000 multiline pseudos   | SCSS  | 25.746 → 20.619 |   89.438 → 81.867 |
+| 20,000 multiline pseudos   | CSS   | 26.269 → 22.103 |   89.893 → 85.134 |
+
+Corpus parsing takes 8.5–14.1% less time, while parsing plus captures takes 1.5–5.9% less. Numeric incremental replacement is effectively unchanged. The full sweep showed a 4.3% CSS long-comment slowdown (10.141 → 10.582 ms). Three further alternating runs focused on large rules and long comments, with 30 measured rounds each, reduced that difference to 0.4% (10.197 → 10.236 ms); the initial slowdown was not reproduced at the same magnitude. These measurements exclude host rendering and GUI latency.
+
+A native probe walks the retained tree with Tree-sitter 0.25.1's internal subtree layout and sums `ts_subtree_alloc_size` for each heap subtree. For the 1,000-rule input, storage falls from 4,456,000 to 3,576,000 bytes (19.7%); for the SCSS stress fixture, 1,396,304 to 1,150,344 bytes (17.6%); for a synthetic 1,000,020-byte raw-value input, 134,002,552 to 90,001,848 bytes (32.8%). This measures retained node storage, excluding allocator overhead, parser workspace and the rest of the process; it is not an RSS reduction claim.
+
+Across 384 fixture/corpus inputs in both entries, all 765 baseline error-free cases retain identical public tree structure, ranges and ordered captures. The aligned 10,000-edit comparison has zero error-free tree/capture differences and no candidate incremental or repaired-input mismatches. Damaged-input tree/capture differences remain informational. The complete repository check also passes.
+
 ## Retained boundaries and further work
 
 Keep the CSS adapter, atomic descriptor publication, context-specific groups, generated headers, fresh-process preview and standard CLI HTML renderer. They still protect concrete lexical, concurrency or tooling boundaries. Generic flattening of all groups loses distinctions between selectors, call arguments, query conditions and raw CSS.
 
-Complete control-chain grouping and editor-facing structural wrappers remain in this first pass. Removing them requires a coordinated schema/query and host-consumer migration. Coarsening math constants, map keys, query-feature colors or legacy syntax is a separate behavior decision.
+Complete control-chain grouping and public editor-facing structural wrappers remain after both passes. Unlike the inlined hidden dispatchers, they have downstream consumers; removing them requires a coordinated schema/query and host-consumer migration. Coarsening math constants, map keys, query-feature colors or legacy syntax is a separate behavior decision.
 
 Large declaration blocks can still limit incremental reuse because of selector/property ambiguity. The two `query_group` highlight patterns can be expensive to compile or execute with long comment runs. Their complete-input color roles are retained here; any subsequent optimization needs corresponding capture and performance evidence.

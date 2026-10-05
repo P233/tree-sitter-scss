@@ -9265,7 +9265,19 @@
     ],
     [
       "_interpolated_identifier",
-      "_raw_token"
+      "raw_value"
+    ],
+    [
+      "_interpolated_identifier",
+      "_at_rule_head"
+    ],
+    [
+      "_interpolated_identifier",
+      "_prelude_group"
+    ],
+    [
+      "_interpolated_identifier",
+      "raw_group"
     ],
     [
       "_interpolated_identifier",
@@ -9276,12 +9288,30 @@
       "_expression_atom"
     ],
     [
-      "_value_atom",
-      "_calculation_atom"
+      "argument",
+      "_query_atom"
     ],
     [
-      "_value_atom",
+      "conditional",
       "_query_atom"
+    ],
+    [
+      "arguments",
+      "_query_atom"
+    ],
+    [
+      "_calculation_atom",
+      "map_entry"
+    ],
+    [
+      "_value",
+      "map_entry",
+      "_query_atom"
+    ],
+    [
+      "_value",
+      "_calculation_atom",
+      "map_entry"
     ],
     [
       "list",
@@ -9301,10 +9331,6 @@
     ],
     [
       "argument",
-      "_css_fallback_item"
-    ],
-    [
-      "_argument",
       "_css_fallback_item"
     ],
     [
@@ -9403,7 +9429,17 @@
   "inline": [
     "_nested_property",
     "_statement",
-    "_subclass_selector"
+    "_subclass_selector",
+    "_complex_selector",
+    "_compound_selector",
+    "_simple_selector",
+    "_selector_list",
+    "_argument",
+    "_at_rule",
+    "_space_value",
+    "_value_atom",
+    "_raw_item",
+    "_raw_token"
   ],
   "supertypes": [],
   "reserved": {}
