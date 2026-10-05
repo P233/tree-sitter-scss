@@ -35,14 +35,14 @@ $map: (primary: red, "secondary": blue);
 //      ^ variable
 //               ^ constant
 //                                 ^ number
-//                                  ^ type
+//                                  ^ type.unit
 //                                                    ^ function
 //                                                        ^ variable
 //                                                                 ^ constant
 
 .x { --shadow: 0 1px rgb(0 0 0 / 50%), $ink; }
 //                   ^ function
-//                             ^ operator
+//                             ^ operator.expression
 //                               ^ number
 //                                     ^ string
 //                                     ^ !variable
@@ -52,7 +52,7 @@ $map: (primary: red, "secondary": blue);
 //                 ^ variable.parameter
 //                                         ^ function
 //                                                  ^ variable
-//                                                       ^ operator
+//                                                       ^ operator.expression
 
 @property --angle { inherits: false; } @media only screen and (--small) {}
 //        ^ variable
@@ -71,8 +71,8 @@ $map: (primary: red, "secondary": blue);
 //                                                   ^ number
 
 #main, %shared, *|a, ::view-transition-old(*) {}
-// <- punctuation.delimiter
-//     ^ punctuation.delimiter
+// <- attribute
+//     ^ attribute
 //              ^ module
 //                                         ^ constant
 

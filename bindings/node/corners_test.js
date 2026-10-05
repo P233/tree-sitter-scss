@@ -75,7 +75,7 @@ test("dimension units consume complete identifiers and percentage stops at its p
       assert.equal(numbers[0].namedChildren.length, 1);
       assert.equal(numbers[0].namedChildren[0].type, "unit");
       role(captures, value, "number");
-      role(captures, numbers[0].namedChildren[0].text, "type");
+      role(captures, numbers[0].namedChildren[0].text, "type.unit");
       assert.equal(tree.rootNode.lastNamedChild.text, ".after {}");
     }
     for (const [value, expected] of [
@@ -532,7 +532,7 @@ test("result raw values are limited to CSS function bodies and their conditional
           ["$x"]
         );
         role(captures, "$x", "variable");
-        role(captures, "+", "operator");
+        role(captures, "+", "operator.expression");
       }
       for (const body of [
         `${name}: {a:b;c:d};`,

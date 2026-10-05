@@ -9,12 +9,14 @@
 
 [(plain_value) (dotted_value) (hash_value) (hex_color) (unicode_range) (keyframes_name)] @constant
 [(number) (nth_formula)] @number
-[(unit) (type_name)] @type
+(unit) @type.unit
+(type_name) @type
 [(boolean) (null) (calculation_constant)] @constant.builtin
 [(flag) (important)] @keyword.modifier
 (at_keyword) @keyword.directive
 (attribute_modifier) @keyword
-[(operator) (attribute_operator) (combinator) (spread)] @operator
+(operator) @operator.expression
+[(attribute_operator) (combinator) (spread)] @operator
 
 ; Keyword roles use Neovim names; tree-sitter-highlight matches name parts, so `keyword.function` would render as `function`.
 ["@use" "@forward" "@import"] @keyword.import
@@ -35,11 +37,25 @@
 (escape_sequence) @string.escape
 
 ["{" "}" "(" ")" "[" "]"] @punctuation.bracket
-[":" "::" ";" "," "." "|"] @punctuation.delimiter
-[(id_selector "#" @punctuation.delimiter) (placeholder_selector "%" @punctuation.delimiter)]
+[":" ";" "," "|"] @punctuation.delimiter
 
 ; Context overrides
 ; Emacs applies this section after base captures, preserving contextual roles.
+; Class, ID and placeholder prefixes inherit the complete selector capture.
+(pseudo_selector [":" "::"] @attribute)
+; Dots outside class selectors still separate module members or literal words.
+[(member_expression "." @punctuation.delimiter)
+ (call_expression "." @punctuation.delimiter)
+ (variable_declaration "." @punctuation.delimiter)
+ (include_statement "." @punctuation.delimiter)
+ (selector_arguments "." @punctuation.delimiter)
+ (dotted_value "." @punctuation.delimiter)]
+; Recovery can leave separators without a selector or module owner.
+(ERROR ["." "::"] @punctuation.delimiter)
+; Query and type operators retain their structural role.
+[(query_statement (operator) @operator)
+ (query_group (operator) @operator)
+ (type_annotation (operator) @operator)]
 (map_entry key: (plain_value) @property)
 (keyframes_statement (declaration_block (rule_set (selectors [(tag_selector) @keyword (complex_selector (tag_selector) @keyword)]))))
 ; Literal parentheses bound repeated comments and reject nested groups early.

@@ -116,6 +116,7 @@ test("the highlight query keeps one overrides section and a closed capture vocab
     "module",
     "number",
     "operator",
+    "operator.expression",
     "property",
     "punctuation.bracket",
     "punctuation.delimiter",
@@ -124,9 +125,69 @@ test("the highlight query keeps one overrides section and a closed capture vocab
     "string.escape",
     "tag",
     "type",
+    "type.unit",
     "variable",
     "variable.parameter"
   ]);
+});
+
+function roleAt(source, captures, text, offset = 0) {
+  const position = source.indexOf(text) + offset;
+  assert.ok(source.includes(text), text);
+  return captures
+    .filter(({ node }) => node.startIndex <= position && position < node.endIndex)
+    .sort((a, b) => a.node.endIndex - a.node.startIndex - (b.node.endIndex - b.node.startIndex))[0]?.name;
+}
+
+test("selector prefixes share their name role without overriding other dots", () => {
+  const source =
+    'theme.$gap: 1px; %base, .card#main::before, :not(.muted), .x:lang(en.*), [data-x="a"] { @include theme.card; x: math.max(theme.$gap, foo.bar); }';
+  const parser = new Parser();
+  parser.setLanguage(Scss);
+  const tree = parser.parse(source);
+  assert.equal(tree.rootNode.hasError, false);
+  const captures = effectiveCaptures(new Parser.Query(Scss, Scss.HIGHLIGHTS_QUERY), tree.rootNode);
+  for (const text of ["%base", ".card", "#main", "::before", ":not", ".muted"]) {
+    assert.equal(roleAt(source, captures, text), "attribute", text);
+  }
+  for (const [text, offset] of [
+    ["theme.$gap", 5],
+    ["theme.card", 5],
+    ["math.max", 4],
+    ["foo.bar", 3],
+    ["en.*", 2]
+  ]) {
+    assert.equal(roleAt(source, captures, text, offset), "punctuation.delimiter", text);
+  }
+  assert.equal(roleAt(source, captures, '"a"'), "string");
+});
+
+test("value operators and units have sub-roles while query and type operators stay structural", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    const source =
+      "@media not screen and (width > 10px) { .a > .b { width: calc(100% - 2rem); } } @function --f(--n <length>+) returns <length> { result: 1px; }";
+    const parser = new Parser();
+    parser.setLanguage(language);
+    const tree = parser.parse(source);
+    assert.equal(tree.rootNode.hasError, false);
+    const captures = effectiveCaptures(new Parser.Query(language, Scss.HIGHLIGHTS_QUERY), tree.rootNode);
+    assert.equal(roleAt(source, captures, "10px", 2), "type.unit");
+    assert.equal(roleAt(source, captures, "100%", 3), "type.unit");
+    assert.equal(roleAt(source, captures, " - ", 1), "operator.expression");
+    for (const [text, offset] of [
+      ["not", 0],
+      ["and", 0],
+      ["width >", 6],
+      [".a >", 3],
+      ["length>+", 7]
+    ]) {
+      assert.equal(roleAt(source, captures, text, offset), "operator", text);
+    }
+    assert.equal(roleAt(source, captures, "length"), "type");
+    const numeric = tree.rootNode.descendantsOfType("number").find(node => node.text === "10px");
+    assert.equal(numeric.namedChildren[0].type, "unit");
+    assert.equal(numeric.namedChildren[0].text, "px");
+  }
 });
 
 // tree-sitter-highlight matches theme names by parts, so a sub-role naming another role would take that role's color.

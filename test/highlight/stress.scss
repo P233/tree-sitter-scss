@@ -17,7 +17,7 @@
 //     ^ function
 //          ^ variable.parameter
 //                 ^ number
-//                  ^ type
+//                  ^ type.unit
 //                           ^ operator
 //                                  ^ keyword
 
@@ -44,7 +44,7 @@
 //                            ^ string
 //                                 ^ keyword
 //                                     ^ module
-//                                            ^ punctuation.delimiter
+//                                            ^ attribute
 //                                             ^ attribute
 
 $x: math.$pi;
@@ -65,7 +65,7 @@ $x: true, tr\75 e, falsehood, #abcdfoo, #abc;
 //               ^ constant
 //               ^ !constant.builtin
 //                    ^ number
-//                     ^ operator
+//                     ^ operator.expression
 //                                 ^ punctuation.special
 //                                   ^ variable
 
@@ -83,7 +83,7 @@ $x: true, tr\75 e, falsehood, #abcdfoo, #abc;
 // <- comment
 //         ^ punctuation.special
 //           ^ number
-//             ^ operator
+//             ^ operator.expression
 //                       ^ attribute
 
 .x { font:bold {} font: bold { family: serif; } }
@@ -97,7 +97,7 @@ $x: true, tr\75 e, falsehood, #abcdfoo, #abc;
 //         ^ constant
 //                ^ keyword
 //                        ^ number
-//                          ^ type
+//                          ^ type.unit
 //                               ^ keyword
 
 .x { color: if(sass(true): red; else: blue;); }
@@ -120,7 +120,7 @@ $x: true, tr\75 e, falsehood, #abcdfoo, #abc;
 .x { width: expression(document.body > 2 ? "yes" : "no"); }
 //          ^ function
 //                     ^ string
-//                                   ^ operator
+//                                   ^ operator.expression
 //                                     ^ number
 //                                            ^ string
 

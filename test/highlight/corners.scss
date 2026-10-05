@@ -30,9 +30,9 @@ col || td:state(checked)::scroll-button(left) {}
 
 .a { value: 1foo1bar 1foo- 1%foo; }
 //          ^ number
-//           ^ type
+//           ^ type.unit
 //                   ^ number
-//                    ^ type
+//                    ^ type.unit
 //                         ^ number
 //                           ^ constant
 

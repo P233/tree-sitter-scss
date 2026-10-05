@@ -17,6 +17,7 @@
     "test:parser": "node scripts/grammar.js test",
     "test:node": "node --test --test-concurrency=1 bindings/node/*_test.js",
     "test:development": "node --test --test-concurrency=1 scripts/*_test.js",
+    "test:fuzz": "node scripts/fuzz.js record",
     "test:rust": "cargo test",
     "benchmark": "pnpm build && node --expose-gc scripts/benchmark.js",
     "check": "pnpm lint && pnpm format:check && pnpm check:generated && pnpm build && pnpm test:parser && pnpm test:node && pnpm test:development && pnpm test:rust && cargo fmt --check && pnpm check:package && pnpm preview:export",

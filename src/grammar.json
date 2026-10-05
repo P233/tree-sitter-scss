@@ -9491,7 +9491,8 @@
   ],
   "inline": [
     "_nested_property",
-    "_statement"
+    "_statement",
+    "_subclass_selector"
   ],
   "supertypes": [],
   "reserved": {}

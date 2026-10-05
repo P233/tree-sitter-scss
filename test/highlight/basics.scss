@@ -9,7 +9,7 @@ $base-color: #abc;
 //       ^ variable
   width: 12px;
 //       ^ number
-//         ^ type
+//         ^ type.unit
   content: "hello #{$name}";
 //          ^ string
 //                ^ punctuation.special

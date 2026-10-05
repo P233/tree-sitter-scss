@@ -122,7 +122,7 @@ pnpm dev     # Live preview of trees and highlights at http://127.0.0.1:4173
 
 `grammar.js` and `src/scanner.c` are the authored sources; `pnpm generate` regenerates everything else under `src/`.
 
-After `pnpm build`, run native acceptance tests with `pnpm test:node` or the development tooling and preview tests with `pnpm test:development`. `pnpm benchmark` reports reproducible parsing and editing workloads. See [Architecture](ARCHITECTURE.md) for ownership, invariants, and comparison instructions.
+After `pnpm build`, run native acceptance tests with `pnpm test:node` or the development tooling and preview tests with `pnpm test:development`. `pnpm test:fuzz` checks incremental parses after seeded random edits, and `pnpm benchmark` reports reproducible parsing and editing workloads. See [Architecture](ARCHITECTURE.md) for ownership, invariants, and comparison instructions.
 
 ## License
 

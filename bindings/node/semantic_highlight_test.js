@@ -220,7 +220,10 @@ test("selector-taking pseudo arguments remain selectors across case and CSS esca
 test("view-transition value arguments cover wildcards and group-children names", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     for (const pseudo of ["group", "group-children", "image-pair", "old", "new"]) {
-      assertRole(captures(`::view-transition-${pseudo}(*) {}`, language), "*", "constant", ["operator"]);
+      assertRole(captures(`::view-transition-${pseudo}(*) {}`, language), "*", "constant", [
+        "operator",
+        "operator.expression"
+      ]);
       assertRole(captures(`::view-transition-${pseudo}(card) {}`, language), "card", "constant", ["tag"]);
     }
   }
@@ -241,15 +244,15 @@ test("Sass keyword prefixes remain inside complete interpolated names", () => {
   for (const word of ["true", "false", "null", "not", "and", "or", String.raw`tr\75 e`]) {
     const name = `${word}#{$suffix}`;
     const result = captures(`.a { value: ${name}; }`, Scss);
-    assertRole(result, name, "constant", ["constant.builtin", "operator"]);
+    assertRole(result, name, "constant", ["constant.builtin", "operator", "operator.expression"]);
     assertRole(result, "$suffix", "variable");
-    assert.ok(!result.some(({ name }) => ["constant.builtin", "operator"].includes(name)));
+    assert.ok(!result.some(({ name }) => ["constant.builtin", "operator", "operator.expression"].includes(name)));
   }
 });
 
 test("Sass operators retain grouped operands and CRLF retains value-item boundaries", () => {
   const result = captures(".a { a: not(false); b: 1 and(2); c: 1 or(2); d: foo\\61\r\nbar; }", Scss);
-  for (const word of ["not", "and", "or"]) assertRole(result, word, "operator", ["function"]);
+  for (const word of ["not", "and", "or"]) assertRole(result, word, "operator.expression", ["function"]);
   assertRole(result, "foo\\61\r", "constant");
   assertRole(result, "bar", "constant");
 });
@@ -264,7 +267,7 @@ test("custom names are variables and raw payload tokens keep CSS roles in both d
     assertRole(result, "--gap", "variable", ["property", "constant"]);
     assertRole(result, "oklch", "function", ["string"]);
     assertRole(result, "0.2", "number", ["string"]);
-    assertRole(result, "*", "operator", ["string"]);
+    assertRole(result, "*", "operator.expression", ["string"]);
     assertRole(result, "$ink", "string", ["variable"]);
   }
 });

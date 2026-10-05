@@ -115,8 +115,8 @@ module.exports = grammar({
   extras: $ => [/\s/, $.block_comment, $.inline_comment],
   word: $ => $._identifier,
   // Keep nested properties in their declaration's reduction so malformed headers recover locally.
-  // Avoid retaining a hidden wrapper for each completed statement in a block.
-  inline: $ => [$._nested_property, $._statement],
+  // Avoid hidden wrappers for completed statements and subclass selector choices.
+  inline: $ => [$._nested_property, $._statement, $._subclass_selector],
   conflicts: $ => [
     [$.tag_selector, $._raw_statement_item],
     [$.property_name, $.tag_selector, $._raw_statement_item],
