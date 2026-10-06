@@ -186,18 +186,9 @@ module.exports = grammar({
         field("value", $._value),
         repeat(field("flags", $.flag))
       ),
-    property_declaration: $ => choice(seq($._property, ";"), $._nested_property),
-    _property: $ =>
-      choice(
-        seq(
-          field("name", $.property_name),
-          optional($._space_before_colon),
-          ":",
-          optional(field("value", $._value)),
-          optional(field("flags", choice($.flag, alias($._declaration_priority, $.important))))
-        ),
-        rawProperty($, $._wrapped_dashed_name)
-      ),
+    // Expanding the body here keeps a semicolon-ended declaration one node; aliases still need `_property`.
+    property_declaration: $ => choice(seq(propertyBody($), ";"), $._nested_property),
+    _property: $ => propertyBody($),
     _declaration_priority: $ => seq(alias($._important_bang, "!"), alias(keyword("important", true), "important")),
     // As in Sass, a spaced colon touching a name before a block starts a pseudo selector instead.
     _nested_property: $ => seq(field("name", $.property_name), ":", optional(field("value", $._value)), $._block),
@@ -836,6 +827,19 @@ function braced(body) {
 function declarationBlock($, statement, property = $._property) {
   const item = choice(statement, alias($._statement_comment, $.block_comment), $._statement_break);
   return choice(repeat1(item), seq(repeat(item), choice(alias(property, $.property_declaration), $._final_statement)));
+}
+
+function propertyBody($) {
+  return choice(
+    seq(
+      field("name", $.property_name),
+      optional($._space_before_colon),
+      ":",
+      optional(field("value", $._value)),
+      optional(field("flags", choice($.flag, alias($._declaration_priority, $.important))))
+    ),
+    rawProperty($, $._wrapped_dashed_name)
+  );
 }
 
 // Raw values keep balanced text; only a trailing priority leaves the payload.
