@@ -227,6 +227,21 @@ test("a spaced colon touching a name before a block starts a selector, as in Sas
   }
 });
 
+test("a block after a colon with no whitespace after it starts a selector whenever one parses", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    const selectors = ["a:hover", "font:bold", "a:b c", "a:b(c)", "th:first-child"];
+    for (const selector of language === Scss ? [...selectors, "a:#{b}"] : selectors) {
+      const source = `.x { width: 1px; ${selector} { color: red; } }`;
+      const rule = parse(source, language).descendantsOfType("rule_set").at(-1);
+      assert.equal(rule.childForFieldName("selectors").text, selector, source);
+    }
+    const nested = parse(".x { width: 1px; a: hover { color: red; } }", language).descendantsOfType(
+      "property_declaration"
+    )[1];
+    assert.equal(nested.childForFieldName("body").text, "color: red;");
+  }
+});
+
 test("long spaced pseudo chains preserve every descendant and the following rule", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     for (const space of [" ", "\n"]) {
