@@ -21,12 +21,12 @@
 ; Keyword roles use Neovim names; tree-sitter-highlight matches name parts, so `keyword.function` would render as `function`.
 ["@use" "@forward" "@import"] @keyword.import
 "@return" @keyword.return
-["@if" "@else" "@elseif"] @keyword.conditional
+["@if" "@else" "@elseif" "if" "else"] @keyword.conditional
 ["@each" "@for" "@while"] @keyword.repeat
 ["@debug" "@warn"] @keyword.debug
 "@error" @keyword.exception
 ["@function" "@mixin" "@include" "@content" "@extend" "@at-root"
- "as" "show" "hide" "with" "using" "returns" "in" "from" "to" "through" "if" "else" "of"] @keyword
+ "as" "show" "hide" "with" "using" "returns" "in" "from" "to" "through" "of"] @keyword
 ["@media" "@supports" "@container" "@scope"
  "@keyframes" "@-webkit-keyframes" "@-moz-keyframes" "@-o-keyframes"
  "@namespace" "@charset" "@layer" "@property"
@@ -59,7 +59,6 @@
 [(for_statement ["from" "to" "through"] @keyword.repeat) (each_statement "in" @keyword.repeat)]
 [(use_statement "as" @keyword.import) (forward_statement ["as" "show" "hide"] @keyword.import)
  (configuration "with" @keyword.import)]
-[(else_clause "if" @keyword.conditional) (conditional_branch "else" @keyword.conditional)]
 (parameter name: (_) @variable.parameter)
 [(arguments (named_argument name: (variable_name) @variable.parameter))
  (conditional (named_argument name: (variable_name) @variable.parameter))]
