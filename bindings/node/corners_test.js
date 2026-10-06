@@ -345,17 +345,12 @@ test("boolean and range feature names retain property roles without classifying 
   for (const language of [Scss, Scss.cssLanguage]) {
     for (const condition of [
       "(color)",
-      "(/*a*/ color)",
-      "(color /*b*/)",
-      "(/*a*/ color /*b*/)",
-      "(//a\n color //b\n)",
       "(width >= 700px)",
-      "(width /*a*/ > /*b*/ 1px)",
       "(400px < width < 1000px)",
       "(width = 40rem)",
       "(-10px < width)",
       "(1/2 < aspect-ratio)",
-      "(1 /*a*/ / /*b*/ 2 /*c*/ < /*d*/ aspect-ratio)",
+      "(1 / 2 < aspect-ratio)",
       "(#{$left} < width)",
       "($left < width)",
       "(theme.$left < width)"

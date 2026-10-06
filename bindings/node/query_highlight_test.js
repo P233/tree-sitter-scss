@@ -15,29 +15,26 @@ function propertyNames(condition, language, query) {
     .map(capture => capture.node.text);
 }
 
-test("boolean query features preserve any number of leading and trailing comments", () => {
+// Comment-tolerant patterns cost most of the query's compile time, so a comment after `(` or a sign, or beside the name, drops the role.
+test("boolean query features take the property role only beside their parentheses", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
-    for (const comment of ["/* note */ ", "// note\n", "/* block */ // line\n"]) {
-      for (const count of [0, 1, 2, 3, 32]) {
-        const comments = comment.repeat(count);
-        for (const condition of [`${comments}color`, `color ${comments}`, `${comments}color ${comments}`]) {
-          assert.deepEqual(propertyNames(condition, language, query), ["color"], condition);
-        }
-      }
+    assert.deepEqual(propertyNames("color", language, query), ["color"]);
+    for (const condition of ["/* note */ color", "color /* note */", "// note\ncolor"]) {
+      assert.deepEqual(propertyNames(condition, language, query), [], condition);
     }
   }
 });
 
-test("range query features retain comments, unary signs and compound left values", () => {
+test("range query features retain unary signs and compound left values", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
     for (const condition of [
-      "/* a */ // b\n width /* c */ // d\n > 1px",
-      "/* a */ // b\n 1px < /* c */ // d\n width",
-      "/* a */ // b\n - /* c */ // d\n 1px < width",
+      "width > 1px",
+      "1px < width",
+      "- 1px < width",
       "+1px < width",
-      "+ /* a */ - // b\n +1px < width",
+      "+ - +1px < width",
       "+ $size < width",
       "#{size} < width",
       "math.min(1px, 2px) < width",
@@ -47,9 +44,16 @@ test("range query features retain comments, unary signs and compound left values
     ]) {
       assert.deepEqual(propertyNames(condition, language, query), ["width"], condition);
     }
-    assert.deepEqual(propertyNames("/* a */ 1 /* b */ / /* c */ 2 < /* d */ aspect-ratio", language, query), [
-      "aspect-ratio"
-    ]);
+    assert.deepEqual(propertyNames("1 / 2 < aspect-ratio", language, query), ["aspect-ratio"]);
+    assert.deepEqual(propertyNames("1px /* c */ < width", language, query), ["width"]);
+    for (const condition of [
+      "width /* c */ > 1px",
+      "/* c */ 1px < width",
+      "- /* c */ 1px < width",
+      "1px < /* c */ width"
+    ]) {
+      assert.deepEqual(propertyNames(condition, language, query), [], condition);
+    }
   }
 });
 
@@ -79,7 +83,7 @@ test("nested query groups capture only the innermost feature name", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
     for (const depth of [1, 32, 128]) {
-      for (const condition of ["color /**/ /**/", "width > 1px", "1px < width"]) {
+      for (const condition of ["color", "width > 1px", "1px < width"]) {
         assert.deepEqual(propertyNames("(".repeat(depth) + condition + ")".repeat(depth), language, query), [
           condition.startsWith("color") ? "color" : "width"
         ]);

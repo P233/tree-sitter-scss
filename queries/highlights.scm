@@ -56,13 +56,10 @@
  (type_annotation (operator) @operator)]
 (map_entry key: (plain_value) @property)
 (keyframes_statement (declaration_block (rule_set (selectors [(tag_selector) @keyword (complex_selector (tag_selector) @keyword)]))))
-; Literal parentheses bound repeated comments and reject nested groups early.
-(query_group "(" . [(block_comment) (inline_comment)]* . (plain_value) @property
- . [(block_comment) (inline_comment)]* . [")" (operator ["=" "<" "<=" ">" ">="])])
-(query_group "(" . [(block_comment) (inline_comment) (operator ["+" "-"])]*
- . [(number) (call_expression) (interpolation) (variable_name) (member_expression)]
- (operator ["=" "<" "<=" ">" ">="])
- . [(block_comment) (inline_comment)]* . (plain_value) @property)
+; Comments right after `(`, after a sign or beside a feature name drop its role; tolerating them multiplies compile time.
+(query_group "(" . (plain_value) @property . [")" (operator ["=" "<" "<=" ">" ">="])])
+(query_group "(" . (operator ["+" "-"])* . [(number) (call_expression) (interpolation) (variable_name) (member_expression)]
+ (operator ["=" "<" "<=" ">" ">="]) . (plain_value) @property)
 ; Shared words take the role of the statement that owns them.
 [(for_statement ["from" "to" "through"] @keyword.repeat) (each_statement "in" @keyword.repeat)]
 [(use_statement "as" @keyword.import) (forward_statement ["as" "show" "hide"] @keyword.import)
