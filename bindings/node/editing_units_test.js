@@ -404,7 +404,7 @@ test("argument lists wrap multi-atom items and keep single atoms direct", () => 
     ["plain_value", "c"]
   ]);
   assert.deepEqual(shape(parse("@container style(--y > 1) {}", Scss).descendantsOfType("query_group")[0]), [
-    ["plain_value", "--y"],
+    ["property_name", "--y"],
     ["operator", ">"],
     ["number", "1"]
   ]);

@@ -52,7 +52,7 @@ Conditional media calls retain query groups
 ==================
 .a { width: IF(media((width = 600px) and (color)): 1px; ELSE:); color:red; } .after {}
 ---
-(stylesheet (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (conditional (function_name) (conditional_branch (call_expression (function_name) (query_group (query_group (plain_value) (operator) (number (unit))) (operator) (query_group (plain_value)))) (number (unit))) (conditional_branch))) (property_declaration (property_name) (plain_value)))) (rule_set (selectors (class_selector))))
+(stylesheet (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (conditional (function_name) (conditional_branch (call_expression (function_name) (query_group (query_group (property_name) (operator) (number (unit))) (operator) (query_group (property_name)))) (number (unit))) (conditional_branch))) (property_declaration (property_name) (plain_value)))) (rule_set (selectors (class_selector))))
 
 ==================
 Sass uppercase calls and lowercase conditional lists retain containers
@@ -66,7 +66,7 @@ Result descriptors belong only to CSS functions and conditional groups
 ==================
 .a { result:$x + 1px; } @function f() { result:$x + 1px; } @function --f() { @media (color) { RESULT:{a:b;}; } } .after {}
 ---
-(stylesheet (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (variable_name) (operator) (number (unit))))) (function_definition (function_name) (parameters) (declaration_block (property_declaration (property_name) (variable_name) (operator) (number (unit))))) (function_definition (function_name) (parameters) (declaration_block (query_statement (query_group (plain_value)) (declaration_block (property_declaration (property_name) (raw_value (raw_group (plain_value) (plain_value)))))))) (rule_set (selectors (class_selector))))
+(stylesheet (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (variable_name) (operator) (number (unit))))) (function_definition (function_name) (parameters) (declaration_block (property_declaration (property_name) (variable_name) (operator) (number (unit))))) (function_definition (function_name) (parameters) (declaration_block (query_statement (query_group (property_name)) (declaration_block (property_declaration (property_name) (raw_value (raw_group (plain_value) (plain_value)))))))) (rule_set (selectors (class_selector))))
 
 ==================
 Complete dimension units preserve Sass subtraction and trivia boundaries

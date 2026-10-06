@@ -16,11 +16,13 @@ function propertyNames(condition, language, query) {
 }
 
 // Comment-tolerant patterns cost most of the query's compile time, so a comment after `(` or a sign, or beside the name, drops the role.
-test("boolean query features take the property role only beside their parentheses", () => {
+test("boolean query features take the property role beside comments", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
-    assert.deepEqual(propertyNames("color", language, query), ["color"]);
-    for (const condition of ["/* note */ color", "color /* note */", "// note\ncolor"]) {
+    for (const condition of ["color", "/* note */ color", "color /* note */", "// note\ncolor"]) {
+      assert.deepEqual(propertyNames(condition, language, query), ["color"], condition);
+    }
+    for (const condition of ["#{$query}", "#{$a} > 1px"]) {
       assert.deepEqual(propertyNames(condition, language, query), [], condition);
     }
   }
@@ -40,20 +42,16 @@ test("range query features retain unary signs and compound left values", () => {
       "math.min(1px, 2px) < width",
       "theme.$size < width",
       "1px < width < 10px",
-      "not (width > 1px)"
-    ]) {
-      assert.deepEqual(propertyNames(condition, language, query), ["width"], condition);
-    }
-    assert.deepEqual(propertyNames("1 / 2 < aspect-ratio", language, query), ["aspect-ratio"]);
-    assert.deepEqual(propertyNames("1px /* c */ < width", language, query), ["width"]);
-    for (const condition of [
+      "not (width > 1px)",
+      "1px /* c */ < width",
       "width /* c */ > 1px",
       "/* c */ 1px < width",
       "- /* c */ 1px < width",
       "1px < /* c */ width"
     ]) {
-      assert.deepEqual(propertyNames(condition, language, query), [], condition);
+      assert.deepEqual(propertyNames(condition, language, query), ["width"], condition);
     }
+    assert.deepEqual(propertyNames("1 / 2 < aspect-ratio", language, query), ["aspect-ratio"]);
   }
 });
 

@@ -130,6 +130,10 @@ module.exports = grammar({
     $._raw_token
   ],
   conflicts: $ => [
+    [$.operator, $._comparison_operator],
+    [$._interpolated_identifier, $._expression_atom, $._feature_test],
+    [$._expression_atom, $._feature_test],
+    [$._interpolated_identifier, $._feature_test],
     [$.tag_selector, $._raw_statement_item],
     [$.property_declaration, $.tag_selector, $._raw_statement_item],
     [$.property_declaration, $._property, $.tag_selector, $._raw_statement_item],
@@ -726,7 +730,25 @@ module.exports = grammar({
     // A query function's body is the same condition as a parenthesized query group; `at-rule()` names an at-keyword.
     _query_call: $ => prec(1, functionCall($, $._query_function_name, alias($._query_call_group, $.query_group))),
     _query_call_group: $ => seq(token.immediate("("), optional(choice($._query_condition, $.at_keyword)), ")"),
-    _query_condition: $ => choice(alias($._property, $.feature_query), $._query_value),
+    _query_condition: $ => choice(alias($._property, $.feature_query), $._query_value, $._feature_test),
+    // Both readings parse to the group's end; dynamic precedence prefers a leading name, then one after the value.
+    _feature_test: $ =>
+      choice(
+        prec.dynamic(2, featureName($)),
+        prec.dynamic(2, seq(featureName($), alias($._comparison_operator, $.operator), optional($._query_value))),
+        prec.dynamic(
+          1,
+          seq(
+            repeat($.operator),
+            choice($.number, $.call_expression, $.interpolation, $.variable_name, $.member_expression),
+            repeat($._query_atom),
+            alias($._comparison_operator, $.operator),
+            featureName($),
+            optional($._query_value)
+          )
+        )
+      ),
+    _comparison_operator: () => choice("=", "<", "<=", ">", ">="),
     feature_query: $ =>
       prec(
         1,
@@ -997,6 +1019,14 @@ function expressionAtoms($) {
     $.dotted_value,
     $.spread
   ];
+}
+
+// A feature name is a word or `--` name; a bare interpolation such as `(#{$query})` stays a value.
+function featureName($) {
+  return choice(
+    ...identifierWords($).map(word => alias(word, $.property_name)),
+    alias($._wrapped_dashed_name, $.property_name)
+  );
 }
 
 // Specialized names win equal-length ties with `_identifier`, so every identifier position accepts them too.

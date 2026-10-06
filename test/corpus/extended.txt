@@ -130,7 +130,7 @@ Dashed query features
 ==================
 @container style(--x) and style(--y > 1) {} @media (--small) and (color) {}
 ---
-(stylesheet (query_statement (call_expression (function_name) (query_group (plain_value (dashed_name)))) (operator) (call_expression (function_name) (query_group (plain_value (dashed_name)) (operator) (number)))) (query_statement (query_group (plain_value (dashed_name))) (operator) (query_group (plain_value))))
+(stylesheet (query_statement (call_expression (function_name) (query_group (property_name (dashed_name)))) (operator) (call_expression (function_name) (query_group (property_name (dashed_name)) (operator) (number)))) (query_statement (query_group (property_name (dashed_name))) (operator) (query_group (property_name))))
 
 ==================
 Content names and url() calls
