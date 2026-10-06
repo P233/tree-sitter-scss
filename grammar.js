@@ -186,11 +186,13 @@ module.exports = grammar({
         optional(seq(field("module", alias($._interpolated_identifier, $.module_name)), ".")),
         field("name", $.variable_name),
         ":",
-        field("value", $._value),
-        repeat(field("flags", $.flag))
+        choice(
+          seq(field("value", $._value), repeat(field("flags", $.flag))),
+          prec(1, seq(field("value", choice(...expressionAtoms($))), repeat(field("flags", $.flag))))
+        )
       ),
     // Expanding the body here keeps a semicolon-ended declaration one node; aliases still need `_property`.
-    property_declaration: $ => choice(seq(propertyBody($), ";"), $._nested_property),
+    property_declaration: $ => choice(propertyBody($, ";"), $._nested_property),
     _property: $ => propertyBody($),
     _declaration_priority: $ => seq(alias($._important_bang, "!"), alias(keyword("important", true), "important")),
     // As in Dart Sass, a block after a colon with no whitespace after it starts a selector whenever one parses.
@@ -368,32 +370,8 @@ module.exports = grammar({
     // Sass subtracts on an unspaced minus after a number (`1-1`, `1px-2px`); elsewhere `-1` is one number.
     _number_subtraction: $ => seq($.number, alias($._subtraction_operator, $.operator)),
     _subtraction_operator: $ => alias($._subtraction_minus, "-"),
-    // Share the productions themselves, not copies expanded into each context.
-    _expression_atom: $ =>
-      choice(
-        $.number,
-        $._number_subtraction,
-        $.string,
-        $.operator,
-        $.hex_color,
-        $.hash_value,
-        $.variable_name,
-        $.member_expression,
-        $.interpolation,
-        $.call_expression,
-        $.url,
-        $.special_call,
-        $.conditional,
-        $.boolean,
-        $.null,
-        plainValue($),
-        $.parent_selector,
-        $.unicode_range,
-        $.important,
-        $.selector_query,
-        $.dotted_value,
-        $.spread
-      ),
+    // Contexts share this reduction; only a declaration's one-atom value copies the atoms, to skip it.
+    _expression_atom: $ => choice(...expressionAtoms($)),
     _value_atom: $ => choice($._expression_atom, $.map, $.list),
     arguments: $ => argumentList($._argument),
     // Each comma item is exactly one named child; a positional item of several atoms is an `argument`.
@@ -839,16 +817,18 @@ function declarationBlock($, statement, property = $._property) {
   return choice(repeat1(item), seq(repeat(item), choice(alias(property, $.property_declaration), $._final_statement)));
 }
 
-function propertyBody($) {
+function propertyBody($, ...end) {
+  const name = [
+    field("name", alias($._interpolated_identifier, $.property_name)),
+    optional($._space_before_colon),
+    ":"
+  ];
+  const flags = optional(field("flags", choice($.flag, alias($._declaration_priority, $.important))));
   return choice(
-    seq(
-      field("name", alias($._interpolated_identifier, $.property_name)),
-      optional($._space_before_colon),
-      ":",
-      optional(field("value", $._value)),
-      optional(field("flags", choice($.flag, alias($._declaration_priority, $.important))))
-    ),
-    rawProperty($, $._wrapped_dashed_name)
+    seq(...name, optional(field("value", $._value)), flags, ...end),
+    // A one-atom value skips three value nodes; its precedence spans to the end (ARCHITECTURE.md).
+    seq(...name, prec(1, seq(field("value", choice(...expressionAtoms($))), flags, ...end))),
+    seq(rawProperty($, $._wrapped_dashed_name), ...end)
   );
 }
 
@@ -990,6 +970,33 @@ function plainValue($) {
     alias($._wrapped_dashed_name, $.plain_value),
     alias($._special_call_word, $.plain_value)
   );
+}
+
+function expressionAtoms($) {
+  return [
+    $.number,
+    $._number_subtraction,
+    $.string,
+    $.operator,
+    $.hex_color,
+    $.hash_value,
+    $.variable_name,
+    $.member_expression,
+    $.interpolation,
+    $.call_expression,
+    $.url,
+    $.special_call,
+    $.conditional,
+    $.boolean,
+    $.null,
+    plainValue($),
+    $.parent_selector,
+    $.unicode_range,
+    $.important,
+    $.selector_query,
+    $.dotted_value,
+    $.spread
+  ];
 }
 
 // Specialized names win equal-length ties with `_identifier`, so every identifier position accepts them too.

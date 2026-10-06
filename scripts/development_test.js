@@ -200,7 +200,7 @@ test("preview renders real captures and exposes parse errors", t => {
   writeFileSync(source, "body { color: red;");
   const invalid = renderPreview(source);
   assert.equal(invalid.valid, false);
-  assert.match(invalid.diagnostics, /^Tree contains ERROR or MISSING nodes\.\n\(stylesheet\n  \(ERROR\n/);
+  assert.match(invalid.diagnostics, /^Tree contains ERROR or MISSING nodes\.\n(?:\(stylesheet\n  )?\(ERROR\n/);
   writeFileSync(source, ".card { color: rgb(1, 2; width: 3px; }");
   const missing = renderPreview(source);
   assert.equal(missing.valid, false);
