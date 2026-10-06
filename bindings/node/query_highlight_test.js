@@ -166,6 +166,26 @@ test("selector prefixes share their name role without overriding other dots", ()
   assert.equal(roleAt(source, captures, '"a"'), "string");
 });
 
+test("colons and semicolons stay uncaptured outside pseudo-classes", () => {
+  const source = "$m: (a: 1); .a:hover { color: fn($x: 1); }";
+  const parser = new Parser();
+  parser.setLanguage(Scss);
+  const tree = parser.parse(source);
+  assert.equal(tree.rootNode.hasError, false);
+  const captures = effectiveCaptures(new Parser.Query(Scss, Scss.HIGHLIGHTS_QUERY), tree.rootNode);
+  for (const [text, offset] of [
+    ["$m:", 2],
+    ["a:", 1],
+    ["1);", 2],
+    ["color:", 5],
+    ["$x:", 2],
+    ["1); }", 2]
+  ]) {
+    assert.equal(roleAt(source, captures, text, offset), undefined, text);
+  }
+  assert.equal(roleAt(source, captures, ":hover"), "attribute");
+});
+
 test("value operators and units have sub-roles while query and type operators stay structural", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     const source =

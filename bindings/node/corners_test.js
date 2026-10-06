@@ -468,10 +468,11 @@ test("CSS var fallback groups preserve arguments, token roles and enclosing stat
       assert.equal(tree.rootNode.descendantsOfType("rule_set").length, 2);
       assert.equal(tree.rootNode.lastNamedChild.text, ".after {}");
       role(captures, name, "function", "attribute");
+      const covered = [...captures.map(({ node }) => node), ...tree.rootNode.descendantsOfType([":", ";"])];
       for (let index = 0; index < source.length; index++) {
         if (!/\s/.test(source[index])) {
           assert.ok(
-            captures.some(({ node }) => node.startIndex <= index && index < node.endIndex),
+            covered.some(node => node.startIndex <= index && index < node.endIndex),
             `uncovered ${JSON.stringify(source[index])} at ${index} in ${source}`
           );
         }

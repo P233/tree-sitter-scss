@@ -29,11 +29,13 @@ function texts(tree, type) {
   return tree.rootNode.descendantsOfType(type).map(node => node.text);
 }
 
+// `;` and colons outside pseudo-classes are deliberately uncaptured.
 function assertCovered(source, tree) {
   const covered = new Uint8Array(source.length);
   for (const { name, node } of query.captures(tree.rootNode)) {
     if (!name.startsWith("_")) covered.fill(1, node.startIndex, node.endIndex);
   }
+  for (const node of tree.rootNode.descendantsOfType([":", ";"])) covered.fill(1, node.startIndex, node.endIndex);
   const gaps = [];
   for (let i = 0; i < source.length; i++) {
     if (!covered[i] && !/\s/.test(source[i])) gaps.push(`${i}: ${source.slice(i, i + 12)}`);

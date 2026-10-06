@@ -207,15 +207,17 @@ test("preview renders real captures and exposes parse errors", t => {
   assert.match(missing.diagnostics, /\(MISSING "\)"\)\)+\n      \(property_declaration\n/);
 });
 
-test("the stress preview styles every non-whitespace character in real CLI HTML", () => {
+test("the stress preview styles every non-whitespace character but uncaptured punctuation in real CLI HTML", () => {
   const result = renderPreview(join(root, "examples/highlight-stress.scss"));
   assert.equal(result.valid, true);
+  const uncaptured = new Set([":", ";"]);
   let spanDepth = 0;
   const unstyled = [];
   for (const token of result.highlight.match(/<[^>]*>|[^<]+/g)) {
     if (token.startsWith("<span ")) spanDepth++;
     else if (token === "</span>") spanDepth--;
-    else if (!token.startsWith("<") && spanDepth === 0 && /\S/.test(token)) unstyled.push(token);
+    else if (!token.startsWith("<") && spanDepth === 0 && [...token].some(c => /\S/.test(c) && !uncaptured.has(c)))
+      unstyled.push(token);
   }
   assert.equal(spanDepth, 0);
   assert.deepEqual(unstyled, []);
