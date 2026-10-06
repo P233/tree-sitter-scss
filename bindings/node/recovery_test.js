@@ -219,7 +219,12 @@ test("an unfinished variable or else head keeps its callable scope", () => {
 test("recovery debt stays visible", () => {
   eachParser((parser, dialect) => {
     // A colon touching a name or an unpaired bracket still absorbs the following rules.
-    for (const block of [".a { op:acity: 0.4; }", ".a {\n  color:width: 1px;\n}"]) {
+    // So does a control header whose group stays open past its first line.
+    for (const block of [
+      ".a { op:acity: 0.4; }",
+      ".a {\n  color:width: 1px;\n}",
+      ".a {\n  @if fn(\n    $b,\n    width: 1px;\n}"
+    ]) {
       assert.notEqual(parser.parse(`${block}\n${tail}\n`).rootNode.namedChildCount, 301, `${dialect}: ${block}`);
     }
     for (const line of ["&[d", ".b []"]) {
