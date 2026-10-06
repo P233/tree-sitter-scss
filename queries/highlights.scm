@@ -36,7 +36,6 @@
 [(string) (raw_text)] @string
 (escape_sequence) @string.escape
 
-["{" "}" "(" ")" "[" "]"] @punctuation.bracket
 ["," "|"] @punctuation.delimiter
 
 ; Context overrides

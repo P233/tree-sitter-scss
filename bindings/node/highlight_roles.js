@@ -12,4 +12,7 @@ function effectiveCaptures(query, root) {
   return [...byRange.values()].map(({ name, node }) => ({ name, node }));
 }
 
-module.exports = { effectiveCaptures };
+// Punctuation whose role is plain text has no capture; pseudo-class colons are captured.
+const UNCAPTURED_PUNCTUATION = [":", ";", "{", "}", "(", ")", "[", "]"];
+
+module.exports = { effectiveCaptures, UNCAPTURED_PUNCTUATION };

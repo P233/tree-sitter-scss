@@ -19,6 +19,7 @@ const { test } = require("node:test");
 const { runInNewContext } = require("node:vm");
 const { checkLargeStates, enableLexerOptimization, generatedDifferences, root } = require("./grammar.js");
 const { escapeHtml, page, renderPreview } = require("./preview.js");
+const { UNCAPTURED_PUNCTUATION } = require("../bindings/node/highlight_roles.js");
 
 function temporaryDirectory(t) {
   const path = mkdtempSync(join(tmpdir(), "scss-development-"));
@@ -210,7 +211,7 @@ test("preview renders real captures and exposes parse errors", t => {
 test("the stress preview styles every non-whitespace character but uncaptured punctuation in real CLI HTML", () => {
   const result = renderPreview(join(root, "examples/highlight-stress.scss"));
   assert.equal(result.valid, true);
-  const uncaptured = new Set([":", ";"]);
+  const uncaptured = new Set(UNCAPTURED_PUNCTUATION);
   let spanDepth = 0;
   const unstyled = [];
   for (const token of result.highlight.match(/<[^>]*>|[^<]+/g)) {

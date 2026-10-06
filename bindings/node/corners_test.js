@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const { test } = require("node:test");
 const Parser = require("tree-sitter");
 const Scss = require("./index.js");
-const { effectiveCaptures } = require("./highlight_roles.js");
+const { effectiveCaptures, UNCAPTURED_PUNCTUATION } = require("./highlight_roles.js");
 
 function parse(source, language) {
   const parser = new Parser();
@@ -468,7 +468,7 @@ test("CSS var fallback groups preserve arguments, token roles and enclosing stat
       assert.equal(tree.rootNode.descendantsOfType("rule_set").length, 2);
       assert.equal(tree.rootNode.lastNamedChild.text, ".after {}");
       role(captures, name, "function", "attribute");
-      const covered = [...captures.map(({ node }) => node), ...tree.rootNode.descendantsOfType([":", ";"])];
+      const covered = [...captures.map(({ node }) => node), ...tree.rootNode.descendantsOfType(UNCAPTURED_PUNCTUATION)];
       for (let index = 0; index < source.length; index++) {
         if (!/\s/.test(source[index])) {
           assert.ok(

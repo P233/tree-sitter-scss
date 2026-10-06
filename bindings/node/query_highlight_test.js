@@ -166,8 +166,8 @@ test("selector prefixes share their name role without overriding other dots", ()
   assert.equal(roleAt(source, captures, '"a"'), "string");
 });
 
-test("colons and semicolons stay uncaptured outside pseudo-classes", () => {
-  const source = "$m: (a: 1); .a:hover { color: fn($x: 1); }";
+test("brackets, semicolons and colons outside pseudo-classes stay uncaptured", () => {
+  const source = "$m: (a: 1); .a:hover, [x] { color: fn($x: 1); }";
   const parser = new Parser();
   parser.setLanguage(Scss);
   const tree = parser.parse(source);
@@ -179,7 +179,13 @@ test("colons and semicolons stay uncaptured outside pseudo-classes", () => {
     ["1);", 2],
     ["color:", 5],
     ["$x:", 2],
-    ["1); }", 2]
+    ["1); }", 2],
+    ["(a", 0],
+    ["1)", 1],
+    ["[x]", 0],
+    ["[x]", 2],
+    ["{ c", 0],
+    [" }", 1]
   ]) {
     assert.equal(roleAt(source, captures, text, offset), undefined, text);
   }
