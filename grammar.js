@@ -131,9 +131,13 @@ module.exports = grammar({
   ],
   conflicts: $ => [
     [$.tag_selector, $._raw_statement_item],
-    [$.property_name, $.tag_selector, $._raw_statement_item],
+    [$.property_declaration, $.tag_selector, $._raw_statement_item],
+    [$.property_declaration, $._property, $.tag_selector, $._raw_statement_item],
     [$.tag_selector, $._variable],
-    [$.property_name, $.tag_selector],
+    [$.property_declaration, $.tag_selector],
+    [$.property_declaration, $._property, $.tag_selector],
+    [$._property, $.tag_selector],
+    [$._property, $.tag_selector, $._css_function_property_declaration],
     [$._interpolated_identifier, $._expression_atom],
     [$._interpolated_identifier, $.raw_value],
     [$._interpolated_identifier, $._at_rule_head],
@@ -148,8 +152,7 @@ module.exports = grammar({
     [$._value, $.map_entry, $._query_atom],
     [$._value, $._calculation_atom, $.map_entry],
     [$.list, $.query_group],
-    [$.property_name, $.plain_value],
-    [$._wrapped_dashed_name, $.plain_value],
+    [$._property, $._expression_atom],
     [$.arguments, $._css_fallback_item],
     [$.argument, $._css_fallback_item],
     [$._value, $._css_fallback_item],
@@ -192,8 +195,15 @@ module.exports = grammar({
     _declaration_priority: $ => seq(alias($._important_bang, "!"), alias(keyword("important", true), "important")),
     // As in Dart Sass, a block after a colon with no whitespace after it starts a selector whenever one parses.
     _nested_property: $ =>
-      prec.dynamic(-1, seq(field("name", $.property_name), ":", optional(field("value", $._value)), $._block)),
-    property_name: $ => $._interpolated_identifier,
+      prec.dynamic(
+        -1,
+        seq(
+          field("name", alias($._interpolated_identifier, $.property_name)),
+          ":",
+          optional(field("value", $._value)),
+          $._block
+        )
+      ),
     // Aliasing this wrapper keeps `dashed_name` as a child of the aliased node.
     _wrapped_dashed_name: $ => $.dashed_name,
     // Custom properties and other author-defined `--` names share one node wherever they are a value or name.
@@ -269,7 +279,7 @@ module.exports = grammar({
         optional(
           seq(
             $.attribute_operator,
-            optional(seq(choice($.string, $.plain_value), optional(alias($._identifier, $.attribute_modifier))))
+            optional(seq(choice($.string, plainValue($)), optional(alias($._identifier, $.attribute_modifier))))
           )
         ),
         "]"
@@ -303,7 +313,7 @@ module.exports = grammar({
     selector_arguments: $ => seq(token.immediate("("), optional(choice($._selector_list, $.string)), ")"),
     _value_pseudo_name: () => token.immediate(choice(...VALUE_PSEUDOS.map(name => keyword(name, true)))),
     _pseudo_value_arguments: $ =>
-      seq(token.immediate("("), repeat(choice($.plain_value, $.string, "*", ",", ".")), ")"),
+      seq(token.immediate("("), repeat(choice(plainValue($), $.string, "*", ",", ".")), ")"),
     _selector_name: $ => adjacentName($, choice(token.immediate(IDENTIFIER), $._value_pseudo_name)),
     _interpolated_identifier: $ => interpolatedIdentifier($, choice(...identifierWords($)), "-"),
     _identifier_tail: $ =>
@@ -376,7 +386,7 @@ module.exports = grammar({
         $.conditional,
         $.boolean,
         $.null,
-        $.plain_value,
+        plainValue($),
         $.parent_selector,
         $.unicode_range,
         $.important,
@@ -486,7 +496,6 @@ module.exports = grammar({
     unicode_range: () => /[uU]\+[0-9a-fA-F?]{1,6}(?:-[0-9a-fA-F]{1,6})?/,
     // Module references share this immediate dot, so a spaced `.class` cannot extend a value word.
     dotted_value: $ => seq(choice($._identifier, $._dashed_name), repeat1(seq(token.immediate("."), $._identifier))),
-    plain_value: $ => choice($._interpolated_identifier, $.dashed_name, $._special_call_word),
     // Special-call names are ordinary words unless their literal call syntax follows.
     _special_call_word: $ => prec.right(seq(choice(URL_NAME, $._raw_function_word), optional($._identifier_tail))),
     flag: () => /![ \t]*[-\w]+/,
@@ -509,7 +518,7 @@ module.exports = grammar({
         $.hash_value,
         $.unicode_range,
         $.interpolation,
-        $.plain_value,
+        plainValue($),
         alias($._raw_call, $.call_expression),
         alias(choice("+", "-", "*", "/", "=", "<", "<=", ">", ">="), $.operator),
         ",",
@@ -833,7 +842,7 @@ function declarationBlock($, statement, property = $._property) {
 function propertyBody($) {
   return choice(
     seq(
-      field("name", $.property_name),
+      field("name", alias($._interpolated_identifier, $.property_name)),
       optional($._space_before_colon),
       ":",
       optional(field("value", $._value)),
@@ -971,6 +980,15 @@ function keywordShapedName($) {
     $._sass_operator,
     $._raw_function_word,
     URL_NAME
+  );
+}
+
+// Renaming the shared name rule keeps one node per value word; a wrapper would add 88 bytes.
+function plainValue($) {
+  return choice(
+    alias($._interpolated_identifier, $.plain_value),
+    alias($._wrapped_dashed_name, $.plain_value),
+    alias($._special_call_word, $.plain_value)
   );
 }
 
