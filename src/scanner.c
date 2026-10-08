@@ -228,7 +228,7 @@ static bool scan_number(TSLexer *lexer, bool css) {
 // Longest keyword spelling (`important`, `-infinity`) plus its terminator.
 enum { KEYWORD_BUFFER = 10 };
 
-// A non-null escaped flag enables CSS decoding; null keeps literal-only callers unchanged.
+// A non-null `escaped` enables escape decoding; literal-only callers pass null, so an escape fails their scan.
 static bool scan_identifier(TSLexer *lexer, char *value, unsigned length, bool css, bool *escaped) {
   while (name_character(lexer->lookahead) || lexer->lookahead == '\\') {
     int32_t character = lexer->lookahead;

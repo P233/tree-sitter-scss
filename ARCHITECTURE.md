@@ -6,9 +6,9 @@ This package supplies concrete syntax trees and ordered highlight captures for C
 
 ```text
 grammar.js ── generator ── src/parser.c + schema + runtime headers
-src/scanner.c ─────────────┘
+src/scanner.c ──────────────┤
                             ├── Node binding ── native acceptance tests
-queries/highlights.scm ──────┤
+queries/highlights.scm ─────┤
                             └── Rust/native binding ── native acceptance tests
 
 scripts/grammar.js ── CLI / native build
@@ -31,7 +31,7 @@ preview-client.js ── temporary browser draft
 | `scripts/preview.js`               | HTTP requests, file watching, build invalidation and published preview revision | Durable documents or browser drafts                                 |
 | `scripts/preview-client.js`        | Draft text, one active generation request, focus restoration and update notice  | Parser lifecycle or source-file writes                              |
 
-The standalone `comparison/` page builds both grammars into `comparison/dist/`. Its browser worker owns parsers and queries for the page lifetime and deletes each completed parse tree. Diagnostics and difference markers are projections of that parse result; the page adds no parser or editor state to the library.
+`pnpm compare:build` builds the standalone comparison page and both grammars into `comparison/dist/`. Its browser worker owns parsers and queries for the page lifetime and deletes each completed parse tree. Diagnostics and difference markers are projections of that parse result; the page adds no parser or editor state to the library.
 
 The Tree-sitter runtime owns trees and incremental reuse. A host edits the old tree before reparsing; undo is another host edit. No parser-local history or second source model exists. Native packages include generated C and headers so installing them does not require the generator. Their file lists are checked rather than inferred from repository layout.
 
@@ -39,7 +39,7 @@ The Tree-sitter runtime owns trees and incremental reuse. A host edits the old t
 
 The parser targets complete supported CSS/SCSS files. Root statements select rules or directives from their syntax; selector names are identifiers, with no HTML tag registry. Declaration blocks resolve properties at a declaration colon while retaining nested selectors, variables, at-rules and nested properties. Colons inside selectors and groups are not declaration boundaries.
 
-The grammar owns interpolation, balanced groups and CSS `var()` arguments. The scanner recognizes the CSS `var()` name without reading its arguments, and never searches ahead to decide whether an interpolation opener is literal. Its lookahead resolves lexical boundaries (number/unit/subtraction, keywords, priority, namespace prefixes and complete `@if`/`@else` chains) and the statement breaks below. The `IF_END` dependency stays because adding or repairing an else must invalidate reuse of the previous complete if node.
+The grammar owns interpolation, balanced groups and CSS `var()` arguments. The scanner recognizes the CSS `var()` name without reading its arguments, and never searches ahead to decide whether an interpolation opener is literal. Its lookahead resolves lexical boundaries (number/unit/subtraction, keywords, priority, namespace prefixes and complete `@if`/`@else` chains) and the statement breaks below. The `IF_END` token exists because adding or repairing an else must invalidate reuse of the previous complete if node.
 
 Complete inputs, including those reached by repairing a damaged tree, must retain correct source ranges, structure and ordered highlight captures. Incomplete input is an editing state, not a second language: its tree shape is not a compatibility surface, but its scope is measured. A statement being typed or mistyped should stay one local `ERROR` and leave the following rules intact, because a host otherwise reparses, refontifies and refuses structural edits across the rest of the buffer on every key.
 
@@ -60,42 +60,41 @@ A declaration name may carry dashes or same-line interpolation. A colon touching
 
 Two grammar tolerances complete the set. A bare `$` lexes as an incomplete variable prefix, and recovery inserts the never-emitted missing name, so the enclosing callable keeps its scope. An attribute operator before its value, as in `[a=]`, parses without an error, although Sass rejects it.
 
-[Known limits](README.md#known-limits) lists the remaining gaps. An unclosed `url(` loses the next declaration's name because the call reading wins recovery; punctuation after another statement or a `{` joins a statement break unreported, because a never-valid token there would make recovery merge the rest of the file.
+A new site must lower a typing counter or move a case out of the `recovery debt stays visible` test, and must add no fuzz-comparison differences on error-free input. A break must never be emitted where identifier recovery lands: a compound-start break lost declaration captures in 51 of 40,000 seeded edits, against 5 for the adopted sites.
 
-The cross-line search for a spaced colon's block, a line-leading `*` site and text-host interpolation pairing are not sites. None changed the typing counters with editor pairing; pairing helps only where an editor leaves `#{` unclosed, and would reinstate the window that limited complete interpolation. One break for every expression position, which would also end unclosed calls, damages recovery inside maps and arguments.
-
-A new site must reduce the typing counters or the recovery tests' local-error cases, and keep the complete-input fuzz comparison free of error-free differences. A break must never be emitted where identifier recovery lands: a compound-start break lost declaration captures in 51 of 40,000 seeded edits, against 5 for the adopted sites.
-
-The breaks cost about 3% of parsing time on the 335-file local corpus and 3–6% across the benchmark workloads (about 1% with captures); in exchange, typing on a blank line above a declaration changes 53 KB of ranges instead of 3,238 KB, and none of 1,000 seeded letter, digit or space insertions into the corpus concatenation reparses more than half the file (45 did without the breaks).
+The breaks cost about 3% of parsing time on the author's 335-file local corpus, which is not in the repository, and 3–6% across the benchmark workloads (about 1% with captures); in exchange, typing on a blank line above a declaration changes 53 KB of ranges instead of 3,238 KB, and none of 1,000 seeded letter, digit or space insertions into the corpus concatenation reparses more than half the file (45 did without the breaks).
 
 ## Grammar and query shape
 
-Hidden helpers that only dispatch are listed in `inline`: they keep grammar names without allocating runtime nodes, which cut retained tree storage by 18–33% at the cost of more declared conflicts and states. A semicolon-ended `property_declaration` expands its body instead of wrapping `_property`, about 88 bytes of retained tree per declaration; `_property` remains only where it is aliased or wrapped: a block's final declaration without `;`, `feature_query` and CSS `@function` bodies. Declaration names and value words rename `_interpolated_identifier` to `property_name` or `plain_value` instead of wrapping it, so a name costs one node instead of two. Every context still shares that one reduction, which defers the property-or-selector and module-or-selector decisions to the token after the name. `tag_selector` keeps its wrapper: its reduction is where the declaration colon forks, so each reading lexes the token after the colon in its own state. A declaration whose value is one atom, 91% of the corpus's, holds the atom directly instead of `_value`, `_space_value` and `_expression_atom`. Precedence 1 picks that reading statically, and it must span from the atom to the end of the declaration: Tree-sitter resets the precedence of a `prec` rule's last step when more steps follow, so precedence on the atom alone never reaches the reduction. A one-child hidden node costs 88 bytes and an inline leaf nothing, so retained memory follows token density rather than file size.
+Hidden helpers that only dispatch are listed in `inline`: they keep grammar names without allocating runtime nodes, which cut retained tree storage by 18–33% at the cost of more declared conflicts and states. A semicolon-ended `property_declaration` expands its body instead of wrapping `_property`, about 88 bytes of retained tree per declaration; `_property` remains only where it is aliased or wrapped: a block's final declaration without `;`, `feature_query` and CSS `@function` bodies. Declaration names and value words rename `_interpolated_identifier` to `property_name` or `plain_value` instead of wrapping it, so a name costs one node instead of two. Every context still shares that one reduction, which defers the property-or-selector and module-or-selector decisions to the token after the name. `tag_selector` keeps its wrapper: its reduction is where the declaration colon forks, so each reading lexes the token after the colon in its own state. A declaration whose value is one atom, 91% of that corpus's, holds the atom directly instead of `_value`, `_space_value` and `_expression_atom`. Precedence 1 picks that reading statically, and it must span from the atom to the end of the declaration: Tree-sitter resets the precedence of a `prec` rule's last step when more steps follow, so precedence on the atom alone never reaches the reduction. A one-child hidden node costs 88 bytes and an inline leaf nothing, so retained memory follows token density rather than file size.
 
-Keep the CSS adapter, atomic descriptor publication, context-specific groups, generated headers, fresh-process preview and standard CLI HTML renderer. They still protect concrete lexical, concurrency or tooling boundaries. Generic flattening of all groups loses distinctions between selectors, call arguments, query conditions and raw CSS.
+Keep the CSS adapter, atomic descriptor publication, context-specific groups, generated headers, fresh-process preview and standard CLI HTML renderer. They protect concrete lexical, concurrency or tooling boundaries. Generic flattening of all groups loses distinctions between selectors, call arguments, query conditions and raw CSS.
 
 Complete control-chain grouping and public editor-facing structural wrappers have downstream consumers; removing them requires a coordinated schema/query and host-consumer migration. Coarsening math constants, map keys or query-feature colors is a separate behavior decision.
 
-Large declaration blocks can still limit incremental reuse because of selector/property ambiguity. A query group names a boolean or range feature `property_name`, as `feature_query` does, so the highlight query needs no structural pattern for it: each pattern over `query_group` children costs about 10 ms to compile in Emacs 31.1, and the two that once assigned this role took 19 of the query's 29 ms per language entry. Both readings of a group parse until it closes, which keeps unary signs and compound left values such as `1 / 2 < aspect-ratio`; dynamic precedence prefers the feature test, and a leading name over one after the value side, as in `(width < height)`. A feature name starts with a word or `--`, so `(#{$query})` stays a value. Further query patterns need the same capture and compile-time evidence.
+A query group names a boolean or range feature `property_name`, as `feature_query` does, so the highlight query needs no structural pattern for it. Both readings of a group parse until it closes, which keeps unary signs and compound left values such as `1 / 2 < aspect-ratio`; dynamic precedence prefers the feature test, and a leading name over one after the value side, as in `(width < height)`. A feature name starts with a word or `--`, so `(#{$query})` stays a value. A new query pattern needs capture and compile-time evidence.
 
-### Rejected designs
+## Rejected designs
 
 These were measured and rejected; revisit them only with new evidence.
 
 - Lexical disambiguation of the declaration colon, where 99% of GLR forks occur: full parsing 11% faster, but incremental edits 54–68% slower, because node reuse must look up the last external token of every reused subtree.
 - Plain inlining of `_interpolated_identifier` or the value-side `_expression_atom` does not converge (20 to 40 or more new conflicts); inlining `_value` raises large states from 463 to 725, over the budget. Selector-side inlining lost recovery highlighting.
 - A leaf `property_name`, the name token aliased at declaration sites: the colon decision becomes a shift that `_interpolated_identifier`'s right associativity wins without forking, so `th:first-child { … }` after a declaration became an error, with 15 more conflicts and 30 more large states.
-- One shared content rule for all groups: 2,071 → 2,208 states, a node-schema change and 217 of 732 snapshot trees changed.
+- One shared content rule for all groups: states rose from 2,071 to 2,208, the node schema changed, and 217 of 732 snapshot trees changed.
 - Narrowing the CSS `var()` fallback to typed atoms: valid `var(--x,[a;b])` fails and a damaged raw interpolation takes the block's `}`. An ordinary block for CSS `@function`: Dart Sass passes `result:` values through verbatim. Dropping `raw_statement` for unknown at-rules: 2% smaller, but future at-rules would carry `ERROR`.
-- Narrowing calculations to Sass calc atoms breaks user-defined `min`, `abs` and `round`. Escaped keywords in the generated lexer: parser.c 3.98 → 9.29 MB and parsing 3–7% slower, for no escape in 499 local files.
+- Narrowing calculations to Sass calc atoms breaks user-defined `min`, `abs` and `round`. Escaped keywords in the generated lexer: parser.c grew from 3.98 MB (its size then) to 9.29 MB and parsing was 3–7% slower, for no escape in the 499 files of an earlier local corpus.
+- Highlight patterns over `query_group` children to give feature names the property role: each costs about 10 ms to compile in Emacs 31.1, and the two it required took 19 of the query's 29 ms per language entry.
+- Other statement-break sites: a cross-line search for a spaced colon's block, a line-leading `*` site and text-host interpolation pairing changed none of the typing counters with editor pairing. Pairing helps only where an editor leaves `#{` unclosed, and would reinstate the window that limited complete interpolation.
+- One break for every expression position, which would also end unclosed calls, damages recovery inside maps and arguments.
 - A missing-block token and a zero-width break before a name damaged recovery or conflicted with keyword tokens; per-comment lookahead was quadratic.
 
 ## Invariants
 
 - CSS and SCSS share one generated parsing table, node schema and query. Language selection is immutable per entry.
 - The scanner serializes zero bytes and allocates no heap storage. Each lookahead is local to one invocation and bounded by its 1,024-step budget; there is no interpolation stack.
-- Whitespace before a colon uses one external token shared by declarations and selector combinations. The grammar resolves the readings. Selector whitespace reads at most the next declaration line (its name and colon, and the rest of that line when the colon touches the name); it never searches later lines for a block, which once made 20,000 multiline pseudos parse about seven times slower.
-- A block after a colon with no whitespace after it starts a selector whenever one parses, as in Dart Sass; `_nested_property`'s negative dynamic precedence states this. Without it, the two equal-cost readings merge after the block and Tree-sitter keeps whichever version it created first, so unrelated grammar edits flipped `th:first-child { … }` after a declaration into a nested property.
+- Whitespace before a colon uses one external token shared by declarations and selector combinations. The grammar resolves the readings. Selector whitespace reads at most the next declaration line (its name and colon, and the rest of that line when the colon touches the name); it never searches later lines for a block, a search that made 20,000 multiline pseudos parse about seven times slower.
+- A block after a colon with no whitespace after it starts a selector whenever one parses, as in Dart Sass; `_nested_property`'s negative dynamic precedence states this. Without it, the two equal-cost readings merge after the block and Tree-sitter keeps whichever version it created first, so an unrelated grammar edit can turn `th:first-child { … }` after a declaration into a nested property.
 - CSS text hosts keep interpolation literal. SCSS statement comments and strings use the ordinary expression grammar, so a quote or `*/` inside a nested expression cannot terminate its outer host prematurely.
 - The CSS descriptor is published once with acquire/release synchronization for concurrent native callers.
 - CSS CRLF normalization preserves original source positions. The generated keyword lexer has no identifier escapes to normalize; external scans use their dialect-aware escape routine.
@@ -108,11 +107,11 @@ These were measured and rejected; revisit them only with new evidence.
 
 ## Independent validation
 
-`pnpm check` runs lint, formatting, generated-file equality, native build, corpus/highlight assertions, Node and development tests, Rust tests/formatting, package contents and preview export. The generated parser retains a 525-large-state budget; source size and state counts do not substitute for performance measurements.
+`pnpm check` runs lint, formatting, generated-file equality, native build, corpus/highlight assertions, Node and development tests, Rust tests/formatting, package contents and preview export. `pnpm check:generated` fails when the generated parser exceeds 525 large parse states; source size and state counts do not substitute for performance measurements.
 
 Native tests cover complete syntax and highlight roles, source ranges, dialect boundaries, incremental context changes, and repair back to complete input. Resource smoke tests parse deeply nested or damaged input in a subprocess with a timeout, without requiring a particular erroneous tree. `recovery_test.js` checks each statement-break site, same-line typos and unfinished variables by the error text and the intact later rules, not by the whole erroneous tree, and keeps the known gaps visible.
 
-`pnpm test:fuzz` replays 5,000 seeded single edits per language entry over the fixtures and corpus. Each case compares fresh and incremental trees **and ordered captures**, then reverses the edit and compares with the original. Differences fail only when the expected fresh/original input is error-free; error-input differences are reported. Development tests include a shorter run.
+`pnpm test:fuzz` replays 5,000 seeded single edits per language entry over `test/corpus`, `test/highlight` and `examples`. Each case compares fresh and incremental trees and ordered captures, then reverses the edit and compares with the original. Differences fail only when the expected fresh/original input is error-free; error-input differences are reported. Development tests include a shorter run.
 
 For baseline/candidate comparison, rebuild each checkout and use the same runner, seed, case count and optional corpus file list. Inputs come from the invoking checkout:
 
@@ -122,7 +121,7 @@ node scripts/fuzz.js record --corpus /path/to/file-list.txt --out candidate.json
 node scripts/fuzz.js compare base.jsonl candidate.jsonl
 ```
 
-Comparison rejects misaligned or malformed recordings. It fails on baseline error-free tree changes, ordered capture changes even when trees agree, or candidate incremental/repair failures on error-free input. Error-input tree and capture differences are informational. A baseline may accept malformed syntax under an older tolerance: such differences still require inspection against the complete-input contract rather than treating its `hasError` flag as a language validator. Removing a tolerance does not authorize unexplained changes to valid syntax.
+Comparison rejects misaligned or malformed recordings. It fails on baseline error-free tree changes, ordered capture changes even when trees agree, or candidate incremental/repair failures on error-free input. Error-input tree and capture differences are informational. A baseline may accept malformed syntax under an older tolerance; inspect such differences against the complete-input contract instead of treating the baseline's `hasError` flag as a language validator. Removing a tolerance does not authorize unexplained changes to valid syntax.
 
 ## Performance measurements
 
@@ -140,3 +139,12 @@ The runner compiles the highlight query once per language and reports its cost s
 Before samples, the runner requests GC when exposed and yields to let queued native finalizers run. Cleanup and validation are outside timing. Each dialect releases its final parser/tree before the final resource report. `maxRssKiB` and `processRssAfterCleanupBytes` include the runtime and harness; they are not live tree allocation sizes. Hashes identify sources, query and workloads, but do not certify a stale binary: rebuild both revisions before comparison.
 
 Alternate baseline/candidate order on the same machine and compare repeated runs with matching runtime and workload hashes. Spaced/multiline pseudo chains and long comments retain coverage against repeated scanning of the remaining source. Report parsing separately from capture-query time; neither includes host font-lock, layout, repaint or GUI latency. Generated size alone is not evidence of a speedup.
+
+## Known limits
+
+The README's [Known limits](README.md#known-limits) lists the user-visible gaps. These causes constrain changes here:
+
+- An unclosed `url(` loses the next declaration's name because the call reading wins recovery.
+- Punctuation after another statement or a `{` on its line joins a statement break unreported; a never-valid token there would make recovery merge the rest of the file.
+- A last rule left open after a complete declaration makes the whole file one `ERROR`: Tree-sitter's recovery inserts the first missing token by symbol order whose state can reduce at the end of input, here a name rather than `}`.
+- Large declaration blocks can limit incremental reuse because of selector/property ambiguity.

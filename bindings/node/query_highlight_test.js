@@ -15,7 +15,6 @@ function propertyNames(condition, language, query) {
     .map(capture => capture.node.text);
 }
 
-// Comment-tolerant patterns cost most of the query's compile time, so a comment after `(` or a sign, or beside the name, drops the role.
 test("boolean query features take the property role beside comments", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);

@@ -1,4 +1,4 @@
-//! SCSS language support for Tree-sitter.
+//! SCSS and CSS language support for Tree-sitter.
 //!
 //! ```
 //! let mut parser = tree_sitter::Parser::new();
@@ -16,7 +16,7 @@ unsafe extern "C" {
 
 /// The SCSS language, convertible into a Tree-sitter `Language`.
 pub const LANGUAGE: LanguageFn = unsafe { LanguageFn::from_raw(tree_sitter_scss) };
-/// The CSS dialect, sharing the SCSS parsing tables with literal CSS strings.
+/// The CSS language, which shares the SCSS parsing tables and differs only lexically.
 pub const CSS_LANGUAGE: LanguageFn = unsafe { LanguageFn::from_raw(tree_sitter_stylesheet_css) };
 pub const NODE_TYPES: &str = include_str!("../../src/node-types.json");
 pub const HIGHLIGHTS_QUERY: &str = include_str!("../../queries/highlights.scm");

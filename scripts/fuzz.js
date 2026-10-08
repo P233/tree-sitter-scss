@@ -362,7 +362,7 @@ function checkAligned(index, base, candidate) {
   }
 }
 
-// Error-input shape and colors are no longer compatibility gates. Clean captures are checked even when trees agree.
+// Differences on baseline error input are informational; error-free captures are compared even when trees agree.
 async function compare(base, candidate) {
   const report = { cases: 0, cleanDiff: 0, cleanCaptureDiff: 0, errTreeDiff: 0, errCaptureDiff: 0 };
   const summaries = { base: createSummary(), candidate: createSummary() };

@@ -12,7 +12,7 @@
   "metadata": {
     "version": "0.11.0",
     "license": "MIT",
-    "description": "SCSS grammar for tree-sitter",
+    "description": "Tree-sitter parser for SCSS and CSS",
     "authors": [
       {
         "name": "P233"

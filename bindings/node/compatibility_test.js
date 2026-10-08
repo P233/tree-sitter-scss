@@ -7,7 +7,7 @@ const queries = new Map(
   [Scss, Scss.cssLanguage].map(language => [language, new Parser.Query(language, Scss.HIGHLIGHTS_QUERY)])
 );
 
-// dart-sass parses each accepted Sass form here and reports a syntax error for each rejected one.
+// Dart Sass parses each accepted Sass form here and reports a syntax error for each rejected one.
 function parse(source, language = Scss) {
   const parser = new Parser();
   parser.setLanguage(language);
