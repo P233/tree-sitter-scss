@@ -227,3 +227,31 @@ test("capture sub-roles never reuse a top-level role name", () => {
     for (const part of name.split(".").slice(1)) assert.ok(!roles.has(part), `${name} would resolve to ${part}`);
   }
 });
+
+test("raw text is a string in URLs or with a word, and punctuation otherwise", () => {
+  for (const [language, source, roles] of [
+    [
+      Scss,
+      ".a { --x: $ink // note; --y: [a] @ &% 2px; b: url(a.png#top); }",
+      ["$ink string", "// note string", "@ punctuation.delimiter", "&% punctuation.delimiter"].concat([
+        "a.png string",
+        "# string",
+        "top string"
+      ])
+    ],
+    [
+      Scss.cssLanguage,
+      ".a { --x: #{a} ! b; c: url(#{$c}); }",
+      ["#{ punctuation.delimiter", "! punctuation.delimiter", "#{$c} string"]
+    ]
+  ]) {
+    const parser = new Parser();
+    parser.setLanguage(language);
+    const tree = parser.parse(source);
+    assert.equal(tree.rootNode.hasError, false, source);
+    const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
+    const role = new Map(effectiveCaptures(query, tree.rootNode).map(({ name, node }) => [node.id, name]));
+    const actual = tree.rootNode.descendantsOfType("raw_text").map(node => `${node.text} ${role.get(node.id)}`);
+    assert.deepEqual(actual, roles, source);
+  }
+});

@@ -33,7 +33,11 @@
  "@font-face" "@font-feature-values" "@font-palette-values" "@counter-style"
  "@starting-style" "@view-transition" "@position-try" "@page"] @keyword.directive
 
-[(string) (raw_text)] @string
+; Raw text is punctuation unless it is a URL or holds a word, such as an unevaluated `$name`.
+(raw_text) @punctuation.delimiter
+(string) @string
+(url_value (raw_text) @string)
+((raw_text) @string (#match? @string "[A-Za-z0-9]"))
 (escape_sequence) @string.escape
 
 ["," "|"] @punctuation.delimiter

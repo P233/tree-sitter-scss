@@ -75,3 +75,5 @@ lib.$color: blue;
 @at-root #{$sel}(.x, [dir="rtl"]) #{&} {}
 //                ^ attribute
 //                ^ !tag
+.r { --note: alpha // beta; --odd: [a] @ 2px; }
+//                 ^ string
