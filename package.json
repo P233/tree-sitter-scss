@@ -11,21 +11,23 @@
     "parse": "node scripts/grammar.js parse examples/highlight-stress.scss",
     "highlight": "node scripts/grammar.js highlight examples/highlight-stress.scss",
     "test": "pnpm generate && pnpm build && pnpm test:parser && pnpm test:node && pnpm test:development",
-    "lint": "eslint grammar.js eslint.config.js bindings/node/*.js scripts/*.js",
-    "format": "prettier --write \"**/*.js\" \"*.json\" \"*.yaml\" \"*.md\" \".github/workflows/*.yml\" \"scripts/*.json\" \"scripts/*.css\" \"test/config.json\"",
+    "lint": "eslint grammar.js eslint.config.js bindings/node/*.js \"scripts/*.{js,mjs}\" \"comparison/*.{js,mjs}\"",
+    "format": "prettier --write \"**/*.{js,mjs}\" \"*.json\" \"*.yaml\" \"*.md\" \".github/workflows/*.yml\" \"scripts/*.json\" \"scripts/*.css\" \"test/config.json\" \"comparison/*.{json,css,html,md}\"",
     "check:generated": "node scripts/grammar.js --check",
     "test:parser": "node scripts/grammar.js test",
     "test:node": "node --test --test-concurrency=1 bindings/node/*_test.js",
-    "test:development": "node --test --test-concurrency=1 scripts/*_test.js",
+    "test:development": "node --test --test-concurrency=1 scripts/*_test.js comparison/*_test.js",
     "test:fuzz": "node scripts/fuzz.js record",
     "test:rust": "cargo test",
     "benchmark": "pnpm build && node --expose-gc scripts/benchmark.js",
     "check": "pnpm lint && pnpm format:check && pnpm check:generated && pnpm build && pnpm test:parser && pnpm test:node && pnpm test:development && pnpm test:rust && cargo fmt --check && pnpm check:package && pnpm preview:export",
     "preview": "node scripts/preview.js --serve",
+    "compare": "node comparison/build.js",
     "preview:export": "node scripts/preview.js",
     "dev": "node scripts/preview.js --watch",
-    "format:check": "prettier --check \"**/*.js\" \"*.json\" \"*.yaml\" \"*.md\" \".github/workflows/*.yml\" \"scripts/*.json\" \"scripts/*.css\" \"test/config.json\"",
-    "check:package": "node scripts/check-package.js"
+    "format:check": "prettier --check \"**/*.{js,mjs}\" \"*.json\" \"*.yaml\" \"*.md\" \".github/workflows/*.yml\" \"scripts/*.json\" \"scripts/*.css\" \"test/config.json\" \"comparison/*.{json,css,html,md}\"",
+    "check:package": "node scripts/check-package.js",
+    "compare:build": "node comparison/build.js --build"
   },
   "keywords": [
     "tree-sitter",
@@ -45,7 +47,8 @@
     "node-gyp": "12.2.0",
     "prettier": "3.9.9",
     "tree-sitter": "0.25.1",
-    "tree-sitter-cli": "0.27.0"
+    "tree-sitter-cli": "0.27.0",
+    "web-tree-sitter": "0.27.0"
   },
   "repository": "github:P233/tree-sitter-scss",
   "packageManager": "pnpm@11.25.0",

@@ -6,9 +6,11 @@ It targets reading and highlighting complete stylesheets, with one grammar for S
 
 ## Compared with the official grammar
 
-The official grammar extends `tree-sitter-css`; this one serves both dialects with one parser, schema, and query. Measured with Tree-sitter CLI 0.27.0, the official grammar at [`2ef6d42`](https://github.com/tree-sitter-grammars/tree-sitter-scss/tree/2ef6d42e3ad7a8208900f9346f4529806ae0f9f9) errors on everyday Sass such as `!default`, `@use ... as`, maps, `@include ns.mixin`, and `$args...`: on the 1,157 non-blank lines of [rhythm-sass `76aac68`](https://github.com/P233/rhythm-sass/tree/76aac6827bdd80d439579f0cf93cad78cd6d7fc7), it reports 700 error nodes, with 37% of the lines inside `ERROR`, where this parser reports none. It also left-nests selectors, so the `:hover` node in `.a .b:hover` spans the whole selector; has no fields on rules, declarations, or CSS at-rules; reports nested properties as errors; and parses custom-property values as Sass.
+The official grammar extends `tree-sitter-css`; this one serves both dialects with one parser, schema, and query. Measured with Tree-sitter CLI 0.27.0, the official grammar at [`5da5ba7`](https://github.com/tree-sitter-grammars/tree-sitter-scss/tree/5da5ba71a558b007b352c505bfcd9095ae337022) errors on everyday Sass such as `!default`, `@use ... as`, maps, `@include ns.mixin`, and `$args...`: on the 1,157 non-blank lines of [rhythm-sass `76aac68`](https://github.com/P233/rhythm-sass/tree/76aac6827bdd80d439579f0cf93cad78cd6d7fc7), it reports 700 error nodes, with 37% of the lines inside `ERROR`, where this parser reports none. It also left-nests selectors, so the `:hover` node in `.a .b:hover` spans the whole selector; has no fields on rules, declarations, or CSS at-rules; reports nested properties as errors; and parses custom-property values as Sass.
 
-Node ranges inside an `ERROR` cannot be trusted, so scss2-mode refuses structural edits there. The costs are owning all CSS compatibility work and a generated parser about five times larger (4.0 MB of C against 0.79 MB). The schema and query are not interchangeable with the official ones.
+Node ranges inside an `ERROR` cannot be trusted, so scss2-mode refuses structural edits there. The costs are owning all CSS compatibility work and a generated parser more than five times larger (4.0 MB of C against 0.76 MB). The schema and query are not interchangeable with the official ones.
+
+The [comparison page](https://peiwen.lu/project/tree-sitter-scss-comparison/) parses the same source with both grammars in the browser and shows their highlighting, parse errors and syntax trees side by side. It includes examples, and you can paste your own SCSS.
 
 ## Use from source
 
@@ -93,7 +95,7 @@ pnpm check   # What CI runs: lint, formatting, generated files, build, tests, pa
 pnpm dev     # Live preview of trees and highlights at http://127.0.0.1:4173
 ```
 
-`grammar.js` and `src/scanner.c` are the authored sources; `pnpm generate` regenerates everything else under `src/`. After `pnpm build`, `pnpm test:node` runs the native acceptance tests, `pnpm test:fuzz` checks incremental parses after seeded random edits, and `pnpm benchmark` measures full parsing, ordered highlight capture queries, their combined cost, a numeric incremental replacement, and key-by-key typing. See [Architecture](ARCHITECTURE.md) for ownership, invariants, and comparison instructions.
+`grammar.js` and `src/scanner.c` are the authored sources; `pnpm generate` regenerates everything else under `src/`. After `pnpm build`, `pnpm test:node` runs the native acceptance tests, `pnpm test:fuzz` checks incremental parses after seeded random edits, and `pnpm benchmark` measures full parsing, ordered highlight capture queries, their combined cost, a numeric incremental replacement, and key-by-key typing. See [Architecture](ARCHITECTURE.md) for ownership, invariants, and how to compare revisions. `comparison/` holds the comparison page; [its README](comparison/README.md) covers building, previewing and deploying it.
 
 ## License
 

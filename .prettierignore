@@ -4,3 +4,4 @@ target/
 src/
 .serena/
 pnpm-lock.yaml
+comparison/dist/

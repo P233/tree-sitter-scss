@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>tree-sitter-scss comparison</title>
+    <meta
+      name="description"
+      content="P233/tree-sitter-scss and the official tree-sitter-scss grammar side by side: highlighting, parse errors and syntax trees for the same SCSS, parsed in your browser."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='25' font-size='26'%3E↔%3C/text%3E%3C/svg%3E"
+    />
+    <script src="./theme.js"></script>
+    <link rel="stylesheet" href="./style.css" />
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <main class="compare">
+      <noscript>JavaScript is required to run the two parsers.</noscript>
+      <header class="compare-header">
+        <div class="compare-title">
+          <h1>tree-sitter-scss <span>comparison</span></h1>
+          <button type="button" id="compare-theme" aria-pressed="false">Dark theme</button>
+        </div>
+        <p>
+          <a href="https://github.com/P233/tree-sitter-scss" target="_blank" rel="noreferrer">P233/tree-sitter-scss</a>
+          is a Tree-sitter parser for SCSS and CSS, written from scratch for
+          <a href="https://github.com/P233/scss2-mode" target="_blank" rel="noreferrer">scss2-mode</a>. This page parses
+          the same source with it and with the official
+          <a href="https://github.com/tree-sitter-grammars/tree-sitter-scss" target="_blank" rel="noreferrer"
+            >tree-sitter-grammars/tree-sitter-scss</a
+          >, each using its own grammar and highlight query at the revision shown below. Pick an example or choose
+          Custom source to paste your own. Parsing runs in your browser, and nothing is uploaded.
+        </p>
+      </header>
+      <form id="compare-form">
+        <fieldset id="compare-controls" disabled>
+          <legend class="compare-sr-only">Comparison controls</legend>
+          <div class="compare-toolbar">
+            <label for="compare-sample" class="compare-sr-only">Example</label>
+            <select id="compare-sample">
+              <option value="custom">Custom source</option>
+            </select>
+          </div>
+          <div id="compare-editor" class="compare-editor" hidden>
+            <label for="compare-source">SCSS source <span>⌘ / Ctrl + Enter to compare</span></label>
+            <textarea id="compare-source" spellcheck="false" wrap="off" rows="10"></textarea>
+            <button type="submit" class="compare-run">Compare</button>
+          </div>
+        </fieldset>
+      </form>
+      <div class="compare-context">
+        <p id="compare-focus"></p>
+        <p id="compare-feedback" role="status">Loading parsers…</p>
+      </div>
+      <div class="compare-panels">
+        <section class="compare-panel" aria-labelledby="compare-title-0">
+          <header class="compare-panel-header">
+            <h2 id="compare-title-0">P233/tree-sitter-scss</h2>
+            <div class="compare-meta">
+              <a id="compare-version-0" href="https://github.com/P233/tree-sitter-scss" target="_blank" rel="noreferrer"
+                >Loading revision…</a
+              >
+              <time id="compare-date-0"></time>
+              <span id="compare-status-0">Waiting for parser</span>
+            </div>
+          </header>
+          <div class="compare-code" tabindex="0" role="region" aria-label="P233 highlights">
+            <pre class="compare-lines" aria-hidden="true"></pre>
+            <div id="compare-highlight-0"></div>
+          </div>
+          <div class="compare-tree" id="compare-tree-panel-0">
+            <p>Syntax tree · named nodes and fields · 1-based UTF-16 positions</p>
+            <pre id="compare-tree-0" tabindex="0" aria-label="P233 syntax tree"></pre>
+          </div>
+          <ul id="compare-errors-0" class="compare-errors" aria-label="P233 parse diagnostics" hidden></ul>
+        </section>
+        <section class="compare-panel" aria-labelledby="compare-title-1">
+          <header class="compare-panel-header">
+            <h2 id="compare-title-1">tree-sitter-grammars/tree-sitter-scss</h2>
+            <div class="compare-meta">
+              <a
+                id="compare-version-1"
+                href="https://github.com/tree-sitter-grammars/tree-sitter-scss"
+                target="_blank"
+                rel="noreferrer"
+                >Loading revision…</a
+              >
+              <time id="compare-date-1"></time>
+              <span id="compare-status-1">Waiting for parser</span>
+            </div>
+          </header>
+          <div class="compare-code" tabindex="0" role="region" aria-label="tree-sitter-grammars highlights">
+            <pre class="compare-lines" aria-hidden="true"></pre>
+            <div id="compare-highlight-1"></div>
+          </div>
+          <div class="compare-tree" id="compare-tree-panel-1">
+            <p>Syntax tree · named nodes and fields · 1-based UTF-16 positions</p>
+            <pre id="compare-tree-1" tabindex="0" aria-label="tree-sitter-grammars syntax tree"></pre>
+          </div>
+          <ul
+            id="compare-errors-1"
+            class="compare-errors"
+            aria-label="tree-sitter-grammars parse diagnostics"
+            hidden
+          ></ul>
+        </section>
+      </div>
+      <footer class="compare-footer">
+        <p>
+          <span class="compare-difference-key">Highlighted line number</span>: color difference ·
+          <span class="compare-error-key">!</span>: ERROR or MISSING · Scroll is linked · Hover tokens and line numbers
+          for details
+        </p>
+        <p>
+          <span id="compare-runtime"></span> · tree-sitter-grammars/tree-sitter-scss queries include tree-sitter-css
+          0.20.0 · Diagnostic ranges have an exclusive end
+        </p>
+        <p>
+          Page source:
+          <a href="https://github.com/P233/tree-sitter-scss/tree/main/comparison" target="_blank" rel="noreferrer"
+            >comparison/</a
+          >
+          · Licenses: <a href="./LICENSE-p233.txt" target="_blank">P233/tree-sitter-scss</a>,
+          <a href="./LICENSE-official.txt" target="_blank">tree-sitter-grammars/tree-sitter-scss</a>,
+          <a href="./LICENSE-css.txt" target="_blank">tree-sitter-css</a>,
+          <a href="./vendor/LICENSE.txt" target="_blank">web-tree-sitter</a>
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,373 @@
+:root {
+  color-scheme: light;
+  --compare-ink: #282634;
+  --compare-muted: #6f6b7a;
+  --compare-border: #e5e1ea;
+  --compare-accent: #7344c5;
+  --compare-difference: #f0e9fc;
+  --compare-error: #b54735;
+  --compare-page: #fafafa;
+  --compare-surface: #fff;
+  --compare-hover: #f5f3f8;
+  --compare-line-number: #8d8897;
+  --compare-scrollbar: #d3cedb;
+  --compare-code-block: #f5f4f6;
+  --compare-missing: #fbe9e5;
+  --compare-tree: #fdfcfe;
+  --compare-button: #7344c5;
+  --compare-button-hover: #623aa7;
+  --compare-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%23282634' stroke-width='1.5'/%3E%3C/svg%3E");
+  --compare-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--compare-ink);
+  background: var(--compare-page);
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --compare-ink: #e7e4ee;
+  --compare-muted: #a29daf;
+  --compare-border: #322e3b;
+  --compare-accent: #b294f2;
+  --compare-difference: #2f2645;
+  --compare-error: #ff8a78;
+  --compare-page: #121116;
+  --compare-surface: #1a191f;
+  --compare-hover: #25232c;
+  --compare-line-number: #6f6a7b;
+  --compare-scrollbar: #3b3745;
+  --compare-code-block: #232129;
+  --compare-missing: #4a2420;
+  --compare-tree: #16151b;
+  --compare-button-hover: #8656d8;
+  --compare-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%23e7e4ee' stroke-width='1.5'/%3E%3C/svg%3E");
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+button,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+button,
+select {
+  cursor: pointer;
+  white-space: nowrap;
+}
+button,
+select,
+textarea {
+  border: 1px solid var(--compare-border);
+  border-radius: 5px;
+  background: var(--compare-surface);
+}
+button,
+select {
+  min-height: 34px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+button:hover,
+button[aria-pressed="true"] {
+  background: var(--compare-hover);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+fieldset:disabled {
+  opacity: 0.6;
+}
+:focus-visible {
+  outline: 2px solid var(--compare-accent);
+  outline-offset: 2px;
+}
+/* These fill a panel that clips its overflow, so their ring is drawn inside. */
+.compare-code:focus-visible,
+.compare-tree pre:focus-visible {
+  outline-offset: -2px;
+}
+.compare {
+  max-width: 1720px;
+  margin: 0 auto;
+  padding: 24px;
+}
+.compare-header {
+  margin-bottom: 18px;
+}
+.compare-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.compare-header h1 {
+  font: 600 20px var(--compare-mono);
+  margin: 0;
+}
+.compare-header h1 span {
+  font:
+    400 18px -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  color: var(--compare-muted);
+}
+.compare-header p {
+  max-width: 90ch;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--compare-muted);
+}
+.compare fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.compare-toolbar select {
+  width: 280px;
+  appearance: none;
+  padding-right: 30px;
+  background-image: var(--compare-chevron);
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+.compare-editor {
+  margin-top: 16px;
+}
+.compare-editor label {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.compare-editor label span {
+  color: var(--compare-muted);
+}
+.compare-editor textarea {
+  width: 100%;
+  padding: 12px;
+  resize: vertical;
+  font: 12px/1.85 var(--compare-mono);
+  tab-size: 2;
+}
+.compare-run {
+  margin-top: 10px;
+  padding: 6px 18px;
+  border-color: var(--compare-button);
+  background: var(--compare-button);
+  color: #fff;
+  font-weight: 600;
+}
+.compare-run:hover {
+  background: var(--compare-button-hover);
+}
+.compare-context {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 12px 0;
+}
+.compare-context p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--compare-muted);
+}
+.compare-context p:last-child {
+  flex-shrink: 0;
+}
+.compare-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.compare-panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--compare-border);
+  border-radius: 7px;
+  background: var(--compare-surface);
+}
+.compare-panel-header {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--compare-border);
+}
+.compare-panel-header h2 {
+  margin: 0 0 9px;
+  font: 550 12px var(--compare-mono);
+  overflow-wrap: anywhere;
+}
+.compare-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 10px var(--compare-mono);
+  color: var(--compare-muted);
+}
+.compare-meta span {
+  margin-left: auto;
+}
+.compare a {
+  color: inherit;
+  text-underline-offset: 3px;
+}
+.compare a:hover {
+  color: var(--compare-accent);
+}
+.compare-code {
+  display: flex;
+  gap: 18px;
+  height: min(64vh, 760px);
+  min-height: 330px;
+  overflow: auto;
+  padding: 14px 16px 20px 0;
+  scrollbar-color: var(--compare-scrollbar) transparent;
+}
+.compare-code pre,
+.compare-code code {
+  margin: 0;
+  font: 12px/1.85 var(--compare-mono);
+  white-space: pre;
+  tab-size: 2;
+}
+/* Each token carries both palette colors, so switching themes needs no new parse. */
+.compare-code code [style] {
+  color: var(--hl-light);
+}
+:root[data-theme="dark"] .compare-code code [style] {
+  color: var(--hl-dark);
+}
+.compare-lines {
+  flex: 0 0 44px;
+  color: var(--compare-line-number);
+  text-align: right;
+  user-select: none;
+}
+.compare-lines span {
+  position: relative;
+}
+.compare-line-different,
+.compare-difference-key {
+  color: var(--compare-accent);
+  background: var(--compare-difference);
+  border-radius: 2px;
+  box-shadow:
+    -3px 0 var(--compare-difference),
+    3px 0 var(--compare-difference);
+}
+.compare-line-error::before {
+  content: "!";
+  position: absolute;
+  right: calc(100% + 10px);
+  color: var(--compare-error);
+  font-weight: 700;
+}
+.compare-line-current {
+  outline: 1px solid var(--compare-accent);
+  outline-offset: 3px;
+}
+.compare-error-key {
+  color: var(--compare-error);
+  font-weight: 700;
+}
+.compare-errors {
+  margin: 0;
+  padding: 9px 16px;
+  max-height: 180px;
+  overflow: auto;
+  border-top: 1px solid var(--compare-border);
+  list-style: none;
+  font: 11px/1.8 var(--compare-mono);
+  color: var(--compare-error);
+}
+.compare-errors a {
+  text-decoration: none;
+}
+.compare-errors a:hover {
+  text-decoration: underline;
+}
+.compare-errors li + li {
+  margin-top: 10px;
+}
+.compare-errors code {
+  display: block;
+  margin-top: 3px;
+  padding: 5px 8px;
+  border-radius: 3px;
+  background: var(--compare-code-block);
+  color: var(--compare-ink);
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 2;
+}
+.compare-missing-marker {
+  color: var(--compare-error);
+  background: var(--compare-missing);
+}
+.compare-tree {
+  border-top: 1px solid var(--compare-border);
+  background: var(--compare-tree);
+}
+.compare-tree p {
+  margin: 0;
+  padding: 10px 16px 0;
+  font-size: 12px;
+  color: var(--compare-muted);
+}
+.compare-tree pre {
+  max-height: 280px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px 16px;
+  font: 11px/1.7 var(--compare-mono);
+}
+.compare-footer {
+  padding-top: 12px;
+  color: var(--compare-muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.compare-footer p {
+  margin: 4px 0;
+}
+.compare-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+@media (max-width: 800px) {
+  .compare {
+    padding: 18px 12px;
+  }
+  .compare-context {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .compare-panels {
+    grid-template-columns: 1fr;
+  }
+  .compare-code {
+    height: 420px;
+  }
+  .compare-editor label {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .compare-toolbar select {
+    width: 230px;
+  }
+}

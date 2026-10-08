@@ -1,0 +1,72 @@
+[
+  {
+    "name": "01 · Modern Sass overview",
+    "focus": "Module aliases, map keys, named arguments, nested properties, and interpolated selectors.",
+    "source": "@use \"sass:map\";\n@use \"theme\" as theme with ($radius: 12px);\n\n$space: 1rem !default;\n$palette: (ink: #242938, accent: #8250df);\n\n@mixin card($padding: $space, $radius: 12px) {\n  padding: $padding;\n  border-radius: $radius;\n  color: map.get($palette, ink);\n  @content;\n}\n\n.card {\n  @include card($padding: 1.5rem) {\n    background: #f6f3ff;\n  }\n  font: {\n    size: 1rem;\n    weight: 600;\n  }\n  &:hover { color: map.get($palette, accent); }\n}\n"
+  },
+  {
+    "name": "02 · Basic CSS",
+    "focus": "Selector punctuation, ordinary values, units, colors, and pseudo-elements.",
+    "source": "/* Basic CSS shared by both grammars. */\n.card, #featured {\n  display: flex;\n  gap: 1rem;\n  padding: 24px;\n  color: #242938;\n  background: linear-gradient(135deg, #fff, #eee);\n  border: 1px solid rgba(0, 0, 0, 0.1);\n  font-family: \"Inter\", sans-serif;\n}\n\n.card:hover > a::before {\n  content: \"Hello, SCSS!\";\n  opacity: 0.8;\n}\n\n@media screen and (min-width: 768px) {\n  .card { max-width: 60rem; }\n}\n"
+  },
+  {
+    "name": "03 · Variables, flags & maps",
+    "focus": "!default / !global flags, booleans, null, nested map keys, and namespaced variable writes.",
+    "source": "@use \"sass:map\";\n@use \"tokens\" as tokens;\n\n$gap: 8px !default;\n$enabled: true;\n$empty: null;\n$palette: (\n  ink: #242938,\n  accent: #8250df,\n  states: (hover: #6639ba, focus: #0969da),\n);\n\ntokens.$gap: 12px;\n\n.card {\n  $gap: 16px !global;\n  padding: $gap;\n  color: map.get($palette, states, hover);\n  opacity: if($enabled, 1, .5);\n}\n"
+  },
+  {
+    "name": "04 · Modules & configuration",
+    "focus": "@forward filters and prefixes, with-clause keys, wildcard modules, and module-qualified includes. External modules are illustrative.",
+    "source": "@forward \"tokens\" as token-* show $token-gap, token-scale with (\n  $gap: 1rem !default,\n  $accent: #8250df,\n);\n@use \"sass:math\";\n@use \"theme\" as theme with ($radius: 12px);\n@use \"utilities\" as *;\n\n.card {\n  width: math.percentage(math.div(1, 3));\n  border-radius: theme.$radius;\n  @include theme.surface($tone: \"quiet\");\n  @include stack($gap: 1rem);\n}\n"
+  },
+  {
+    "name": "05 · Mixins, rest args & content",
+    "focus": "Rest parameters, argument expansion, @content arguments, using bindings, and named argument boundaries.",
+    "source": "@use \"sass:list\";\n\n@mixin ring($color: #8250df, $width: 2px) {\n  outline: $width solid $color;\n}\n\n@mixin apply($sizes...) {\n  @each $size in $sizes {\n    @content($size);\n  }\n}\n\n$args: (#0969da, 3px);\n.card {\n  @include ring($args...);\n  @include apply(4px, 8px, 12px) using ($space) {\n    margin: $space;\n  }\n  @include ring($width: 1px, $color: #242938);\n}\n"
+  },
+  {
+    "name": "06 · Functions & control flow",
+    "focus": "@for to / through, @else if, @each destructuring, comparison operators, and interpolated generated classes.",
+    "source": "@function rhythm($step, $base: 8px) {\n  @if $step > 2 and $base != 0 {\n    @return $step * $base;\n  } @else if $step == 0 {\n    @return 0;\n  } @else {\n    @return $base;\n  }\n}\n\n@for $i from 1 to 4 {\n  .gap-#{$i} { gap: rhythm($i); }\n}\n@for $i from 1 through 3 {\n  .order-#{$i} { order: $i; }\n}\n@each $name, $color in (ink: #242938, accent: #8250df) {\n  .text-#{$name} { color: $color; }\n}\n$i: 2;\n@while $i > 0 { $i: $i - 1; }\n"
+  },
+  {
+    "name": "07 · Interpolation & strings",
+    "focus": "Interpolation inside strings, properties, selectors, URLs, and comments; nested string captures.",
+    "source": "$prefix: \"card\";\n$side: left;\n$asset: \"hero\";\n\n.#{$prefix} {\n  margin-#{$side}: 1rem;\n  content: \"Hello #{$prefix}!\\a Next line\";\n  --label: \"before #{$prefix} after\";\n  background: url(\"/img/#{$asset}.svg\");\n  &--active { color: #8250df; }\n}\n\n/* A block comment with #{$prefix} text. */\n// A line comment with $side and .card syntax.\n"
+  },
+  {
+    "name": "08 · Selectors & namespaces",
+    "focus": "Descendant boundaries, attribute operators, case modifiers, selector-list pseudos, nth-child of, and namespace prefixes.",
+    "source": "@namespace svg url(\"http://www.w3.org/2000/svg\");\n\n.a .b:hover { color: red; }\na[href^=\"https\" i]::after { content: \"external\"; }\nsvg|a, *|button, |input { cursor: pointer; }\n\n.card {\n  &:is(.active, :focus-visible) { outline: 2px solid; }\n  &:where(.muted, [disabled]) { opacity: .5; }\n  &:has(> img) { display: grid; }\n  &:nth-child(2n + 1 of .card, .tile) { order: 1; }\n  & + & { margin-top: 1rem; }\n}\n"
+  },
+  {
+    "name": "09 · Nested properties & rules",
+    "focus": "Font: / border: property groups versus nested selectors, plus placeholder and @extend captures.",
+    "source": "%surface { background: #fff; }\n\n.card {\n  @extend %surface !optional;\n  font: {\n    family: \"Inter\", sans-serif;\n    size: 1rem;\n    weight: 600;\n  }\n  border: 1px solid {\n    color: #8250df;\n    radius: 12px;\n  }\n  > .title { margin: 0; }\n  &:hover { color: #6639ba; }\n  @at-root .global-title { font-weight: 700; }\n}\n"
+  },
+  {
+    "name": "10 · Media, supports & containers",
+    "focus": "Range comparisons, boolean query operators, selector() tests, style() queries, and custom property names.",
+    "source": "@media (400px < width <= 1200px) and (hover) {\n  .card { padding: 2rem; }\n}\n@media not (hover) {\n  .card { padding: 1rem; }\n}\n@supports (display: grid) and selector(:has(> img)) {\n  .gallery { display: grid; }\n}\n@container sidebar (inline-size > 30rem) {\n  .card { gap: 2cqi; }\n}\n@container style(--theme: dark) {\n  .card { background: #242938; }\n}\n"
+  },
+  {
+    "name": "11 · Raw values & custom properties",
+    "focus": "Raw $ text versus interpolated Sass, balanced payloads, empty var() fallbacks, and unquoted URLs containing //.",
+    "source": "$gap: 1rem;\n\n.card {\n  --literal: $gap;\n  --resolved: #{$gap};\n  --payload: { color: red; list: [one, (two, three)]; };\n  --space: var(--missing,);\n  margin: var(--space, 1rem);\n  background: url(https://example.com/assets/a.svg?v=1#icon);\n  mask: url(data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=);\n  --message: \"braces { } and // stay inside the string\";\n}\n"
+  },
+  {
+    "name": "12 · Modern CSS at-rules",
+    "focus": "@layer names, @property descriptors, @scope boundaries, @starting-style, and @position-try blocks.",
+    "source": "@layer reset, components;\n\n@property --progress {\n  syntax: \"<number>\";\n  inherits: false;\n  initial-value: 0;\n}\n\n@layer components {\n  @scope (.card) to (.nested-card) {\n    :scope { --progress: .5; }\n    .title { color: #8250df; }\n  }\n}\n\n@starting-style {\n  .dialog { opacity: 0; }\n}\n@position-try --below {\n  inset-area: bottom;\n}\n"
+  },
+  {
+    "name": "13 · Numbers, math & keyframes",
+    "focus": "Number / unit boundaries, exponents, slash separators, calculation constants, custom properties, and keyframe selector roles.",
+    "source": "@keyframes enter {\n  from { opacity: 0; transform: translateY(-.5rem); }\n  50% { opacity: .5; }\n  to { opacity: 1; transform: translateY(0); }\n}\n\n.card {\n  width: clamp(10rem, 50vw, 60rem);\n  height: calc(100% - var(--gap, 1rem));\n  rotate: calc(pi * 1rad);\n  opacity: 1e-1;\n  font: 12px/1.5 sans-serif;\n  grid-area: 1/2/3/4;\n  color: oklch(65% 0.2 270 / .8);\n  animation: enter 200ms ease-out;\n}\n"
+  },
+  {
+    "name": "14 · Escapes & Unicode boundaries",
+    "focus": "CSS escape extents and exact token offsets after Unicode and emoji. Non-English identifiers here are intentional test data.",
+    "source": "$紫色: #8250df;\n$label: \"Hello 🦊\";\n\n.卡片, .caf\\e9, #item\\:one {\n  color: $紫色;\n  content: \"#{$label} / \\\"quoted\\\" / \\a new line\";\n  --escaped: \"\\1F98A\";\n  font-family: \"中文\", sans-serif;\n}\n\n/* 🦊 before the final rule tests character positions. */\n.sentinel { width: 12px; color: #abc; }\n"
+  }
+]

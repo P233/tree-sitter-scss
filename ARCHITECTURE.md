@@ -31,6 +31,8 @@ preview-client.js ── temporary browser draft
 | `scripts/preview.js`               | HTTP requests, file watching, build invalidation and published preview revision | Durable documents or browser drafts                                 |
 | `scripts/preview-client.js`        | Draft text, one active generation request, focus restoration and update notice  | Parser lifecycle or source-file writes                              |
 
+The standalone `comparison/` page builds both grammars into `comparison/dist/`. Its browser worker owns parsers and queries for the page lifetime and deletes each completed parse tree. Diagnostics and difference markers are projections of that parse result; the page adds no parser or editor state to the library.
+
 The Tree-sitter runtime owns trees and incremental reuse. A host edits the old tree before reparsing; undo is another host edit. No parser-local history or second source model exists. Native packages include generated C and headers so installing them does not require the generator. Their file lists are checked rather than inferred from repository layout.
 
 ## Complete input and statements being typed

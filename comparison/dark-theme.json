@@ -1,0 +1,19 @@
+{
+  "attribute": "#ae8ffe",
+  "comment": "#9da7b2",
+  "constant": "#62b9c0",
+  "constant.builtin": "#b69ffe",
+  "function": "#f76dba",
+  "keyword": "#fe7872",
+  "module": "#a2b95e",
+  "number": "#66c377",
+  "operator": "#d29c4b",
+  "property": "#6faaff",
+  "punctuation": "#a7b1bc",
+  "punctuation.special": "#ff8d8b",
+  "string": "#a2c6fe",
+  "string.escape": "#e95bae",
+  "tag": "#7fca8a",
+  "type": "#fa9368",
+  "variable": "#ed7937"
+}

@@ -1,6 +1,6 @@
 module.exports = [
   {
-    files: ["grammar.js", "eslint.config.js", "bindings/node/*.js", "scripts/*.js"],
+    files: ["grammar.js", "eslint.config.js", "bindings/node/*.js", "scripts/*.{js,mjs}", "comparison/*.{js,mjs}"],
     languageOptions: {
       sourceType: "commonjs",
       globals: Object.fromEntries(
@@ -11,6 +11,7 @@ module.exports = [
           "setTimeout",
           "clearTimeout",
           "fetch",
+          "URL",
           "grammar",
           "seq",
           "choice",
@@ -31,5 +32,6 @@ module.exports = [
       "no-dupe-keys": "error",
       "no-constant-condition": "error"
     }
-  }
+  },
+  { files: ["scripts/*.mjs", "comparison/*.mjs", "comparison/app.js"], languageOptions: { sourceType: "module" } }
 ];
