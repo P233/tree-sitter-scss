@@ -20,13 +20,13 @@ Both bindings compile the generated C sources, so they need a C/C++ compiler; th
 
 ```sh
 git clone https://github.com/P233/tree-sitter-scss.git
-cd tree-sitter-scss && npm pack  # Writes tree-sitter-scss-0.11.0.tgz
+cd tree-sitter-scss && npm pack  # Writes tree-sitter-scss-1.0.0.tgz
 ```
 
 In a Node project next to the checkout, installing the tarball compiles the binding:
 
 ```sh
-npm install ../tree-sitter-scss/tree-sitter-scss-0.11.0.tgz tree-sitter@0.25.1
+npm install ../tree-sitter-scss/tree-sitter-scss-1.0.0.tgz tree-sitter@0.25.1
 ```
 
 ```js
@@ -65,7 +65,7 @@ let tree = parser.parse(".card { color: $accent; }", None).unwrap();
 - A `/* */` comment in a statement position is a `block_comment` child; other comments are extras with literal text, and `//` comments never parse interpolation. In SCSS, statement comments and strings parse complete `#{…}` expressions through the grammar, including nested quotes, comments and multiline expressions.
 - The shape of an erroneous tree is not part of the contract. A statement typed or mistyped above a declaration usually stays one local `ERROR`, such as an unfinished selector line, a word typed into a declaration (`cur sor: x;`), a cut-off at-rule header or a value missing its `;`. A bare `$` stays inside its statement, and `[a=] {}` parses without an error although Sass rejects it. [Statement breaks](ARCHITECTURE.md#statement-breaks) lists the handled cases.
 - Hosts can reparse incrementally from an old tree after edits or agent-applied replacements. On complete supported input, the result has the same tree and ordered captures as a fresh parse, including after damaged input is repaired.
-- Keep the parser, [node schema](src/node-types.json), and [highlight query](queries/highlights.scm) on the same revision.
+- Keep the parser, [node schema](src/node-types.json), and [highlight query](queries/highlights.scm) on the same revision. Releases follow semantic versioning: removing or renaming an entry, node type, field, or capture name requires a new major version.
 
 ## Highlighting
 

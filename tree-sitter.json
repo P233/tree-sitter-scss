@@ -10,7 +10,7 @@
     }
   ],
   "metadata": {
-    "version": "0.11.0",
+    "version": "1.0.0",
     "license": "MIT",
     "description": "Tree-sitter parser for SCSS and CSS",
     "authors": [
