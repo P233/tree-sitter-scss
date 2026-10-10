@@ -149,9 +149,9 @@ Deprecated elseif clauses
 ==================
 Interpolation continues a name only when adjacent
 ==================
-.a { b: bold #{$s}; c: #{$a}#{$b} #{$c}; d: calc(#{$x} - #{$y}); } .w #{$v} {} @x #{$y};
+.a { b: bold #{$s}; c: #{$a}#{$b} #{$c}; d: calc(#{$x} - #{$y}); e: #{$x}-#{$y} #{$x}- #{$y}; } .w #{$v} {} @x #{$y};
 ---
-(stylesheet (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (plain_value) (interpolation (variable_name))) (property_declaration (property_name) (plain_value (interpolation (variable_name)) (interpolation (variable_name))) (interpolation (variable_name))) (property_declaration (property_name) (call_expression (function_name) (arguments (argument (interpolation (variable_name)) (operator) (interpolation (variable_name)))))))) (rule_set (selectors (complex_selector (class_selector) (tag_selector (interpolation (variable_name)))))) (at_rule (at_keyword) (interpolation (variable_name))))
+(stylesheet (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (plain_value) (interpolation (variable_name))) (property_declaration (property_name) (plain_value (interpolation (variable_name)) (interpolation (variable_name))) (interpolation (variable_name))) (property_declaration (property_name) (call_expression (function_name) (arguments (argument (interpolation (variable_name)) (operator) (interpolation (variable_name)))))) (property_declaration (property_name) (plain_value (interpolation (variable_name)) (interpolation (variable_name))) (plain_value (interpolation (variable_name))) (interpolation (variable_name))))) (rule_set (selectors (complex_selector (class_selector) (tag_selector (interpolation (variable_name)))))) (at_rule (at_keyword) (interpolation (variable_name))))
 
 ==================
 Interpolation touching selector arguments is a pseudo call

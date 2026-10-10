@@ -153,6 +153,22 @@ test("unfinished block at-rule headers end before a declaration line", () => {
   });
 });
 
+test("damaged top-level at-rule headers keep the following rules", () => {
+  eachParser((parser, dialect) => {
+    // A `@for` header cut off in or after a clause word is one error before the next rule.
+    for (const header of ["@for $i from 1 t", "@for $i from 1 thr", "@for $i from 1 through"]) {
+      const root = parser.parse(`${header}\n.y {\n  color: blue;\n}\n${tail}\n`).rootNode;
+      assert.equal(root.namedChildCount, 302, `${dialect}: ${header}`);
+      assert.deepEqual(errors(root), [header], `${dialect}: ${header}`);
+    }
+    // A stray brace is the only error: the `--` name after it still lexes as one and names the definition.
+    const root = parser.parse(`@function {--double(--n <number>) { result: 1; }\n${tail}\n`).rootNode;
+    assert.equal(root.namedChildCount, 301, dialect);
+    assert.equal(root.firstNamedChild.type, "function_definition", dialect);
+    assert.deepEqual(errors(root), ["{"], dialect);
+  });
+});
+
 test("a value missing its semicolon ends before a declaration line", () => {
   eachParser((parser, dialect) => {
     const dotted = parser.parse(above("color: map.get")).rootNode;
