@@ -424,9 +424,10 @@ module.exports = grammar({
     // Like raw fallback groups, a raw call applies only when an ordinary call cannot parse.
     _css_fallback_call: $ =>
       rawFallback(
-        choice(
-          functionCall($, $._interpolated_identifier, alias($._css_fallback_arguments, $.raw_group)),
-          functionCall($, $.dashed_name, alias($._css_fallback_arguments, $.raw_group))
+        functionCall(
+          $,
+          choice($._interpolated_identifier, $.dashed_name),
+          alias($._css_fallback_arguments, $.raw_group)
         )
       ),
     _css_fallback_arguments: $ => prec(-1, seq(token.immediate("("), fallbackContent($), ")")),
@@ -505,11 +506,7 @@ module.exports = grammar({
         ",",
         ":"
       ),
-    _raw_call: $ =>
-      choice(
-        functionCall($, $._raw_function_name, alias($._raw_arguments, $.raw_group)),
-        functionCall($, $.dashed_name, alias($._raw_arguments, $.raw_group))
-      ),
+    _raw_call: $ => functionCall($, choice($._raw_function_name, $.dashed_name), alias($._raw_arguments, $.raw_group)),
     _raw_function_name: $ => choice($._interpolated_identifier, $._special_call_word),
     _raw_arguments: $ => seq(token.immediate("("), rawContent($), ")"),
     // Unlike an at-rule prelude, a raw declaration value keeps `//` as text.
@@ -749,10 +746,7 @@ module.exports = grammar({
       prec(
         1,
         seq(
-          field(
-            "name",
-            choice(alias($._interpolated_identifier, $.property_name), alias($._wrapped_dashed_name, $.property_name))
-          ),
+          field("name", alias(choice($._interpolated_identifier, $._wrapped_dashed_name), $.property_name)),
           ":",
           field("value", $._space_value)
         )
@@ -976,11 +970,7 @@ function keywordShapedName($) {
 
 // Renaming the shared name rule keeps one node per value word; a wrapper would add 88 bytes.
 function plainValue($) {
-  return choice(
-    alias($._interpolated_identifier, $.plain_value),
-    alias($._wrapped_dashed_name, $.plain_value),
-    alias($._special_call_word, $.plain_value)
-  );
+  return alias(choice($._interpolated_identifier, $._wrapped_dashed_name, $._special_call_word), $.plain_value);
 }
 
 function expressionAtoms($) {
@@ -1012,10 +1002,7 @@ function expressionAtoms($) {
 
 // A feature name is a word or `--` name; a bare interpolation such as `(#{$query})` stays a value.
 function featureName($) {
-  return choice(
-    ...identifierWords($).map(word => alias(word, $.property_name)),
-    alias($._wrapped_dashed_name, $.property_name)
-  );
+  return alias(choice(...identifierWords($), $._wrapped_dashed_name), $.property_name);
 }
 
 // Specialized names win equal-length ties with `_identifier`, so every identifier position accepts them too.
