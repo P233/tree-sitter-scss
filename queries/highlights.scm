@@ -3,7 +3,7 @@
 [(tag_selector) (parent_selector) (universal_selector)] @tag
 [(id_selector) (class_selector) (placeholder_selector) (attribute_name) (pseudo_name)] @attribute
 (property_name) @property
-[(variable_name) (parameter_name)] @variable
+(variable_name) @variable
 [(module_name) (namespace_name)] @module
 (function_name) @function
 
@@ -19,14 +19,13 @@
 [(attribute_operator) (combinator) (spread)] @operator
 
 ; Keyword roles use Neovim names; tree-sitter-highlight matches name parts, so `keyword.function` would render as `function`.
-["@use" "@forward" "@import"] @keyword.import
+["@use" "@forward" "@import" "as" "show" "hide" "with"] @keyword.import
 "@return" @keyword.return
 ["@if" "@else" "@elseif" "if" "else"] @keyword.conditional
-["@each" "@for" "@while"] @keyword.repeat
+["@each" "@for" "@while" "in" "from" "through"] @keyword.repeat
 ["@debug" "@warn"] @keyword.debug
 "@error" @keyword.exception
-["@function" "@mixin" "@include" "@content" "@extend" "@at-root"
- "as" "show" "hide" "with" "using" "returns" "in" "from" "to" "through" "of"] @keyword
+["@function" "@mixin" "@include" "@content" "@extend" "@at-root" "using" "returns" "to" "of"] @keyword
 ["@media" "@supports" "@container" "@scope"
  "@keyframes" "@-webkit-keyframes" "@-moz-keyframes" "@-o-keyframes"
  "@namespace" "@charset" "@layer" "@property"
@@ -59,10 +58,8 @@
  (type_annotation (operator) @operator)]
 (map_entry key: (plain_value) @property)
 (keyframes_statement (declaration_block (rule_set (selectors [(tag_selector) @keyword (complex_selector (tag_selector) @keyword)]))))
-; Shared words take the role of the statement that owns them.
-[(for_statement ["from" "to" "through"] @keyword.repeat) (each_statement "in" @keyword.repeat)]
-[(use_statement "as" @keyword.import) (forward_statement ["as" "show" "hide"] @keyword.import)
- (configuration "with" @keyword.import)]
+; A scope limit shares `to`, so a for loop restores its repeat role.
+(for_statement "to" @keyword.repeat)
 (parameter name: (_) @variable.parameter)
 [(arguments (named_argument name: (variable_name) @variable.parameter))
  (conditional (named_argument name: (variable_name) @variable.parameter))]

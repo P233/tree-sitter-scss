@@ -12,6 +12,9 @@
 //                                 ^ function
 //                                          ^ variable
 
+@use "theme" with ($accent: red);
+//           ^ keyword.import
+
 @mixin ring($size: 2px, $args...) { @content($size); }
 // <- keyword
 //     ^ function
@@ -34,6 +37,9 @@
 //      ^ keyword.repeat
 //             ^ keyword.repeat
 //                               ^ punctuation.special
+
+@each $name in $names { .icon-#{$name} { order: 1; } }
+//          ^ keyword.repeat
 
 .x:hover::before, & > [data-x="ok" i], svg|a, %shared {}
 // ^ attribute
