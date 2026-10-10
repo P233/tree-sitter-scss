@@ -1,6 +1,7 @@
 const ESCAPE = /\\(?:[0-9a-fA-F]{1,6}[ \t\r\n\f]?|[^\r\n\f0-9a-fA-F])/;
 const NAME_START = `(?:[_a-zA-Z\\u0080-\\u{10ffff}]|${ESCAPE.source})`;
 const NAME_FRAGMENT = new RegExp(`(?:[-_a-zA-Z0-9\\u0080-\\u{10ffff}]|${ESCAPE.source})+`, "u");
+const ADJACENT_NAME_FRAGMENT = token.immediate(prec(1, NAME_FRAGMENT));
 const IDENTIFIER = new RegExp(`(?:--|-?${NAME_START})(?:[-_a-zA-Z0-9\\u0080-\\u{10ffff}]|${ESCAPE.source})*`, "u");
 const SIMPLE_UNIT = new RegExp(`${NAME_START}(?:[_a-zA-Z0-9\\u0080-\\u{10ffff}]|${ESCAPE.source})*`, "u");
 const URL_NAME = keyword("url", true);
@@ -256,7 +257,7 @@ module.exports = grammar({
     // Sass reads a selector after evaluating it, so an interpolation touching `(` is a pseudo call: `#{$sel}(.a)`.
     _interpolated_pseudo_selector: $ => seq(alias($._interpolated_pseudo_name, $.pseudo_name), $.selector_arguments),
     _interpolated_pseudo_name: $ =>
-      seq($.interpolation, optional(token.immediate(prec(1, NAME_FRAGMENT))), optional($._identifier_tail)),
+      seq($.interpolation, optional(ADJACENT_NAME_FRAGMENT), optional($._identifier_tail)),
     // Only an adjacent interpolation, as in `:not(.a)#{$b}`, extends the compound as a type-like
     // name. A name after whitespace needs the descendant token, so it cannot join from another statement.
     _compound_tail: $ =>
@@ -272,7 +273,7 @@ module.exports = grammar({
     id_selector: $ => seq("#", $._selector_name),
     class_selector: $ => seq(".", $._selector_name),
     placeholder_selector: $ => seq("%", $._selector_name),
-    parent_selector: $ => prec.right(seq("&", optional(adjacentName($, token.immediate(prec(1, NAME_FRAGMENT)))))),
+    parent_selector: $ => prec.right(seq("&", optional(adjacentName($, ADJACENT_NAME_FRAGMENT)))),
     universal_selector: () => prec(-1, "*"),
     namespace_selector: $ => seq(optional(choice(alias($._namespace_prefix, $.namespace_name), "*")), "|"),
     combinator: () => choice(">", "+", "~", "||"),
@@ -323,9 +324,7 @@ module.exports = grammar({
     _selector_name: $ => adjacentName($, choice(token.immediate(IDENTIFIER), $._value_pseudo_name)),
     _interpolated_identifier: $ => interpolatedIdentifier($, choice(...identifierWords($)), "-"),
     _identifier_tail: $ =>
-      repeat1(
-        seq(alias($._adjacent_interpolation, $.interpolation), optional(token.immediate(prec(1, NAME_FRAGMENT))))
-      ),
+      repeat1(seq(alias($._adjacent_interpolation, $.interpolation), optional(ADJACENT_NAME_FRAGMENT))),
     interpolation: $ => seq("#{", $._value, "}"),
     // Only an adjacent interpolation continues a name; whitespace starts the next value or selector.
     _adjacent_interpolation: $ => seq(alias(token.immediate(prec(1, "#{")), "#{"), $._value, "}"),
@@ -942,12 +941,8 @@ function interpolatedIdentifier($, identifier, hyphen, leading = $.interpolation
     seq(
       choice(
         identifier,
-        seq(
-          hyphen,
-          alias($._adjacent_interpolation, $.interpolation),
-          optional(token.immediate(prec(1, NAME_FRAGMENT)))
-        ),
-        seq(leading, optional(token.immediate(prec(1, NAME_FRAGMENT))))
+        seq(hyphen, alias($._adjacent_interpolation, $.interpolation), optional(ADJACENT_NAME_FRAGMENT)),
+        seq(leading, optional(ADJACENT_NAME_FRAGMENT))
       ),
       optional($._identifier_tail)
     )
