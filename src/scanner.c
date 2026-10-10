@@ -605,11 +605,11 @@ static bool header_ends_early(TSLexer *lexer) {
   return false;
 }
 
-// Claims a block at-rule typed among declarations: Sass directives as spelled, nestable CSS ones in any case.
-static bool scan_unfinished_header(TSLexer *lexer) {
-  static const char *const names[] = {"if", "each", "for", "while", "at-root",
+// Claims a block at-rule typed among declarations: Sass directives as spelled, CSS ones in any case.
+static bool scan_unfinished_header(TSLexer *lexer, bool is_line_start) {
+  static const char *const names[] = {"if", "each", "for", "while", "at-root", "mixin", "function",
                                       "media", "supports", "container", "layer", "scope", "starting-style"};
-  enum { SASS_NAMES = 5, NAME_BUFFER = 15 };
+  enum { MIXIN = 5, FUNCTION = 6, SASS_NAMES = 6, NAME_BUFFER = 15 };
   lexer->advance(lexer, false);
   char name[NAME_BUFFER];
   unsigned length = 0;
@@ -622,11 +622,14 @@ static bool scan_unfinished_header(TSLexer *lexer) {
   char folded[NAME_BUFFER];
   memcpy(folded, name, sizeof(folded));
   lowercase(folded);
-  bool is_known = false;
+  bool is_known = false, is_definition = false;
   for (unsigned index = 0; index < sizeof(names) / sizeof(*names); index++) {
-    is_known |= strcmp(index < SASS_NAMES ? name : folded, names[index]) == 0;
+    bool is_match = strcmp(index < SASS_NAMES ? name : folded, names[index]) == 0;
+    is_known |= is_match;
+    is_definition |= is_match && (index == MIXIN || index == FUNCTION);
   }
-  if (!is_known) return false;
+  // A definition starting its line is top-level and keeps its body with its header; a nested one is claimed.
+  if (!is_known || (is_definition && is_line_start)) return false;
   lexer->mark_end(lexer);
   lexer->result_symbol = UNFINISHED_HEADER;
   return header_ends_early(lexer);
@@ -712,6 +715,8 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
                                                                      : -1;
   if (literal_token >= 0) return css && scan_literal_interpolation(lexer, literal_token);
   bool has_crossed_line = false;
+  // The last whitespace skipped; a line break there means the next character starts its line.
+  int32_t last_space = 0;
   // Whitespace in a selector, or punctuation that may leave a selector line unfinished.
   bool is_selector_gap =
     ((valid_symbols[DESCENDANT] || valid_symbols[SPACE_BEFORE_COLON]) && css_space(lexer->lookahead)) ||
@@ -721,7 +726,8 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     // A break decided across a line ends at the end of the line above, leaving the next line its whitespace.
     lexer->mark_end(lexer);
     while (css_space(lexer->lookahead)) {
-      has_crossed_line |= line_break(lexer->lookahead);
+      last_space = lexer->lookahead;
+      has_crossed_line |= line_break(last_space);
       lexer->advance(lexer, true);
     }
     if (!has_crossed_line) lexer->mark_end(lexer);
@@ -767,6 +773,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     bool is_touching = true;
     while (lexer->lookahead == ' ' || lexer->lookahead == '\t') {
       is_touching = false;
+      last_space = lexer->lookahead;
       lexer->advance(lexer, true);
     }
     if (tail_start(lexer->lookahead, is_touching)) {
@@ -781,12 +788,17 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
   bool is_url = valid_symbols[LITERAL_CSS_URL] && !valid_symbols[STATEMENT_BREAK];
   if ((is_value_state || is_url) && css_space(lexer->lookahead)) lexer->mark_end(lexer);
   while (css_space(lexer->lookahead)) {
-    has_crossed_line |= line_break(lexer->lookahead);
+    last_space = lexer->lookahead;
+    has_crossed_line |= line_break(last_space);
     lexer->advance(lexer, true);
   }
   bool can_end_value = has_crossed_line && is_value_state;
   if (valid_symbols[STATEMENT_BREAK] && valid_symbols[STATEMENT_COMMENT_START]) {
-    if (lexer->lookahead == '@') return scan_unfinished_header(lexer);
+    if (lexer->lookahead == '@') {
+      // Skipped whitespace, not `get_column`, which rereads the line, decides a line start; no token ends with one.
+      bool is_line_start = last_space ? line_break(last_space) : lexer->is_at_included_range_start(lexer);
+      return scan_unfinished_header(lexer, is_line_start);
+    }
     // Once shifted, a line-leading combinator or interpolation reaches no break site, so skip such a line as one error.
     int32_t first = lexer->lookahead;
     if (first == '>' || first == '+' || first == '~' || first == '#') {

@@ -129,7 +129,15 @@ test("unfinished block at-rule headers end before a declaration line", () => {
       "@media #{$q}",
       "@supports (x: y)",
       '@if $a == "{"',
-      "@if $a == ';' and $b"
+      "@if $a == ';' and $b",
+      // A definition whose `@` does not start its line is nested; the top-level case below keeps its body.
+      "@mixin m",
+      "@mixin m(",
+      "@mixin m()",
+      "@mixin m($a: 1)",
+      "@function f()",
+      "@function --f()",
+      "@FUNCTION --f()"
     ]) {
       const root = parser.parse(above(`color: red;\n  ${header}`)).rootNode;
       assert.equal(root.namedChildCount, 302, `${dialect}: ${header}`);
