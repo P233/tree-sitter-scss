@@ -710,8 +710,7 @@ module.exports = grammar({
     query_statement: $ => seq($._query_head, choice(";", $._block)),
     _query_head: $ =>
       choice(
-        directive("media"),
-        seq(directive("media"), field("prelude", $._query_value)),
+        seq(directive("media"), optional(field("prelude", $._query_value))),
         seq(
           choice(directive("supports"), directive("container"), directive("import")),
           field("prelude", $._query_value)
