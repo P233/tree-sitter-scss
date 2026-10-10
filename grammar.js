@@ -214,7 +214,7 @@ module.exports = grammar({
     // Aliasing this wrapper keeps `dashed_name` as a child of the aliased node.
     _wrapped_dashed_name: $ => $.dashed_name,
     // Custom properties and other author-defined `--` names share one node wherever they are a value or name.
-    dashed_name: $ => prec.right(seq($._dashed_name, optional($._identifier_tail))),
+    dashed_name: $ => seq($._dashed_name, optional($._identifier_tail)),
     // The literal `--` prefix outranks the identifier token that also matches it.
     _dashed_name: () => token(prec(2, seq("--", optional(NAME_FRAGMENT)))),
 
@@ -274,7 +274,7 @@ module.exports = grammar({
     class_selector: $ => seq(".", $._selector_name),
     placeholder_selector: $ => seq("%", $._selector_name),
     parent_selector: $ => prec.right(seq("&", optional(adjacentName($, ADJACENT_NAME_FRAGMENT)))),
-    universal_selector: () => prec(-1, "*"),
+    universal_selector: () => "*",
     namespace_selector: $ => seq(optional(choice(alias($._namespace_prefix, $.namespace_name), "*")), "|"),
     combinator: () => choice(">", "+", "~", "||"),
     keyframe_selector: $ => choice($.number, seq($.interpolation, token.immediate("%"))),
@@ -327,7 +327,7 @@ module.exports = grammar({
       repeat1(seq(alias($._adjacent_interpolation, $.interpolation), optional(ADJACENT_NAME_FRAGMENT))),
     interpolation: $ => seq("#{", $._value, "}"),
     // Only an adjacent interpolation continues a name; whitespace starts the next value or selector.
-    _adjacent_interpolation: $ => seq(alias(token.immediate(prec(1, "#{")), "#{"), $._value, "}"),
+    _adjacent_interpolation: $ => seq(token.immediate("#{"), $._value, "}"),
 
     // Trivia comments never enter SassScript, even when their text contains `#{`.
     block_comment: $ =>
@@ -478,7 +478,7 @@ module.exports = grammar({
     // Module references share this immediate dot, so a spaced `.class` cannot extend a value word.
     dotted_value: $ => seq(choice($._identifier, $._dashed_name), repeat1(seq(token.immediate("."), $._identifier))),
     // Special-call names are ordinary words unless their literal call syntax follows.
-    _special_call_word: $ => prec.right(seq(choice(URL_NAME, $._raw_function_word), optional($._identifier_tail))),
+    _special_call_word: $ => seq(choice(URL_NAME, $._raw_function_word), optional($._identifier_tail)),
     flag: () => /![ \t]*[-\w]+/,
     important: () => /![ \t]*[iI][mM][pP][oO][rR][tT][aA][nN][tT]/,
     // Reused query words must also reduce as identifiers after an enclosing call changes.
@@ -514,7 +514,7 @@ module.exports = grammar({
     _raw_arguments: $ => seq(token.immediate("("), rawContent($), ")"),
     // Unlike an at-rule prelude, a raw declaration value keeps `//` as text.
     raw_text: $ => choice(token(prec(2, /\/\/[^\r\n;{}()\[\]"'\\#!]*/)), $._raw_word),
-    _raw_word: () => token(RAW_WORD),
+    _raw_word: () => RAW_WORD,
     _prelude_group: $ => choice(seq("(", rawContent($), ")"), seq("[", rawContent($), "]")),
     raw_group: $ =>
       choice($._prelude_group, seq(choice("{", alias($._literal_raw_interpolation, $.raw_text)), rawContent($), "}")),
@@ -570,7 +570,7 @@ module.exports = grammar({
       ),
     conditional_branch: $ =>
       seq(
-        field("condition", choice($._query_value, prec(1, alias($._else_keyword, "else")))),
+        field("condition", choice($._query_value, alias($._else_keyword, "else"))),
         ":",
         optional(field("value", $._value))
       ),
@@ -631,7 +631,7 @@ module.exports = grammar({
         $._css_function_property
       ),
     _css_function_property_declaration: $ => choice(seq($._css_function_property, ";"), $._nested_property),
-    _css_function_property: $ => choice($._property, prec(1, rawProperty($, $._result_property_name))),
+    _css_function_property: $ => choice($._property, rawProperty($, $._result_property_name)),
     _css_function_query: $ => seq($._query_head, choice(";", $._css_function_block)),
     mixin_definition: $ =>
       seq(
@@ -682,9 +682,7 @@ module.exports = grammar({
     _content_head: $ => seq(directive("content"), optional(alias($._mixin_arguments, $.arguments))),
     // Else lookahead keeps complete control chains attached after incremental updates.
     if_statement: $ =>
-      prec.right(
-        seq(directive("if"), field("condition", $._value), $._block, repeat($.else_clause), optional($._if_end))
-      ),
+      seq(directive("if"), field("condition", $._value), $._block, repeat($.else_clause), optional($._if_end)),
     else_clause: $ =>
       seq(
         choice(
@@ -726,7 +724,7 @@ module.exports = grammar({
       ),
     query_group: $ => seq("(", optional($._query_condition), ")"),
     // A query function's body is the same condition as a parenthesized query group; `at-rule()` names an at-keyword.
-    _query_call: $ => prec(1, functionCall($, $._query_function_name, alias($._query_call_group, $.query_group))),
+    _query_call: $ => functionCall($, $._query_function_name, alias($._query_call_group, $.query_group)),
     _query_call_group: $ => seq(token.immediate("("), optional(choice($._query_condition, $.at_keyword)), ")"),
     _query_condition: $ => choice(alias($._property, $.feature_query), $._query_value, $._feature_test),
     // Both readings parse to the group's end; dynamic precedence prefers a leading name, then one after the value.
@@ -759,8 +757,7 @@ module.exports = grammar({
           field("value", $._space_value)
         )
       ),
-    selector_query: $ =>
-      prec(1, seq(alias($._selector_function_name, $.function_name), token.immediate("("), $.selectors, ")")),
+    selector_query: $ => seq(alias($._selector_function_name, $.function_name), token.immediate("("), $.selectors, ")"),
     scope_statement: $ =>
       seq(
         directive("scope"),
@@ -818,11 +815,9 @@ module.exports = grammar({
     // An interpolated pseudo call claims an adjacent `(` before the raw reading splits off, so accept it here too.
     _unknown_statement_group: $ => seq(choice("(", alias(token.immediate("("), "(")), rawContent($), ")"),
     at_keyword: $ =>
-      prec.right(
-        seq(
-          choice(token(seq("@", IDENTIFIER)), seq("@", alias($._adjacent_interpolation, $.interpolation))),
-          optional($._identifier_tail)
-        )
+      seq(
+        choice(token(seq("@", IDENTIFIER)), seq("@", alias($._adjacent_interpolation, $.interpolation))),
+        optional($._identifier_tail)
       )
   }
 });
