@@ -1,7 +1,7 @@
 [package]
 name = "tree-sitter-scss"
 description = "Tree-sitter parser for SCSS and CSS"
-version = "1.0.0"
+version = "1.0.1"
 keywords = ["tree-sitter", "parser", "css", "scss", "sass"]
 categories = ["parsing", "text-editors"]
 repository = "https://github.com/P233/tree-sitter-scss"

@@ -20,13 +20,13 @@ Both bindings compile the generated C sources, so they need a C/C++ compiler; th
 
 ```sh
 git clone https://github.com/P233/tree-sitter-scss.git
-cd tree-sitter-scss && npm pack  # Writes tree-sitter-scss-1.0.0.tgz
+cd tree-sitter-scss && npm pack  # Writes tree-sitter-scss-1.0.1.tgz
 ```
 
 In a Node project next to the checkout, installing the tarball compiles the binding:
 
 ```sh
-npm install ../tree-sitter-scss/tree-sitter-scss-1.0.0.tgz tree-sitter@0.25.1
+npm install ../tree-sitter-scss/tree-sitter-scss-1.0.1.tgz tree-sitter@0.25.1
 ```
 
 ```js
