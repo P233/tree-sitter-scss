@@ -216,6 +216,19 @@ test("a value missing its semicolon ends before a declaration line", () => {
   });
 });
 
+test("an unclosed comment in a value or selector keeps the following rules", () => {
+  eachParser((parser, dialect) => {
+    for (const line of ["color: red /* note", "width: calc(1px /* note"]) {
+      const root = parser.parse(above(line)).rootNode;
+      assert.equal(root.namedChildCount, 302, `${dialect}: ${line}`);
+      assert.equal(root.namedChildren[1].text, ".y {\n  color: blue;\n}", `${dialect}: ${line}`);
+    }
+    const root = parser.parse(`.a /* note\n.y {\n  color: blue;\n}\n${tail}\n`).rootNode;
+    assert.equal(root.namedChildCount, 302, dialect);
+    assert.equal(root.namedChildren[2].text, ".t0 { margin: 0px; }", dialect);
+  });
+});
+
 test("an unfinished variable or else head keeps its callable scope", () => {
   eachParser((parser, dialect) => {
     const scoped = root =>
@@ -255,6 +268,9 @@ test("recovery debt stays visible", () => {
       const root = parser.parse(above(`color: red;\n  ${line}`)).rootNode;
       assert.notDeepEqual(errors(root.firstNamedChild), [line], `${dialect}: ${line}`);
     }
+    // A `{` typed at a line start before a top-level comment reads the rest of the file as its block.
+    const brace = parser.parse(`.x { a: b }\n\n{/* section */\n${tail}\n`).rootNode;
+    assert.notEqual(brace.namedChildCount, 303, `${dialect}: stray brace`);
   });
   // SCSS text hosts parse `#{` as an expression, so an unclosed one takes the rest of its host.
   const parser = new Parser().setLanguage(Scss);

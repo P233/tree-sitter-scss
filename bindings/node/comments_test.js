@@ -12,7 +12,7 @@ function parse(source, language = Scss) {
   return tree;
 }
 
-test("expression and selector comments keep interpolation-like text literal", () => {
+test("expression and selector comments are single tokens with literal interpolation-like text", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
     for (const comment of ["/* #{ */", "/* #{$unfinished */", "/* #{$ignored} */", "/*! #{$ignored} */"]) {
@@ -32,7 +32,7 @@ test("expression and selector comments keep interpolation-like text literal", ()
         const tree = parse(source, language);
         const [node] = tree.rootNode.descendantsOfType("block_comment");
         assert.equal(node.text, comment, source);
-        assert.deepEqual(node.descendantsOfType("interpolation"), [], source);
+        assert.equal(node.childCount, 0, source);
         assert.deepEqual(
           query.captures(node).map(({ name }) => name),
           ["comment"],

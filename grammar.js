@@ -128,7 +128,9 @@ module.exports = grammar({
     $._space_value,
     $._value_atom,
     $._raw_item,
-    $._raw_token
+    $._raw_token,
+    $._compound_tail,
+    $._combination
   ],
   conflicts: $ => [
     [$.operator, $._comparison_operator],
@@ -331,17 +333,8 @@ module.exports = grammar({
     _adjacent_interpolation: $ => seq(token.immediate("#{"), $._value, "}"),
 
     // Trivia comments never enter SassScript, even when their text contains `#{`.
-    block_comment: $ =>
-      seq(
-        "/*",
-        repeat(
-          choice(
-            alias(token.immediate(prec(1, /[^*#]+/)), $.comment_content),
-            alias(token.immediate(choice("*", "#")), $.comment_content)
-          )
-        ),
-        "*/"
-      ),
+    // One token rather than a nonterminal extra, which about doubled the hidden repeat nodes of a parsed stylesheet.
+    block_comment: () => token(seq("/*", /[^*]*\*+([^/*][^*]*\*+)*/, "/")),
     // Only statement positions offer this opener; content wins over extras, so nested openers stay literal.
     _statement_comment: $ =>
       seq(

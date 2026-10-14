@@ -2788,62 +2788,24 @@
       ]
     },
     "block_comment": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "STRING",
-          "value": "/*"
-        },
-        {
-          "type": "REPEAT",
-          "content": {
-            "type": "CHOICE",
-            "members": [
-              {
-                "type": "ALIAS",
-                "content": {
-                  "type": "IMMEDIATE_TOKEN",
-                  "content": {
-                    "type": "PREC",
-                    "value": 1,
-                    "content": {
-                      "type": "PATTERN",
-                      "value": "[^*#]+"
-                    }
-                  }
-                },
-                "named": true,
-                "value": "comment_content"
-              },
-              {
-                "type": "ALIAS",
-                "content": {
-                  "type": "IMMEDIATE_TOKEN",
-                  "content": {
-                    "type": "CHOICE",
-                    "members": [
-                      {
-                        "type": "STRING",
-                        "value": "*"
-                      },
-                      {
-                        "type": "STRING",
-                        "value": "#"
-                      }
-                    ]
-                  }
-                },
-                "named": true,
-                "value": "comment_content"
-              }
-            ]
+      "type": "TOKEN",
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "STRING",
+            "value": "/*"
+          },
+          {
+            "type": "PATTERN",
+            "value": "[^*]*\\*+([^/*][^*]*\\*+)*"
+          },
+          {
+            "type": "STRING",
+            "value": "/"
           }
-        },
-        {
-          "type": "STRING",
-          "value": "*/"
-        }
-      ]
+        ]
+      }
     },
     "_statement_comment": {
       "type": "SEQ",
@@ -10453,7 +10415,9 @@
     "_space_value",
     "_value_atom",
     "_raw_item",
-    "_raw_token"
+    "_raw_token",
+    "_compound_tail",
+    "_combination"
   ],
   "supertypes": [],
   "reserved": {}
