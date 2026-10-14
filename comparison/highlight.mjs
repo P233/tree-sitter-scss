@@ -15,11 +15,16 @@ function themeKey(name, theme) {
 
 export function highlight(source, captures, themes) {
   const nodes = new Map();
+  const keys = new Map();
   // Later query captures override earlier captures on the same node, including unknown roles.
   for (const capture of captures) nodes.set(capture.node.id, capture);
   const events = [];
   for (const capture of nodes.values()) {
-    const key = themeKey(capture.name, themes.light);
+    let key = keys.get(capture.name);
+    if (key === undefined) {
+      key = themeKey(capture.name, themes.light);
+      keys.set(capture.name, key);
+    }
     const { startIndex: start, endIndex: end } = capture.node;
     if (!key || start === end) continue;
     const range = { start, end, key, name: capture.name };
