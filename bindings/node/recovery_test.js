@@ -377,7 +377,7 @@ test("recovery debt stays visible", () => {
     // Inside an argument list, recovery may keep the group open over a declaration whose value starts with a call.
     const call = parser.parse(`.a {\n  margin: fn(c,\n  width: calc(1px + 2px);\n}\n.y {}\n${tail}\n`).rootNode;
     assert.ok(!declarations(call.firstNamedChild).includes("width: calc(1px + 2px);"), `${dialect}: call`);
-    // An unpaired bracket still absorbs the following rules.
+    // An unpaired or empty bracket in a selector still absorbs the following rules.
     for (const line of ["&[d", ".b []"]) {
       const root = parser.parse(above(`color: red;\n  ${line}`)).rootNode;
       assert.notDeepEqual(errors(root.firstNamedChild), [line], `${dialect}: ${line}`);
