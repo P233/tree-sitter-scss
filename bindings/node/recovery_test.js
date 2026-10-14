@@ -36,6 +36,7 @@ test("a statement typed above a declaration ends at its own line", () => {
       ["&:is(.c, .)", "&:is(.c"],
       [".b-#{", ".b-"],
       [".b-#{$}", ".b-"],
+      [".b-#{$x}", ".b-"],
       // A line-leading combinator or interpolation is skipped as one error.
       [">", ">"],
       ["+", "+"],
@@ -43,6 +44,9 @@ test("a statement typed above a declaration ends at its own line", () => {
       ["> .", "> ."],
       ["#{}", "#{}"],
       ["#{$}", "#{$}"],
+      ["#{$x}", "#{$x}"],
+      ["#{$x}#{map.get($m, a)}", "#{$x}#{map.get($m, a)}"],
+      ["#{$x", "#{$x"],
       // An attribute operator before its value parses, as an editing tolerance.
       ["&[d=]", "&[d=]"],
       ["@media (", "@media ("]

@@ -604,9 +604,10 @@ static bool tail_start(int32_t character, bool is_touching) {
 // Whether only such punctuation ends the line above a declaration; the token claims it.
 static bool tail_ends_statement(TSLexer *lexer, unsigned token) {
   unsigned budget = LOOKAHEAD_LIMIT;
-  unsigned interpolations = 0;
   bool is_touching = true;
-  for (; budget; budget--) {
+  // Decremented first: a closed interpolation may spend the rest of the budget.
+  while (budget) {
+    budget--;
     int32_t character = lexer->lookahead;
     if (character == ' ' || character == '\t') {
       lexer->advance(lexer, false);
@@ -617,14 +618,14 @@ static bool tail_ends_statement(TSLexer *lexer, unsigned token) {
     if (character == '(' && !is_touching) break;
     if (character == '#') {
       lexer->advance(lexer, false);
+      // A same-line interpolation, also one still open at the line end, leaves the line unfinished too.
       if (lexer->lookahead == '{') {
         lexer->advance(lexer, false);
-        interpolations++;
+        if (!skip_line_interpolation(lexer, &budget)) {
+          lexer->mark_end(lexer);
+          break;
+        }
       }
-    } else if ((character == '}' || character == '$') && interpolations) {
-      // `#{}` and `#{$}` being typed leave the line unfinished too.
-      lexer->advance(lexer, false);
-      if (character == '}') interpolations--;
     } else if (tail_start(character, true) || character == ')' || character == ']') {
       lexer->advance(lexer, false);
     } else {
