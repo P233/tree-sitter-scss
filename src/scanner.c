@@ -254,12 +254,17 @@ static void lowercase(char *word) {
   }
 }
 
-// Claim only an identifier followed by one `|`, keeping specialized name tokens out of ordinary selectors.
-static bool scan_namespace_prefix(TSLexer *lexer, bool css) {
+static bool damaged_declaration_rest(TSLexer *lexer);
+
+// Claim only an identifier followed by one `|`, keeping specialized name tokens out of ordinary selectors. At a
+// statement start, the name also decides whether a colon typed into it makes the line one error.
+static bool scan_namespace_prefix(TSLexer *lexer, bool css, bool is_statement_start) {
+  bool is_custom = false;
   if (lexer->lookahead == '-') {
     lexer->advance(lexer, false);
     if (lexer->lookahead == '-') {
       lexer->advance(lexer, false);
+      is_custom = true;
     } else if (!name_start(lexer->lookahead) && lexer->lookahead != '\\') {
       return false;
     }
@@ -288,6 +293,10 @@ static bool scan_namespace_prefix(TSLexer *lexer, bool css) {
     } else {
       break;
     }
+  }
+  // Only a colon touching both names, as a pseudo-class's does, is checked, so a spaced declaration costs nothing.
+  if (lexer->lookahead == ':' && is_statement_start && !is_custom && !is_after_space) {
+    return damaged_declaration_rest(lexer);
   }
   if (lexer->lookahead != '|' || is_after_space) return false;
   lexer->advance(lexer, false);
@@ -433,6 +442,47 @@ static bool value_ends_on_line(TSLexer *lexer, unsigned *budget) {
     } else if (character == '{' || character == '}') {
       return false;
     } else if (character == ';' && !groups) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// After a name and the colon touching it, a second name with its own colon, as in `op:acity:`, makes a line ending with
+// `;` before any block neither a selector nor a declaration. The never-valid token covers the line through its `;`.
+static bool damaged_declaration_rest(TSLexer *lexer) {
+  unsigned budget = LOOKAHEAD_LIMIT;
+  lexer->advance(lexer, false);
+  if (!name_start(lexer->lookahead) && lexer->lookahead != '\\') return false;
+  // An escaped character, as in `fade\:in`, stays part of the name.
+  for (; budget && (name_character(lexer->lookahead) || lexer->lookahead == '\\'); budget--) {
+    if (lexer->lookahead == '\\') lexer->advance(lexer, false);
+    if (lexer->eof(lexer) || line_break(lexer->lookahead)) return false;
+    lexer->advance(lexer, false);
+  }
+  while (lexer->lookahead == ' ' || lexer->lookahead == '\t') lexer->advance(lexer, false);
+  if (lexer->lookahead != ':') return false;
+  unsigned groups = 0;
+  while (budget && !lexer->eof(lexer) && !line_break(lexer->lookahead)) {
+    budget--;
+    int32_t character = lexer->lookahead;
+    lexer->advance(lexer, false);
+    if (character == '\\') {
+      if (!lexer->eof(lexer) && !line_break(lexer->lookahead)) lexer->advance(lexer, false);
+    } else if (opens_unit(lexer, character)) {
+      if (!skip_unit(lexer, character, &budget)) return false;
+    } else if (character == '/' && lexer->lookahead == '/') {
+      return false;
+    } else if (character == '(' || character == '[') {
+      groups++;
+    } else if (character == ')' || character == ']') {
+      if (!groups) return false;
+      groups--;
+    } else if (character == '{' || character == '}') {
+      return false;
+    } else if (character == ';' && !groups) {
+      lexer->mark_end(lexer);
+      lexer->result_symbol = UNFINISHED_HEADER;
       return true;
     }
   }
@@ -825,7 +875,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
   // Where numbers are also valid, a signed number relies on the internal number lexer.
   if (valid_symbols[NAMESPACE_PREFIX] &&
       (name_start(lexer->lookahead) || lexer->lookahead == '-' || lexer->lookahead == '\\')) {
-    return scan_namespace_prefix(lexer, css);
+    return scan_namespace_prefix(lexer, css, valid_symbols[STATEMENT_BREAK] && valid_symbols[STATEMENT_COMMENT_START]);
   }
   // A `$` that does not start a name is unfinished; recovery supplies the missing name. CSS URL payloads own `$`.
   if (valid_symbols[INCOMPLETE_VARIABLE_PREFIX] && !(css && valid_symbols[LITERAL_CSS_URL]) &&

@@ -113,6 +113,33 @@ test("same-line typos in a declaration block stay inside their block", () => {
   });
 });
 
+test("a colon typed into a name makes its line one error", () => {
+  eachParser((parser, dialect) => {
+    for (const [block, line] of [
+      [".a { op:acity: 0.4; }", "op:acity: 0.4;"],
+      [".a {\n  color:width: 1px;\n}", "color:width: 1px;"]
+    ]) {
+      const root = parser.parse(`${block}\n${tail}\n`).rootNode;
+      assert.equal(root.namedChildCount, 301, `${dialect}: ${block}`);
+      assert.deepEqual(errors(root.firstNamedChild), [line], `${dialect}: ${block}`);
+    }
+    // Compact rules and declarations whose colons touch names stay complete.
+    for (const source of [
+      "a:hover{color:red;}",
+      ".a{b:c;d:e}",
+      ".a { background:url(data:image/png;base64,iVBOR); }",
+      ":root { --x:a:b; }",
+      ".a { width:if(style(--x):1px;else:2px); }",
+      '.a { content:"a:b"; }',
+      ".a{animation-name:fade\\:in;}",
+      ".a { grid-area:md\\:main; }",
+      ".a { font-family:Foo\\:Bar, serif; }"
+    ]) {
+      assert.equal(parser.parse(source).rootNode.hasError, false, `${dialect}: ${source}`);
+    }
+  });
+});
+
 test("unfinished block at-rule headers end before a declaration line", () => {
   eachParser((parser, dialect) => {
     for (const header of [
@@ -279,15 +306,10 @@ test("an unfinished variable or else head keeps its callable scope", () => {
 
 test("recovery debt stays visible", () => {
   eachParser((parser, dialect) => {
-    // A colon touching a name or an unpaired bracket still absorbs the following rules. So can a control header
-    // whose group stays open past its first line, where the next declaration also reads as a query argument.
-    for (const block of [
-      ".a { op:acity: 0.4; }",
-      ".a {\n  color:width: 1px;\n}",
-      ".a {\n  @each $x in fn(\n    a,\n    width: 1px;\n}"
-    ]) {
-      assert.notEqual(parser.parse(`${block}\n${tail}\n`).rootNode.namedChildCount, 301, `${dialect}: ${block}`);
-    }
+    // A control header whose group stays open past its first line can still absorb the following rules, where the
+    // next declaration also reads as a query argument. So does an unpaired bracket.
+    const header = ".a {\n  @each $x in fn(\n    a,\n    width: 1px;\n}";
+    assert.notEqual(parser.parse(`${header}\n${tail}\n`).rootNode.namedChildCount, 301, `${dialect}: ${header}`);
     for (const line of ["&[d", ".b []"]) {
       const root = parser.parse(above(`color: red;\n  ${line}`)).rootNode;
       assert.notDeepEqual(errors(root.firstNamedChild), [line], `${dialect}: ${line}`);
