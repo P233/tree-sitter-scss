@@ -117,7 +117,17 @@ test("a colon typed into a name makes its line one error", () => {
   eachParser((parser, dialect) => {
     for (const [block, line] of [
       [".a { op:acity: 0.4; }", "op:acity: 0.4;"],
-      [".a {\n  color:width: 1px;\n}", "color:width: 1px;"]
+      [".a {\n  color:width: 1px;\n}", "color:width: 1px;"],
+      [".a {\n  margin:-top: 1px;\n}", "margin:-top: 1px;"],
+      // A block's last declaration may lack its `;`.
+      [".a { color: red; op:acity: 0.4 }", "op:acity: 0.4"],
+      [".a {\n  color: red;\n  op:acity: 0.4\n\n}", "op:acity: 0.4"],
+      [".a {\n  border:top:1px solid\n  color: red;\n}", "border:top:1px solid"],
+      [".a {\n  font:family: a\\b\n}", "font:family: a\\b"],
+      // A comment after the line's text stays a comment.
+      [".a {\n  op:acity: 0.4 /* c */\n  width: 1px;\n}", "op:acity: 0.4"],
+      [".a {\n  op:acity: 0.4 // c\n}", "op:acity: 0.4"],
+      [".a {\n  op:acity: 0.4\n  // c\n}", "op:acity: 0.4"]
     ]) {
       const root = parser.parse(`${block}\n${tail}\n`).rootNode;
       assert.equal(root.namedChildCount, 301, `${dialect}: ${block}`);
@@ -133,7 +143,9 @@ test("a colon typed into a name makes its line one error", () => {
       '.a { content:"a:b"; }',
       ".a{animation-name:fade\\:in;}",
       ".a { grid-area:md\\:main; }",
-      ".a { font-family:Foo\\:Bar, serif; }"
+      ".a { font-family:Foo\\:Bar, serif; }",
+      ".x { a:hover:focus { color: red; } }",
+      ".x {\n  a:hover:not(.b) {\n    color: red;\n  }\n}"
     ]) {
       assert.equal(parser.parse(source).rootNode.hasError, false, `${dialect}: ${source}`);
     }

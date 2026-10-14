@@ -448,47 +448,6 @@ static bool value_ends_on_line(TSLexer *lexer, unsigned *budget) {
   return false;
 }
 
-// After a name and the colon touching it, a second name with its own colon, as in `op:acity:`, makes a line ending with
-// `;` before any block neither a selector nor a declaration. The never-valid token covers the line through its `;`.
-static bool damaged_declaration_rest(TSLexer *lexer) {
-  unsigned budget = LOOKAHEAD_LIMIT;
-  lexer->advance(lexer, false);
-  if (!name_start(lexer->lookahead) && lexer->lookahead != '\\') return false;
-  // An escaped character, as in `fade\:in`, stays part of the name.
-  for (; budget && (name_character(lexer->lookahead) || lexer->lookahead == '\\'); budget--) {
-    if (lexer->lookahead == '\\') lexer->advance(lexer, false);
-    if (lexer->eof(lexer) || line_break(lexer->lookahead)) return false;
-    lexer->advance(lexer, false);
-  }
-  while (lexer->lookahead == ' ' || lexer->lookahead == '\t') lexer->advance(lexer, false);
-  if (lexer->lookahead != ':') return false;
-  unsigned groups = 0;
-  while (budget && !lexer->eof(lexer) && !line_break(lexer->lookahead)) {
-    budget--;
-    int32_t character = lexer->lookahead;
-    lexer->advance(lexer, false);
-    if (character == '\\') {
-      if (!lexer->eof(lexer) && !line_break(lexer->lookahead)) lexer->advance(lexer, false);
-    } else if (opens_unit(lexer, character)) {
-      if (!skip_unit(lexer, character, &budget)) return false;
-    } else if (character == '/' && lexer->lookahead == '/') {
-      return false;
-    } else if (character == '(' || character == '[') {
-      groups++;
-    } else if (character == ')' || character == ']') {
-      if (!groups) return false;
-      groups--;
-    } else if (character == '{' || character == '}') {
-      return false;
-    } else if (character == ';' && !groups) {
-      lexer->mark_end(lexer);
-      lexer->result_symbol = UNFINISHED_HEADER;
-      return true;
-    }
-  }
-  return false;
-}
-
 // Whether a group still open around this point may close before the next block; an unknown answer counts as yes.
 static bool group_closes_ahead(TSLexer *lexer, unsigned *budget) {
   unsigned groups = 0;
@@ -563,6 +522,76 @@ static DeclarationStart declaration_start(TSLexer *lexer, bool has_name, unsigne
 static bool declaration_name_follows(TSLexer *lexer, unsigned *budget) {
   DeclarationStart start = declaration_start(lexer, false, budget, false);
   return start == DECLARATION || (start == TOUCHING_COLON && value_ends_on_line(lexer, budget));
+}
+
+// After a name and the colon touching it, a second name with its own colon, as in `op:acity:`, makes a line neither a
+// selector nor a declaration when no block follows on it: it ends with `;`, reaches `}`, or ends before `}` or a
+// declaration line. The never-valid token covers the line through its `;`, or up to the `}` or the line end.
+static bool damaged_declaration_rest(TSLexer *lexer) {
+  unsigned budget = LOOKAHEAD_LIMIT;
+  lexer->advance(lexer, false);
+  if (lexer->lookahead == '-') lexer->advance(lexer, false);
+  if (!name_start(lexer->lookahead) && lexer->lookahead != '\\') return false;
+  // An escaped character, as in `fade\:in`, stays part of the name.
+  for (; budget && (name_character(lexer->lookahead) || lexer->lookahead == '\\'); budget--) {
+    if (lexer->lookahead == '\\') lexer->advance(lexer, false);
+    if (lexer->eof(lexer) || line_break(lexer->lookahead)) return false;
+    lexer->advance(lexer, false);
+  }
+  while (lexer->lookahead == ' ' || lexer->lookahead == '\t') lexer->advance(lexer, false);
+  if (lexer->lookahead != ':') return false;
+  lexer->advance(lexer, false);
+  lexer->mark_end(lexer);
+  lexer->result_symbol = UNFINISHED_HEADER;
+  unsigned groups = 0;
+  while (budget && !lexer->eof(lexer) && !line_break(lexer->lookahead)) {
+    budget--;
+    int32_t character = lexer->lookahead;
+    // A block's last declaration may lack its `;`; the token leaves the `}` to the block.
+    if (character == '}' && !groups) return true;
+    lexer->advance(lexer, false);
+    // A comment that ends the line's text stays a comment; inside a group, `//` may belong to a URL.
+    if (character == '/' && (lexer->lookahead == '*' || (lexer->lookahead == '/' && !groups))) {
+      skip_comment(lexer, &budget);
+      continue;
+    }
+    if (!css_space(character)) lexer->mark_end(lexer);
+    if (character == '\\') {
+      if (lexer->eof(lexer) || line_break(lexer->lookahead)) continue;
+      lexer->advance(lexer, false);
+      lexer->mark_end(lexer);
+    } else if (opens_unit(lexer, character)) {
+      if (!skip_unit(lexer, character, &budget)) return false;
+      lexer->mark_end(lexer);
+    } else if (character == '/' && lexer->lookahead == '/') {
+      return false;
+    } else if (character == '(' || character == '[') {
+      groups++;
+    } else if (character == ')' || character == ']') {
+      if (!groups) return false;
+      groups--;
+    } else if (character == '{' || character == '}') {
+      return false;
+    } else if (character == ';' && !groups) {
+      return true;
+    }
+  }
+  if (!budget || groups || lexer->eof(lexer)) return false;
+  // The line ended without `;`: it is one error before the block's `}` or a declaration line, past comments.
+  while (budget) {
+    if (css_space(lexer->lookahead)) {
+      budget--;
+      lexer->advance(lexer, false);
+    } else if (lexer->lookahead == '/') {
+      lexer->advance(lexer, false);
+      if (lexer->lookahead != '*' && lexer->lookahead != '/') return false;
+      skip_comment(lexer, &budget);
+    } else {
+      break;
+    }
+  }
+  if (lexer->lookahead == '}') return true;
+  return declaration_start(lexer, false, &budget, false) != NO_DECLARATION && value_ends_on_line(lexer, &budget);
 }
 
 // A combinator or comma, or a compound part touching the compound before it, can leave a selector line unfinished.
