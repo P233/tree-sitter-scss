@@ -255,6 +255,14 @@ test("Sass operators retain grouped operands and CRLF retains value-item boundar
   for (const word of ["not", "and", "or"]) assertRole(result, word, "operator.expression", ["function"]);
   assertRole(result, "foo\\61\r", "constant");
   assertRole(result, "bar", "constant");
+  // A legacy if() argument may start with a Sass word operator, which a CSS if() condition shares.
+  for (const source of [
+    "$x: if(not $a, 1, 2);",
+    "@function f($v) { @return if(not index($l, $v), null, $v); }",
+    "$x: if((not $a), 1, 2);"
+  ]) {
+    assertRole(captures(source, Scss), "not", "operator.expression", ["operator"]);
+  }
 });
 
 test("custom names are variables and raw payload tokens keep CSS roles in both dialects", () => {

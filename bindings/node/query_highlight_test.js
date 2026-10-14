@@ -41,6 +41,8 @@ test("range query features retain unary signs and compound left values", () => {
       "math.min(1px, 2px) < width",
       "theme.$size < width",
       "1px < width < 10px",
+      "1px < width < max",
+      "$a < width < b",
       "not (width > 1px)",
       "1px /* c */ < width",
       "width /* c */ > 1px",
@@ -189,10 +191,11 @@ test("brackets, semicolons and colons outside pseudo-classes stay uncaptured", (
   assert.equal(roleAt(source, captures, ":hover"), "attribute");
 });
 
-test("value operators and units have sub-roles while query and type operators stay structural", () => {
+test("value operators and units have sub-roles while query, condition and type operators stay structural", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     const source =
-      "@media not screen and (width > 10px) { .a > .b { width: calc(100% - 2rem); } } @function --f(--n <length>+) returns <length> { result: 1px; }";
+      "@media not screen and (width > 10px) { .a > .b { width: calc(100% - 2rem); } } @function --f(--n <length>+) returns <length> { result: 1px; }" +
+      " @media (400px <= width <= 700px) {} .c { d: if(media(width >= 1px) and supports(display: grid): 1px; else: 2px); e: if(not media(print): 1px); }";
     const parser = new Parser();
     parser.setLanguage(language);
     const tree = parser.parse(source);
@@ -206,7 +209,11 @@ test("value operators and units have sub-roles while query and type operators st
       ["and", 0],
       ["width >", 6],
       [".a >", 3],
-      ["length>+", 7]
+      ["length>+", 7],
+      ["400px <=", 6],
+      ["width <=", 6],
+      ["1px) and", 5],
+      ["(not media", 1]
     ]) {
       assert.equal(roleAt(source, captures, text, offset), "operator", text);
     }

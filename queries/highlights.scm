@@ -46,10 +46,8 @@
 ; ID and placeholder prefixes inherit the complete selector capture; a class dot restores it over the base delimiter.
 (pseudo_selector [":" "::"] @attribute)
 (class_selector "." @attribute)
-; Query and type operators retain their structural role.
-[(query_statement (operator) @operator)
- (query_group (operator) @operator)
- (type_annotation (operator) @operator)]
+; Query, condition and type operators wrap `|` and retain their structural role.
+(operator "|") @operator
 (map_entry key: (plain_value) @property)
 (keyframes_statement (declaration_block (rule_set (selectors [(tag_selector) @keyword (complex_selector (tag_selector) @keyword)]))))
 ; A for loop shares `to`, so a scope limit restores its keyword role.

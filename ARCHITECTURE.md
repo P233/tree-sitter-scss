@@ -72,7 +72,7 @@ Keep the CSS adapter, atomic descriptor publication, context-specific groups, ge
 
 Complete control-chain grouping and public editor-facing structural wrappers have downstream consumers; removing them requires a coordinated schema/query and host-consumer migration. Coarsening math constants, map keys or query-feature colors is a separate behavior decision.
 
-A query group names a boolean or range feature `property_name`, as `feature_query` does, so the highlight query needs no structural pattern for it. Both readings of a group parse until it closes, which keeps unary signs and compound left values such as `1 / 2 < aspect-ratio`; dynamic precedence prefers the feature test, and a leading name over one after the value side, as in `(width < height)`. A feature name starts with a word or `--`, so `(#{$query})` stays a value. A new query pattern needs capture and compile-time evidence.
+A query group names a boolean or range feature `property_name`, as `feature_query` does, so the highlight query needs no structural pattern for it. Both readings of a group parse until it closes, which keeps unary signs and compound left values such as `1 / 2 < aspect-ratio`; dynamic precedence prefers the feature test, and a leading name over one after the value side, as in `(width < height)`. A feature name starts with a word or `--`, so `(#{$query})` stays a value. A new query pattern needs capture and compile-time evidence. Query, condition and type operators wrap an anonymous `|` child that one `(operator "|")` pattern matches: a pattern under a `query_statement`, `query_group` or `type_annotation` parent makes query analysis enumerate the hidden value rules below it, and those parent patterns took about a third of the query's compile time.
 
 ## Rejected designs
 

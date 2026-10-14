@@ -132,6 +132,7 @@ module.exports = grammar({
   ],
   conflicts: $ => [
     [$.operator, $._comparison_operator],
+    [$.operator, $._query_operator],
     [$._interpolated_identifier, $._expression_atom, $._feature_test],
     [$._expression_atom, $._feature_test],
     [$._interpolated_identifier, $._feature_test],
@@ -483,8 +484,14 @@ module.exports = grammar({
     flag: () => /![ \t]*[-\w]+/,
     important: () => /![ \t]*[iI][mM][pP][oO][rR][tT][aA][nN][tT]/,
     // Reused query words must also reduce as identifiers after an enclosing call changes.
-    // Prefer their operator role only where a query condition accepts it.
-    _query_operator: $ => prec(1, choice("=", $._query_word_operator)),
+    // Prefer their operator role only where a query condition accepts it. The scanner's Sass words fork instead,
+    // because a legacy if() argument may start with one where a CSS if() condition may too.
+    // Structural operators wrap an anonymous `|`, so the highlight query matches them without parent patterns.
+    _query_operator: $ =>
+      choice(
+        prec(1, choice(alias("=", "|"), alias($._query_word_operator, "|"))),
+        prec.dynamic(1, alias($._sass_operator, "|"))
+      ),
     _query_word_operator: () => token(choice(...["not", "or", "and", "only"].map(name => keyword(name, true)))),
     _identifier: () => IDENTIFIER,
 
@@ -664,8 +671,9 @@ module.exports = grammar({
           seq("<", alias($._identifier, $.type_name), ">"),
           alias(choice($._identifier, $._type_function_name), $.type_name)
         ),
-        optional(alias(choice("+", "#"), $.operator))
+        optional(alias($._type_operator, $.operator))
       ),
+    _type_operator: () => choice(alias("+", "|"), alias("#", "|")),
     include_statement: $ => seq($._include_head, choice(";", $._block)),
     _include_head: $ =>
       seq(
@@ -724,7 +732,8 @@ module.exports = grammar({
     _query_call: $ => functionCall($, $._query_function_name, alias($._query_call_group, $.query_group)),
     _query_call_group: $ => seq(token.immediate("("), optional(choice($._query_condition, $.at_keyword)), ")"),
     _query_condition: $ => choice(alias($._property, $.feature_query), $._query_value, $._feature_test),
-    // Both readings parse to the group's end; dynamic precedence prefers a leading name, then one after the value.
+    // Both readings parse to the group's end; dynamic precedence prefers a leading name, then a range's middle name,
+    // then one after the value.
     _feature_test: $ =>
       choice(
         prec.dynamic(2, featureName($)),
@@ -737,11 +746,11 @@ module.exports = grammar({
             repeat($._query_atom),
             alias($._comparison_operator, $.operator),
             featureName($),
-            optional($._query_value)
+            optional(prec.dynamic(2, seq(alias($._comparison_operator, $.operator), $._query_value)))
           )
         )
       ),
-    _comparison_operator: () => choice("=", "<", "<=", ">", ">="),
+    _comparison_operator: () => choice(...["=", "<", "<=", ">", ">="].map(operator => alias(operator, "|"))),
     feature_query: $ =>
       prec(
         1,
