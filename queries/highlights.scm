@@ -22,10 +22,10 @@
 ["@use" "@forward" "@import" "as" "show" "hide" "with"] @keyword.import
 "@return" @keyword.return
 ["@if" "@else" "@elseif" "if" "else"] @keyword.conditional
-["@each" "@for" "@while" "in" "from" "through"] @keyword.repeat
+["@each" "@for" "@while" "in" "from" "through" "to"] @keyword.repeat
 ["@debug" "@warn"] @keyword.debug
 "@error" @keyword.exception
-["@function" "@mixin" "@include" "@content" "@extend" "@at-root" "using" "returns" "to" "of"] @keyword
+["@function" "@mixin" "@include" "@content" "@extend" "@at-root" "using" "returns" "of"] @keyword
 ["@media" "@supports" "@container" "@scope"
  "@keyframes" "@-webkit-keyframes" "@-moz-keyframes" "@-o-keyframes"
  "@namespace" "@charset" "@layer" "@property"
@@ -39,30 +39,25 @@
 ((raw_text) @string (#match? @string "[A-Za-z0-9]"))
 (escape_sequence) @string.escape
 
-["," "|"] @punctuation.delimiter
+["," "|" "."] @punctuation.delimiter
 
 ; Context overrides
 ; Emacs applies this section after base captures, preserving contextual roles.
-; Class, ID and placeholder prefixes inherit the complete selector capture.
+; ID and placeholder prefixes inherit the complete selector capture; a class dot restores it over the base delimiter.
 (pseudo_selector [":" "::"] @attribute)
-; Dots outside class selectors still separate module members or literal words.
-[(member_expression "." @punctuation.delimiter)
- (call_expression "." @punctuation.delimiter)
- (variable_declaration "." @punctuation.delimiter)
- (include_statement "." @punctuation.delimiter)
- (selector_arguments "." @punctuation.delimiter)
- (dotted_value "." @punctuation.delimiter)]
+(class_selector "." @attribute)
 ; Query and type operators retain their structural role.
 [(query_statement (operator) @operator)
  (query_group (operator) @operator)
  (type_annotation (operator) @operator)]
 (map_entry key: (plain_value) @property)
 (keyframes_statement (declaration_block (rule_set (selectors [(tag_selector) @keyword (complex_selector (tag_selector) @keyword)]))))
-; A scope limit shares `to`, so a for loop restores its repeat role.
-(for_statement "to" @keyword.repeat)
+; A for loop shares `to`, so a scope limit restores its keyword role.
+(scope_statement "to" @keyword)
 (parameter name: (_) @variable.parameter)
-[(arguments (named_argument name: (variable_name) @variable.parameter))
- (conditional (named_argument name: (variable_name) @variable.parameter))]
+(named_argument name: (variable_name) @variable.parameter)
+; A module configuration sets module variables, not parameters.
+(configuration (named_argument name: (variable_name) @variable))
 
 (type_annotation ["<" ">"] @punctuation.bracket)
 ; A wildcard takes the role of the name it stands for.
