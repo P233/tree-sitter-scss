@@ -28,6 +28,7 @@ enum TokenType {
   MISSING_VARIABLE_NAME,
   STATEMENT_BREAK,
   UNFINISHED_HEADER,
+  RAW_PRELUDE,
 };
 
 // Dialect identity belongs to the immutable language entry, never to a buffer
@@ -635,11 +636,16 @@ static bool scan_unfinished_header(TSLexer *lexer, bool is_line_start) {
   return header_ends_early(lexer);
 }
 
-// Whether a later value line, whose name may be partly read, is a whole declaration; the break ends the value above.
-static bool value_ends_before(TSLexer *lexer, bool has_name) {
+// Whether a statement interior may end at the line break just skipped, and whether a group may still be open there.
+typedef enum { NO_LINE_END, LINE_END, LINE_END_IN_GROUP } LineEnd;
+
+// Whether a later line, whose name may be partly read, is a whole declaration; the break ends the statement above.
+// Where a group may be open, the group must also never close after that line.
+static bool statement_ends_before(TSLexer *lexer, bool has_name, LineEnd line_end) {
   unsigned budget = LOOKAHEAD_LIMIT;
   lexer->result_symbol = STATEMENT_BREAK;
-  return declaration_start(lexer, has_name, &budget) != NO_DECLARATION && value_ends_on_line(lexer, &budget);
+  if (declaration_start(lexer, has_name, &budget) == NO_DECLARATION) return false;
+  return line_end == LINE_END_IN_GROUP ? group_line_rest(lexer, &budget) : value_ends_on_line(lexer, &budget);
 }
 
 static bool scan_literal_interpolation(TSLexer *lexer, unsigned token) {
@@ -652,14 +658,16 @@ static bool scan_literal_interpolation(TSLexer *lexer, unsigned token) {
   return true;
 }
 
-// `word` holds `length` consumed characters; a name that is no keyword may start a declaration ending the value.
+// `word` holds `length` consumed characters; a name that is no keyword may start a declaration ending the statement.
 static bool scan_keyword(TSLexer *lexer, const bool *valid_symbols, bool css, char *word, unsigned length,
-                         bool can_end_value) {
+                         LineEnd line_end) {
   bool escaped = false;
   bool has_name = length ? name_character(lexer->lookahead) || lexer->lookahead == '\\' : name_start(lexer->lookahead);
-  if (!scan_identifier(lexer, word, length, css, &escaped)) return can_end_value && value_ends_before(lexer, has_name);
+  if (!scan_identifier(lexer, word, length, css, &escaped)) {
+    return line_end && statement_ends_before(lexer, has_name, line_end);
+  }
   // Interpolation extends the identifier; no keyword may claim its prefix.
-  if (lexer->lookahead == '#') return can_end_value && value_ends_before(lexer, true);
+  if (lexer->lookahead == '#') return line_end && statement_ends_before(lexer, true, line_end);
   // Literal names may be Sass functions; word operators still allow grouped operands.
   if (!css && lexer->lookahead == '(' &&
       (strcmp(word, "true") == 0 || strcmp(word, "false") == 0 || strcmp(word, "null") == 0)) return false;
@@ -683,7 +691,7 @@ static bool scan_keyword(TSLexer *lexer, const bool *valid_symbols, bool css, ch
     if (lexer->lookahead == '.' || lexer->lookahead == '(') return false;
     if (strcmp(folded, "pi") != 0 && strcmp(folded, "e") != 0 && strcmp(folded, "infinity") != 0 &&
         strcmp(folded, "-infinity") != 0 && strcmp(folded, "nan") != 0) {
-      return can_end_value && value_ends_before(lexer, true);
+      return line_end && statement_ends_before(lexer, true, line_end);
     }
     token = CALCULATION_CONSTANT;
   }
@@ -784,15 +792,21 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
   bool is_value_state = valid_symbols[IMPORTANT_BANG] && !valid_symbols[STATEMENT_BREAK] &&
                         (valid_symbols[SASS_BOOLEAN] || valid_symbols[SASS_NULL] || valid_symbols[SASS_OPERATOR] ||
                          valid_symbols[CALCULATION_CONSTANT] || valid_symbols[CSS_VAR_FUNCTION_NAME]);
-  // Zero width at the end of the line above: a declaration that starts the next line ends the value before it.
   bool is_url = valid_symbols[LITERAL_CSS_URL] && !valid_symbols[STATEMENT_BREAK];
-  if ((is_value_state || is_url) && css_space(lexer->lookahead)) lexer->mark_end(lexer);
+  // Raw values and at-rule preludes, such as a custom property's or `@apply`'s, may span declaration-like lines.
+  bool is_inside_statement = !valid_symbols[STATEMENT_BREAK] && !valid_symbols[STATEMENT_COMMENT_START] &&
+                             !valid_symbols[LITERAL_RAW_INTERPOLATION] && !valid_symbols[RAW_PRELUDE];
+  // Zero width at the end of the line above: a declaration that starts the next line ends the statement before it.
+  if ((is_value_state || is_url || is_inside_statement) && css_space(lexer->lookahead)) lexer->mark_end(lexer);
   while (css_space(lexer->lookahead)) {
     last_space = lexer->lookahead;
     has_crossed_line |= line_break(last_space);
     lexer->advance(lexer, true);
   }
-  bool can_end_value = has_crossed_line && is_value_state;
+  // Only a value state is known to be outside every group.
+  LineEnd line_end = !has_crossed_line || !(is_value_state || is_url || is_inside_statement) ? NO_LINE_END
+                     : is_value_state                                                       ? LINE_END
+                                                                                            : LINE_END_IN_GROUP;
   if (valid_symbols[STATEMENT_BREAK] && valid_symbols[STATEMENT_COMMENT_START]) {
     if (lexer->lookahead == '@') {
       // Skipped whitespace, not `get_column`, which rereads the line, decides a line start; no token ends with one.
@@ -826,7 +840,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
       lexer->advance(lexer, false);
       if (!digit(lexer->lookahead) && lexer->lookahead != '.') {
         char word[KEYWORD_BUFFER] = "-";
-        return scan_keyword(lexer, valid_symbols, css, word, 1, can_end_value);
+        return scan_keyword(lexer, valid_symbols, css, word, 1, line_end);
       }
     }
     if (digit(lexer->lookahead) || lexer->lookahead == '.') {
@@ -841,14 +855,12 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
   if ((css && valid_symbols[CSS_VAR_FUNCTION_NAME]) || valid_symbols[CALCULATION_CONSTANT] ||
       (!css && (valid_symbols[SASS_BOOLEAN] || valid_symbols[SASS_NULL] || valid_symbols[SASS_OPERATOR]))) {
     char word[KEYWORD_BUFFER];
-    return scan_keyword(lexer, valid_symbols, css, word, 0, can_end_value);
+    return scan_keyword(lexer, valid_symbols, css, word, 0, line_end);
   }
+  // A Sass url( payload is never a declaration; it and any other statement interior end before a declaration line.
+  // States that reach here may sit inside a group.
+  if (line_end && (!css || !is_url)) return statement_ends_before(lexer, false, LINE_END_IN_GROUP);
   unsigned budget = LOOKAHEAD_LIMIT;
-  // A Sass url( payload is never a declaration, so one on a later line ends an unclosed url( above it.
-  if (!css && is_url && has_crossed_line) {
-    lexer->result_symbol = STATEMENT_BREAK;
-    return declaration_start(lexer, false, &budget) != NO_DECLARATION && group_line_rest(lexer, &budget);
-  }
   if (!css || !valid_symbols[LITERAL_CSS_URL]) return false;
   bool content = false;
   // A payload on a later line shaped `name:` may instead start a declaration below an unclosed url(.

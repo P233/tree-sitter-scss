@@ -9828,6 +9828,10 @@
                   },
                   "named": true,
                   "value": "raw_group"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "_raw_prelude"
                 }
               ]
             }
@@ -10400,6 +10404,10 @@
     {
       "type": "SYMBOL",
       "name": "_unfinished_header"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_raw_prelude"
     }
   ],
   "inline": [

@@ -110,7 +110,9 @@ module.exports = grammar({
     // Ends a statement before a declaration; selector states reject it, so recovery resumes in the statement list.
     $._statement_break,
     // Never valid: a cut-off at-rule header or a line of leading punctuation above a declaration is one error.
-    $._unfinished_header
+    $._unfinished_header,
+    // Never emitted: marks a raw at-rule prelude, which may continue onto declaration-like lines.
+    $._raw_prelude
   ],
   extras: $ => [/\s/, $.block_comment, $.inline_comment],
   word: $ => $._identifier,
@@ -783,7 +785,10 @@ module.exports = grammar({
         $.at_keyword,
         // An at-rule prelude reads `//` as a silent comment, as Sass does.
         repeat(
-          field("prelude", choice(alias($._raw_word, $.raw_text), $._raw_token, alias($._prelude_group, $.raw_group)))
+          field(
+            "prelude",
+            choice(alias($._raw_word, $.raw_text), $._raw_token, alias($._prelude_group, $.raw_group), $._raw_prelude)
+          )
         )
       ),
     _unknown_block: $ => braced(alias($._unknown_declaration_block, $.declaration_block)),

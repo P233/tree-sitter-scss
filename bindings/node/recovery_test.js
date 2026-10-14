@@ -229,6 +229,30 @@ test("an unclosed comment in a value or selector keeps the following rules", () 
   });
 });
 
+test("an unfinished group, call or directive ends before a declaration line", () => {
+  eachParser((parser, dialect) => {
+    const lines = ["width: calc(1px +", "width: if(", "margin: fn(c,"];
+    if (dialect === "scss") {
+      lines.push(
+        "@include m(1,",
+        "@include m($a:",
+        "color: map.get($m,",
+        "color: #{$x",
+        "@debug 1 +",
+        "@return",
+        "@if fn(\n    $b,",
+        "@while fn(\n    $i,",
+        "/* see #{ fix // later */"
+      );
+    }
+    for (const line of lines) {
+      const root = parser.parse(above(line)).rootNode;
+      assert.equal(root.namedChildCount, 302, `${dialect}: ${line}`);
+      assert.ok(declarations(root.firstNamedChild).includes("width: 1px;"), `${dialect}: ${line}`);
+    }
+  });
+});
+
 test("an unfinished variable or else head keeps its callable scope", () => {
   eachParser((parser, dialect) => {
     const scoped = root =>
@@ -255,12 +279,12 @@ test("an unfinished variable or else head keeps its callable scope", () => {
 
 test("recovery debt stays visible", () => {
   eachParser((parser, dialect) => {
-    // A colon touching a name or an unpaired bracket still absorbs the following rules.
-    // So does a control header whose group stays open past its first line.
+    // A colon touching a name or an unpaired bracket still absorbs the following rules. So can a control header
+    // whose group stays open past its first line, where the next declaration also reads as a query argument.
     for (const block of [
       ".a { op:acity: 0.4; }",
       ".a {\n  color:width: 1px;\n}",
-      ".a {\n  @if fn(\n    $b,\n    width: 1px;\n}"
+      ".a {\n  @each $x in fn(\n    a,\n    width: 1px;\n}"
     ]) {
       assert.notEqual(parser.parse(`${block}\n${tail}\n`).rootNode.namedChildCount, 301, `${dialect}: ${block}`);
     }
@@ -272,12 +296,10 @@ test("recovery debt stays visible", () => {
     const brace = parser.parse(`.x { a: b }\n\n{/* section */\n${tail}\n`).rootNode;
     assert.notEqual(brace.namedChildCount, 303, `${dialect}: stray brace`);
   });
-  // SCSS text hosts parse `#{` as an expression, so an unclosed one takes the rest of its host.
+  // SCSS strings parse `#{` as an expression, so an unclosed one takes the rest of its string and more.
   const parser = new Parser().setLanguage(Scss);
-  for (const line of ['content: "a #{$b c";', "/* see #{ fix // later */"]) {
-    assert.notEqual(
-      parser.parse(`.a {\n  ${line}\n  color: red;\n}\n.after {}\n${tail}\n`).rootNode.namedChildCount,
-      302
-    );
-  }
+  assert.notEqual(
+    parser.parse(`.a {\n  content: "a #{$b c";\n  color: red;\n}\n.after {}\n${tail}\n`).rootNode.namedChildCount,
+    302
+  );
 });
