@@ -520,8 +520,9 @@ static bool group_line_rest(TSLexer *lexer, unsigned *budget) {
 
 typedef enum { NO_DECLARATION, DECLARATION, TOUCHING_COLON } DeclarationStart;
 
-// Reads a declaration name and its colon; a name touching the colon may still be a pseudo-class.
-static DeclarationStart declaration_start(TSLexer *lexer, bool has_name, unsigned *budget) {
+// Reads a declaration name and its colon; a name touching the colon may still be a pseudo-class. Where `is_line_local`,
+// only spaces and tabs may precede the colon, so a name ending its line cannot carry the check past that line.
+static DeclarationStart declaration_start(TSLexer *lexer, bool has_name, unsigned *budget, bool is_line_local) {
   if (!has_name) {
     if (lexer->lookahead == '-') lexer->advance(lexer, false);
     if (lexer->lookahead == '-') lexer->advance(lexer, false);
@@ -540,7 +541,11 @@ static DeclarationStart declaration_start(TSLexer *lexer, bool has_name, unsigne
     }
   }
   if (!has_name) return NO_DECLARATION;
-  for (; *budget && css_space(lexer->lookahead); (*budget)--) lexer->advance(lexer, false);
+  for (; *budget; (*budget)--) {
+    bool is_gap = is_line_local ? lexer->lookahead == ' ' || lexer->lookahead == '\t' : css_space(lexer->lookahead);
+    if (!is_gap) break;
+    lexer->advance(lexer, false);
+  }
   if (lexer->lookahead != ':') return NO_DECLARATION;
   lexer->advance(lexer, false);
   int32_t next = lexer->lookahead;
@@ -556,7 +561,7 @@ static DeclarationStart declaration_start(TSLexer *lexer, bool has_name, unsigne
 
 // A declaration starts here: its name and colon, and its whole line when the colon touches a name.
 static bool declaration_name_follows(TSLexer *lexer, unsigned *budget) {
-  DeclarationStart start = declaration_start(lexer, false, budget);
+  DeclarationStart start = declaration_start(lexer, false, budget, false);
   return start == DECLARATION || (start == TOUCHING_COLON && value_ends_on_line(lexer, budget));
 }
 
@@ -620,18 +625,15 @@ static bool tail_ends_statement(TSLexer *lexer, unsigned token) {
 // Whether a header meets a declaration line before its block; the never-valid token covers the header.
 static bool header_ends_early(TSLexer *lexer) {
   unsigned groups = 0;
-  // Within a group only the header's first line counts, so a header runs the declaration checks at most twice.
-  bool is_first_line = true;
+  // Each later line is checked, up to one that starts a declaration; the one budget bounds the whole header.
   for (unsigned budget = LOOKAHEAD_LIMIT; budget && !lexer->eof(lexer);) {
     int32_t character = lexer->lookahead;
-    if (line_break(character) && (!groups || is_first_line)) {
-      is_first_line = false;
+    if (line_break(character)) {
       for (; budget && css_space(lexer->lookahead); budget--) lexer->advance(lexer, false);
       // An open group ends the header there only if it never closes.
-      if (declaration_start(lexer, false, &budget) != NO_DECLARATION) {
+      if (declaration_start(lexer, false, &budget, true) != NO_DECLARATION) {
         return groups ? group_line_rest(lexer, &budget) : value_ends_on_line(lexer, &budget);
       }
-      if (!groups) return false;
       continue;
     }
     budget--;
@@ -694,7 +696,7 @@ typedef enum { NO_LINE_END, LINE_END, LINE_END_IN_GROUP } LineEnd;
 static bool statement_ends_before(TSLexer *lexer, bool has_name, LineEnd line_end) {
   unsigned budget = LOOKAHEAD_LIMIT;
   lexer->result_symbol = STATEMENT_BREAK;
-  if (declaration_start(lexer, has_name, &budget) == NO_DECLARATION) return false;
+  if (declaration_start(lexer, has_name, &budget, false) == NO_DECLARATION) return false;
   return line_end == LINE_END_IN_GROUP ? group_line_rest(lexer, &budget) : value_ends_on_line(lexer, &budget);
 }
 

@@ -269,6 +269,8 @@ test("an unfinished group, call or directive ends before a declaration line", ()
         "@return",
         "@if fn(\n    $b,",
         "@while fn(\n    $i,",
+        "@each $x in fn(\n    a,",
+        "@each $x in fn(\n    a\n    b,",
         "/* see #{ fix // later */"
       );
     }
@@ -276,6 +278,15 @@ test("an unfinished group, call or directive ends before a declaration line", ()
       const root = parser.parse(above(line)).rootNode;
       assert.equal(root.namedChildCount, 302, `${dialect}: ${line}`);
       assert.ok(declarations(root.firstNamedChild).includes("width: 1px;"), `${dialect}: ${line}`);
+    }
+    // Each later header line gets the header's own check, which also keeps a declaration whose value is a call; a name
+    // alone on a group line leaves the line break to that check.
+    for (const header of ["@each $x in fn(\n    a", "@if $a ==\n    $b"]) {
+      for (const declaration of ["background: url(a.png);", "width: calc(1px + 2px);"]) {
+        const root = parser.parse(`.a {\n  ${header}\n  ${declaration}\n}\n.y {}\n${tail}\n`).rootNode;
+        assert.equal(root.namedChildCount, 302, `${dialect}: ${header} ${declaration}`);
+        assert.ok(declarations(root.firstNamedChild).includes(declaration), `${dialect}: ${header} ${declaration}`);
+      }
     }
   });
 });
@@ -306,10 +317,10 @@ test("an unfinished variable or else head keeps its callable scope", () => {
 
 test("recovery debt stays visible", () => {
   eachParser((parser, dialect) => {
-    // A control header whose group stays open past its first line can still absorb the following rules, where the
-    // next declaration also reads as a query argument. So does an unpaired bracket.
-    const header = ".a {\n  @each $x in fn(\n    a,\n    width: 1px;\n}";
-    assert.notEqual(parser.parse(`${header}\n${tail}\n`).rootNode.namedChildCount, 301, `${dialect}: ${header}`);
+    // Inside an argument list, recovery may keep the group open over a declaration whose value starts with a call.
+    const call = parser.parse(`.a {\n  margin: fn(c,\n  width: calc(1px + 2px);\n}\n.y {}\n${tail}\n`).rootNode;
+    assert.ok(!declarations(call.firstNamedChild).includes("width: calc(1px + 2px);"), `${dialect}: call`);
+    // An unpaired bracket still absorbs the following rules.
     for (const line of ["&[d", ".b []"]) {
       const root = parser.parse(above(`color: red;\n  ${line}`)).rootNode;
       assert.notDeepEqual(errors(root.firstNamedChild), [line], `${dialect}: ${line}`);
