@@ -190,11 +190,23 @@ test("unfinished block at-rule headers end before a declaration line", () => {
 
 test("damaged top-level at-rule headers keep the following rules", () => {
   eachParser((parser, dialect) => {
-    // A `@for` header cut off in or after a clause word is one error before the next rule.
-    for (const header of ["@for $i from 1 t", "@for $i from 1 thr", "@for $i from 1 through"]) {
-      const root = parser.parse(`${header}\n.y {\n  color: blue;\n}\n${tail}\n`).rootNode;
-      assert.equal(root.namedChildCount, 302, `${dialect}: ${header}`);
-      assert.deepEqual(errors(root), [header], `${dialect}: ${header}`);
+    // A header cut off before a rule line, also in or after a clause word, is one error before that rule. A Sass
+    // expression may continue with an unquoted `#name` or the `%` operator, so only `.` and `:` lines end one.
+    const control = ["@for $i from 1 t", "@for $i from 1 thr", "@for $i from 1 through", "@each $x in", "@if $a =="];
+    for (const [headers, selectors] of [
+      [control, [".y", ":root"]],
+      [
+        ["@media screen", "@supports not"],
+        [".y", "%y", ":root", "#main"]
+      ]
+    ]) {
+      for (const header of headers) {
+        for (const selector of selectors) {
+          const root = parser.parse(`${header}\n${selector} {\n  color: blue;\n}\n${tail}\n`).rootNode;
+          assert.equal(root.namedChildCount, 302, `${dialect}: ${header} ${selector}`);
+          assert.deepEqual(errors(root), [header], `${dialect}: ${header} ${selector}`);
+        }
+      }
     }
     // A stray brace is the only error: the `--` name after it still lexes as one and names the definition.
     const root = parser.parse(`@function {--double(--n <number>) { result: 1; }\n${tail}\n`).rootNode;
