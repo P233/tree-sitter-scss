@@ -151,6 +151,9 @@ test("unfinished block at-rule headers end before a declaration line", () => {
       "@if $a == (",
       "@while fn(",
       "@at-root .b",
+      "@page",
+      "@PAGE",
+      "@page :fi",
       "@media screen",
       "@MEDIA",
       "@media #{$q}",
@@ -185,6 +188,32 @@ test("unfinished block at-rule headers end before a declaration line", () => {
     const mixin = parser.parse(`@mixin foo\n  color: red;\n}\n.y {\n  color: blue;\n}\n`).rootNode;
     const rule = mixin.namedChildren.find(node => node.type === "rule_set");
     assert.equal(rule.text, ".y {\n  color: blue;\n}", dialect);
+  });
+});
+
+test("an unfinished block at-rule header ends at its block's closing brace", () => {
+  eachParser((parser, dialect) => {
+    // Recovery that skipped the `}` could continue the header with the next rule and keep the block open.
+    const selectorPreludes = ["@page", "@page :fi", "@at-root", "@at-root .b"];
+    const headers = ["@if $a ==", "@if $a ==\n    $b", "@each $x in a,", "@while fn(", "@scope (.a) to ("];
+    for (const header of [...selectorPreludes, ...headers]) {
+      for (const end of [" }", "\n}"]) {
+        const root = parser.parse(
+          `.a {\n  color: red;\n  ${header}${end}\n.y {\n  color: blue;\n}\n${tail}\n`
+        ).rootNode;
+        assert.equal(root.namedChildCount, 302, `${dialect}: ${header}${end}`);
+        assert.deepEqual(errors(root), [header], `${dialect}: ${header}${end}`);
+      }
+    }
+  });
+});
+
+test("a stray brace inside a header group is one error", () => {
+  eachParser((parser, dialect) => {
+    // A `}` inside a group that closes after it cannot be the end of the block around the header.
+    const root = parser.parse(`@supports ((display:grid) and (font-family}:foo,bar)) {}\n${tail}\n`).rootNode;
+    assert.equal(root.namedChildCount, 301, dialect);
+    assert.deepEqual(errors(root), ["}"], dialect);
   });
 });
 

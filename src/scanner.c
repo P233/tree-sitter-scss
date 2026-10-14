@@ -661,14 +661,16 @@ static bool rule_line_follows(TSLexer *lexer, int32_t first, unsigned *budget) {
 typedef enum {
   // A CSS prelude, or a Sass definition's name and parameters.
   PLAIN_PRELUDE,
+  // `@layer`'s, which may also end its statement at a `}`.
+  LAYER_PRELUDE,
   // A SassScript expression, which an unquoted `#name` string or the `%` operator may continue.
   SASS_EXPRESSION,
   // A selector, which a rule line may continue.
   SELECTOR_PRELUDE,
 } Prelude;
 
-// Whether a header meets a declaration line, or a rule line its prelude cannot continue onto, before its block; the
-// never-valid token covers the header.
+// Whether a header meets a declaration line, a rule line its prelude cannot continue onto, or a `}` before its block;
+// the never-valid token covers the header.
 static bool header_ends_early(TSLexer *lexer, Prelude prelude) {
   unsigned groups = 0;
   // Each later line is checked, up to one that starts a declaration; the one budget bounds the whole header.
@@ -677,6 +679,8 @@ static bool header_ends_early(TSLexer *lexer, Prelude prelude) {
     if (line_break(character)) {
       for (; budget && css_space(lexer->lookahead); budget--) lexer->advance(lexer, false);
       int32_t first = lexer->lookahead;
+      // A `}` starting a line is read like one on the header's own line.
+      if (first == '}') continue;
       // These start no declaration or header expression, except `#{` and, in Sass expressions, `#name` and `%`.
       bool is_rule_start =
         first == '.' || first == ':' || (prelude != SASS_EXPRESSION && (first == '%' || first == '#'));
@@ -696,6 +700,12 @@ static bool header_ends_early(TSLexer *lexer, Prelude prelude) {
     }
     budget--;
     lexer->advance(lexer, false);
+    if (character == '\\') {
+      // An escaped character, as in `.a\}b`, belongs to a name.
+      if (!lexer->eof(lexer) && !line_break(lexer->lookahead)) lexer->advance(lexer, false);
+      lexer->mark_end(lexer);
+      continue;
+    }
     if (character == '/' && (lexer->lookahead == '*' || lexer->lookahead == '/')) {
       // A comment after the header stays a comment rather than joining the error.
       skip_comment(lexer, &budget);
@@ -708,7 +718,11 @@ static bool header_ends_early(TSLexer *lexer, Prelude prelude) {
     } else if (character == ')' || character == ']') {
       if (!groups) return false;
       groups--;
-    } else if (character == '{' || character == '}' || character == ';') {
+    } else if (character == '}') {
+      // Only `@layer` may end at a `}`, and recovery skipping one could hold the block open to the end of the file.
+      // Inside a group that closes after it, a `}` is a stray character instead.
+      return prelude != LAYER_PRELUDE && (!groups || !group_closes_ahead(lexer, &budget));
+    } else if (character == '{' || character == ';') {
       return false;
     }
     if (!css_space(character)) lexer->mark_end(lexer);
@@ -718,9 +732,9 @@ static bool header_ends_early(TSLexer *lexer, Prelude prelude) {
 
 // Claims a block at-rule typed among declarations: Sass directives as spelled, CSS ones in any case.
 static bool scan_unfinished_header(TSLexer *lexer, bool is_line_start) {
-  static const char *const names[] = {"if", "each", "for", "while", "at-root", "mixin", "function",
+  static const char *const names[] = {"if", "each", "for", "while", "at-root", "mixin", "function", "page",
                                       "media", "supports", "container", "layer", "scope", "starting-style"};
-  enum { CONTROL_NAMES = 4, AT_ROOT = 4, MIXIN = 5, FUNCTION = 6 };
+  enum { CONTROL_NAMES = 4, AT_ROOT = 4, MIXIN = 5, FUNCTION = 6, PAGE = 7, LAYER = 11 };
   enum { SASS_NAMES = 6, NAME_BUFFER = 15 };
   lexer->advance(lexer, false);
   char name[NAME_BUFFER];
@@ -743,7 +757,10 @@ static bool scan_unfinished_header(TSLexer *lexer, bool is_line_start) {
   if (match < 0 || (is_definition && is_line_start)) return false;
   lexer->mark_end(lexer);
   lexer->result_symbol = UNFINISHED_HEADER;
-  Prelude prelude = match < CONTROL_NAMES ? SASS_EXPRESSION : match == AT_ROOT ? SELECTOR_PRELUDE : PLAIN_PRELUDE;
+  Prelude prelude = match < CONTROL_NAMES               ? SASS_EXPRESSION
+                    : match == AT_ROOT || match == PAGE ? SELECTOR_PRELUDE
+                    : match == LAYER                    ? LAYER_PRELUDE
+                                                        : PLAIN_PRELUDE;
   return header_ends_early(lexer, prelude);
 }
 
