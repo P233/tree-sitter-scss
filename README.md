@@ -1,6 +1,6 @@
 # tree-sitter-scss
 
-A Tree-sitter parser for SCSS and CSS, written from scratch. The grammar is designed around SCSS; CSS is a second language entry of the same parser, with the same node schema and highlight query. Indented Sass (`.sass`) is not supported.
+A Tree-sitter parser for SCSS and CSS, written from scratch. The grammar is designed around SCSS; CSS is a second language entry of the same parser, with the same node schema and highlight query. Indented Sass (`.sass`) and Internet Explorer–only syntax are not supported.
 
 This is an independent project, not affiliated with the official [tree-sitter-scss](https://github.com/tree-sitter-grammars/tree-sitter-scss). It was built for [scss2-mode](https://github.com/P233/scss2-mode), which bundles a snapshot of this parser. It is not published to npm or crates.io, where the `tree-sitter-scss` name belongs to the official grammar; see [Use from source](#use-from-source).
 
@@ -76,13 +76,11 @@ A later capture of the same range overrides an earlier one, as in the Tree-sitte
 
 ## Known limits
 
-- Escaped keywords such as `c\61 lc`, `@m\65 dia` and `:l\61 ng` parse as generic syntax, and an escaped `!important` or an escape inside `An+B` may be a parse error. After an escape, CSS consumes CRLF as one terminator and SCSS does not, so `.x\31`, CRLF, `b` is a descendant selector in SCSS.
-- Internet Explorer–only syntax (the `*` property hack, `alpha(opacity=50)`, `progid:` filters, `expression()`) parses as local errors; the `_property` hack parses as an ordinary name.
-- These are parse errors: selector arguments after a name continued by interpolation (`.a#{$p}(.b)`), typed `attr()` unions (`attr(data-width type(<length> | <percentage>), 10px)`) and a name glued to a preceding simple selector (`[x]a`).
-- Some readings differ from Sass: a media feature name continued by interpolation (`(max-#{$side} > 1px)`) is a value, `.a /* c */.b` is one compound, `fn()-1` ends with the number `-1`, `map.get` inside `url()` is one function name, and a raw custom-property `url(https://a.test/x.png)` splits at the colon. Punctuation after another statement on its line (`color: red; ,`) is not reported.
-- While being typed, these still absorb the rules after them: a colon typed into a name when what follows the colon is not a plain name (`op:#{$x}: 1;`), an unpaired `[` or an empty `[]` in a selector, an unclosed `#{` in an SCSS string or comment, a control-directive header whose open group holds a `name: value` line such as a map entry, a `@for` header cut off after `from` but before a whole `to` or `through`, above a rule line led by `#` or `%`, a `@scope` prelude cut off before a rule line led by `&`, `~` or interpolation, a `}` typed inside a header line nested in a rule, as in `@media (min-width: 1px} {`, which ends that rule early, a `@mixin` or `@function` header typed at the start of a line inside a rule, and a `{` typed at the start of a line before a top-level `/* */` comment. An unclosed `url(` takes only the next declaration's name, and an unclosed `/*` inside a value or selector stays a local error.
-- A last rule left open after a complete declaration (`.a { color: red;` at the end of the file) makes the whole file one `ERROR`; editor bracket pairing prevents it.
-- With 1,000 nested rules, adding a descendant combinator to the innermost selector spends about 30 ms computing changed ranges (Tree-sitter 0.25.1, Apple M1 Pro); other edits to that file stay under 1 ms.
+- Typed `attr()` unions, as in `attr(data-width type(<length> | <percentage>), 10px)`, are parse errors.
+- In a custom property, `url(https://a.test/x.png)` highlights the scheme apart from the rest of the address.
+- While being typed, these selector states can still take the rules after them out of the tree, though those rules keep their highlighting: a block's last line that stops at a pseudo-class colon (`&:`), is only an interpolation (`#{$sel}`) or leaves `:is(` open, and an unpaired `[` or an empty `[]`.
+- An unclosed `#{` typed into an SCSS string or block comment, as in `"a #{$b c"` or `/* #{$b c */`, can absorb the rules after it; after a block comment they also lose their highlighting. An unclosed `url(` can take the next declaration's name.
+- In a short file, a last rule left open after a complete declaration (`.a { color: red;` at the end of the file) makes the whole file one `ERROR`; editor bracket pairing prevents it.
 
 ## Development
 

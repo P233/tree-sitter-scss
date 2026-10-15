@@ -143,7 +143,7 @@ Alternate baseline/candidate order on the same machine and compare repeated runs
 
 ## Known limits
 
-The README's [Known limits](README.md#known-limits) lists the user-visible gaps. These causes constrain changes here:
+The README's [Known limits](README.md#known-limits) lists the gaps that editing real stylesheets meets. These causes, including rarer gaps, constrain changes here:
 
 - An unclosed `url(` loses the next declaration's name because the call reading wins recovery.
 - Punctuation after another statement or a `{` on its line joins a statement break unreported; a never-valid token there would make recovery merge the rest of the file.
