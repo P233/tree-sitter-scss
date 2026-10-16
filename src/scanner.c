@@ -29,6 +29,8 @@ enum TokenType {
   STATEMENT_BREAK,
   UNFINISHED_HEADER,
   RAW_PRELUDE,
+  HEADER_AT_BRACE,
+  MISSING_HEADER_BLOCK,
 };
 
 // Dialect identity belongs to the immutable language entry, never to a buffer
@@ -601,8 +603,9 @@ static bool tail_start(int32_t character, bool is_touching) {
                           character == '%' || character == '|' || character == '('));
 }
 
-// Whether only such punctuation ends the line above a declaration; the token claims it.
-static bool tail_ends_statement(TSLexer *lexer, unsigned token) {
+// Whether only such punctuation ends the line above a declaration; the token claims it. In a selector, where the break
+// is an error, an at-rule on the next line also ends the line, since it never continues a selector.
+static bool tail_ends_statement(TSLexer *lexer, unsigned token, bool is_selector) {
   unsigned budget = LOOKAHEAD_LIMIT;
   bool is_touching = true;
   // Decremented first: a closed interpolation may spend the rest of the budget.
@@ -649,7 +652,8 @@ static bool tail_ends_statement(TSLexer *lexer, unsigned token) {
     }
   }
   lexer->result_symbol = token;
-  return budget && has_crossed_line && declaration_name_follows(lexer, &budget);
+  if (!budget || !has_crossed_line) return false;
+  return (is_selector && lexer->lookahead == '@') || declaration_name_follows(lexer, &budget);
 }
 
 // After the character that starts it, a selector name and then `{` on the line: a rule line, which no header expression
@@ -699,9 +703,9 @@ typedef enum {
   SELECTOR_PRELUDE,
 } Prelude;
 
-// Whether a header meets a declaration line, a rule line its prelude cannot continue onto, or a `}` before its block;
-// the never-valid token covers the header.
-static bool header_ends_early(TSLexer *lexer, Prelude prelude) {
+// Whether a header meets a declaration line, a rule line its prelude cannot continue onto, or a `}` before its block.
+// The never-valid token covers the header; one that a `}` cuts off takes `brace_symbol` instead.
+static bool header_ends_early(TSLexer *lexer, Prelude prelude, unsigned brace_symbol) {
   unsigned groups = 0;
   // Each later line is checked, up to one that starts a declaration; the one budget bounds the whole header.
   for (unsigned budget = LOOKAHEAD_LIMIT; budget && !lexer->eof(lexer);) {
@@ -751,6 +755,7 @@ static bool header_ends_early(TSLexer *lexer, Prelude prelude) {
     } else if (character == '}') {
       // Only `@layer` may end at a `}`, and recovery skipping one could hold the block open to the end of the file.
       // Inside a group that closes after it, a `}` is a stray character instead.
+      lexer->result_symbol = brace_symbol;
       return prelude != LAYER_PRELUDE && (!groups || !group_closes_ahead(lexer, &budget));
     } else if (character == '{' || character == ';') {
       return false;
@@ -760,8 +765,9 @@ static bool header_ends_early(TSLexer *lexer, Prelude prelude) {
   return false;
 }
 
-// Claims a block at-rule typed among declarations: Sass directives as spelled, CSS ones in any case.
-static bool scan_unfinished_header(TSLexer *lexer, bool is_line_start) {
+// Claims a block at-rule typed among declarations: Sass directives as spelled, CSS ones in any case. Inside a block,
+// the statement list accepts a header that the block's `}` cuts off.
+static bool scan_unfinished_header(TSLexer *lexer, bool is_line_start, bool is_in_block) {
   static const char *const names[] = {"if", "each", "for", "while", "at-root", "mixin", "function", "page",
                                       "media", "supports", "container", "layer", "scope", "starting-style"};
   enum { CONTROL_NAMES = 4, AT_ROOT = 4, MIXIN = 5, FUNCTION = 6, PAGE = 7, LAYER = 11 };
@@ -791,7 +797,7 @@ static bool scan_unfinished_header(TSLexer *lexer, bool is_line_start) {
                     : match == AT_ROOT || match == PAGE ? SELECTOR_PRELUDE
                     : match == LAYER                    ? LAYER_PRELUDE
                                                         : PLAIN_PRELUDE;
-  return header_ends_early(lexer, prelude);
+  return header_ends_early(lexer, prelude, is_in_block ? HEADER_AT_BRACE : UNFINISHED_HEADER);
 }
 
 // Whether a statement interior may end at the line break just skipped, and whether a group may still be open there.
@@ -871,7 +877,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     // An else header cut off by a declaration line is skipped as one error, with the trivia before it.
     lexer->mark_end(lexer);
     lexer->result_symbol = UNFINISHED_HEADER;
-    return header_ends_early(lexer, SASS_EXPRESSION);
+    return header_ends_early(lexer, SASS_EXPRESSION, UNFINISHED_HEADER);
   }
   // CSS text hosts keep interpolation literal. SCSS always uses the grammar's expression parser.
   // Check before skipping whitespace, which belongs to the host's content.
@@ -900,7 +906,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     int32_t first = lexer->lookahead;
     if (!has_crossed_line && valid_symbols[DESCENDANT] && !valid_symbols[STATEMENT_BREAK] &&
         tail_start(first, !has_space)) {
-      return tail_ends_statement(lexer, STATEMENT_BREAK);
+      return tail_ends_statement(lexer, STATEMENT_BREAK, true);
     }
     if (has_space && (first == ':' || valid_symbols[DESCENDANT])) {
       lexer->result_symbol = first == ':' ? SPACE_BEFORE_COLON : DESCENDANT;
@@ -912,6 +918,13 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
         return true;
       }
       if (is_ambiguous_start) return false;
+      // An at-rule on a later line never continues a selector, so the selector ends above it and recovery resumes in
+      // the statement list.
+      bool is_at_rule_line = has_crossed_line && first == '@' && !valid_symbols[STATEMENT_BREAK];
+      if (is_at_rule_line) {
+        lexer->result_symbol = STATEMENT_BREAK;
+        return true;
+      }
     }
   }
   // Only valid right after a number: Sass subtracts on an unspaced minus (`1-1`), CSS keeps a signed number.
@@ -943,7 +956,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
       lexer->advance(lexer, true);
     }
     if (tail_start(lexer->lookahead, is_touching)) {
-      return tail_ends_statement(lexer, STATEMENT_BREAK);
+      return tail_ends_statement(lexer, STATEMENT_BREAK, false);
     }
   }
   // A declaration value, also one in a feature query, accepts `!important`; maps, arguments and raw values do not.
@@ -969,12 +982,12 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     if (lexer->lookahead == '@') {
       // Skipped whitespace, not `get_column`, which rereads the line, decides a line start; no token ends with one.
       bool is_line_start = last_space ? line_break(last_space) : lexer->is_at_included_range_start(lexer);
-      return scan_unfinished_header(lexer, is_line_start);
+      return scan_unfinished_header(lexer, is_line_start, valid_symbols[HEADER_AT_BRACE]);
     }
     // Once shifted, a line-leading combinator or interpolation reaches no break site, so skip such a line as one error.
     int32_t first = lexer->lookahead;
     if (first == '>' || first == '+' || first == '~' || first == '#') {
-      return tail_ends_statement(lexer, UNFINISHED_HEADER);
+      return tail_ends_statement(lexer, UNFINISHED_HEADER, false);
     }
   }
   if (valid_symbols[STATEMENT_COMMENT_START] && lexer->lookahead == '/') {

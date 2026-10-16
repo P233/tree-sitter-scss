@@ -143,6 +143,10 @@
               {
                 "type": "SYMBOL",
                 "name": "_statement_break"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "_cut_off_header"
               }
             ]
           }
@@ -171,6 +175,10 @@
                   {
                     "type": "SYMBOL",
                     "name": "_statement_break"
+                  },
+                  {
+                    "type": "SYMBOL",
+                    "name": "_cut_off_header"
                   }
                 ]
               }
@@ -194,6 +202,19 @@
               ]
             }
           ]
+        }
+      ]
+    },
+    "_cut_off_header": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "_header_at_brace"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_missing_header_block"
         }
       ]
     },
@@ -6927,6 +6948,10 @@
               {
                 "type": "SYMBOL",
                 "name": "_statement_break"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "_cut_off_header"
               }
             ]
           }
@@ -7062,6 +7087,10 @@
                   {
                     "type": "SYMBOL",
                     "name": "_statement_break"
+                  },
+                  {
+                    "type": "SYMBOL",
+                    "name": "_cut_off_header"
                   }
                 ]
               }
@@ -9911,6 +9940,10 @@
               {
                 "type": "SYMBOL",
                 "name": "_statement_break"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "_cut_off_header"
               }
             ]
           }
@@ -9948,6 +9981,10 @@
                   {
                     "type": "SYMBOL",
                     "name": "_statement_break"
+                  },
+                  {
+                    "type": "SYMBOL",
+                    "name": "_cut_off_header"
                   }
                 ]
               }
@@ -10413,6 +10450,14 @@
     {
       "type": "SYMBOL",
       "name": "_raw_prelude"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_header_at_brace"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_missing_header_block"
     }
   ],
   "inline": [

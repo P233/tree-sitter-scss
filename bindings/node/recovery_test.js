@@ -224,6 +224,19 @@ test("an unfinished block at-rule header ends at its block's closing brace", () 
   });
 });
 
+test("a header cut off by its block's closing brace below an unfinished selector keeps the following rules", () => {
+  eachParser((parser, dialect) => {
+    // The selector ends above the header, so recovery returns to the statement list instead of skipping the `}` and
+    // continuing the selector with the next rule.
+    for (const line of ["b", "&:hover", ".b", "> .b", ".b .c", "#{$s}", ".b,", ".b >", ".b:", ".b.", "&:is("]) {
+      for (const header of ["@media", "@media screen", "@if $a", "@each $x in a", "@supports (a: b)"]) {
+        const source = `.a {\n  color: red;\n  ${line}\n  ${header}\n}\n.y {\n  color: blue;\n}\n${tail}\n`;
+        assert.equal(parser.parse(source).rootNode.namedChildCount, 302, `${dialect}: ${line} / ${header}`);
+      }
+    }
+  });
+});
+
 test("a stray brace inside a header group is one error", () => {
   eachParser((parser, dialect) => {
     // A `}` inside a group that closes after it cannot be the end of the block around the header.
@@ -381,6 +394,12 @@ test("recovery debt stays visible", () => {
     for (const line of ["&[d", ".b []"]) {
       const root = parser.parse(above(`color: red;\n  ${line}`)).rootNode;
       assert.notDeepEqual(errors(root.firstNamedChild), [line], `${dialect}: ${line}`);
+    }
+    // Below a selector line that ends with a spaced lone marker or leaves a group open, or on the selector's own line,
+    // a header cut off by the block's `}` still takes the rest of the file.
+    for (const line of [".b .\n  @media", "&[d\n  @media", "&:is(.c\n  @media", "&:hover @media"]) {
+      const root = parser.parse(`.a {\n  color: red;\n  ${line}\n}\n.y {}\n${tail}\n`).rootNode;
+      assert.notEqual(root.namedChildCount, 302, `${dialect}: ${line}`);
     }
     // A `{` typed at a line start before a top-level comment reads the rest of the file as its block.
     const brace = parser.parse(`.x { a: b }\n\n{/* section */\n${tail}\n`).rootNode;

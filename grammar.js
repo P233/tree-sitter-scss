@@ -112,7 +112,11 @@ module.exports = grammar({
     // Never valid: a cut-off header, a colon typed into a name or a punctuation line above a declaration is one error.
     $._unfinished_header,
     // Never emitted: marks a raw at-rule prelude, which may continue onto declaration-like lines.
-    $._raw_prelude
+    $._raw_prelude,
+    // A header that its block's `}` cuts off is valid in the statement list, and the never-emitted block defers the
+    // error to the `}`; recovery from an unfinished selector above then resumes in the statement list.
+    $._header_at_brace,
+    $._missing_header_block
   ],
   extras: $ => [/\s/, $.block_comment, $.inline_comment],
   word: $ => $._identifier,
@@ -188,6 +192,7 @@ module.exports = grammar({
     _statement: $ => choice($.rule_set, $.variable_declaration, $.property_declaration, $._at_rule, ";"),
     _block: $ => braced($.declaration_block),
     declaration_block: $ => declarationBlock($, $._statement),
+    _cut_off_header: $ => seq($._header_at_brace, $._missing_header_block),
     rule_set: $ => seq(field("selectors", $.selectors), $._block),
     variable_declaration: $ => seq($._variable, ";"),
     _variable: $ =>
@@ -829,7 +834,7 @@ function braced(body) {
 }
 
 function declarationBlock($, statement, property = $._property) {
-  const item = choice(statement, alias($._statement_comment, $.block_comment), $._statement_break);
+  const item = choice(statement, alias($._statement_comment, $.block_comment), $._statement_break, $._cut_off_header);
   return choice(repeat1(item), seq(repeat(item), choice(alias(property, $.property_declaration), $._final_statement)));
 }
 
