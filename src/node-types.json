@@ -4880,6 +4880,10 @@
     "named": true
   },
   {
+    "type": "class_dot",
+    "named": false
+  },
+  {
     "type": "comment_content",
     "named": true
   },

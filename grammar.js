@@ -276,7 +276,7 @@ module.exports = grammar({
       choice($.id_selector, $.class_selector, $.placeholder_selector, $.attribute_selector, $.pseudo_selector),
     tag_selector: $ => $._interpolated_identifier,
     id_selector: $ => seq("#", $._selector_name),
-    class_selector: $ => seq(".", $._selector_name),
+    class_selector: $ => seq(alias(".", "class_dot"), $._selector_name),
     placeholder_selector: $ => seq("%", $._selector_name),
     parent_selector: $ => prec.right(seq("&", optional(adjacentName($, ADJACENT_NAME_FRAGMENT)))),
     universal_selector: () => "*",

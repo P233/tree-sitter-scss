@@ -165,6 +165,29 @@ test("selector prefixes share their name role without overriding other dots", ()
   assert.equal(roleAt(source, captures, '"a"'), "string");
 });
 
+test("class dots inherit their selector capture without delimiter or override captures", () => {
+  const source = String.raw`.a-#{$x}, .\31 23, .b { width: 1px; }`;
+  for (const language of [Scss, Scss.cssLanguage]) {
+    const parser = new Parser().setLanguage(language);
+    const tree = parser.parse(source);
+    assert.equal(tree.rootNode.hasError, false, language.name);
+    const captures = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY).captures(tree.rootNode);
+    const classes = tree.rootNode.descendantsOfType("class_selector");
+    assert.equal(classes.length, 3);
+    assert.equal(captures.filter(({ name }) => name === "attribute").length, classes.length);
+    for (const selector of classes) {
+      const dot = selector.firstChild;
+      assert.equal(dot.type, "class_dot");
+      assert.equal(dot.text, ".");
+      assert.equal(dot.isNamed, false);
+      assert.equal(
+        captures.filter(({ node }) => node.startIndex === dot.startIndex && node.endIndex === dot.endIndex).length,
+        0
+      );
+    }
+  }
+});
+
 test("brackets, semicolons and colons outside pseudo-classes stay uncaptured", () => {
   const source = "$m: (a: 1); .a:hover, [x] { color: fn($x: 1); }";
   const parser = new Parser();

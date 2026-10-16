@@ -43,9 +43,8 @@
 
 ; Context overrides
 ; Emacs applies this section after base captures, preserving contextual roles.
-; ID and placeholder prefixes inherit the complete selector capture; a class dot restores it over the base delimiter.
+; Selector prefixes inherit their complete selector capture; pseudo prefixes sit outside the name.
 (pseudo_selector [":" "::"] @attribute)
-(class_selector "." @attribute)
 ; Query, condition and type operators wrap `|` and retain their structural role.
 (operator "|") @operator
 (map_entry key: (plain_value) @property)
