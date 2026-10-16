@@ -4,7 +4,7 @@ A Tree-sitter parser for SCSS and CSS, written from scratch. The grammar is desi
 
 This is an independent project, not affiliated with the official [tree-sitter-scss](https://github.com/tree-sitter-grammars/tree-sitter-scss). It was built for [scss2-mode](https://github.com/P233/scss2-mode), which bundles a snapshot of this parser. It is not published to npm or crates.io, where the `tree-sitter-scss` name belongs to the official grammar; see [Use from source](#use-from-source).
 
-The parser targets complete files. Code written with completion, snippets or coding agents is mostly complete, so error recovery is deliberately narrow: a statement being typed usually stays one local `ERROR` and leaves the rules after it intact. That recovery costs 3–6% of parse time in the `pnpm benchmark` workloads. Broader designs were rejected because they grew the parse table past its budget, slowed parsing and edits, or lost declarations elsewhere.
+The parser targets complete files. Code written with completion, snippets or coding agents is mostly complete, so error recovery is deliberately narrow: a statement being typed usually stays one local `ERROR` and leaves the rules after it intact. Its [cost is measured against the same parser with scanner recovery disabled](ARCHITECTURE.md#recovery-cost). Broader designs were rejected because they grew the parse table past its budget, slowed parsing and edits, or lost declarations elsewhere.
 
 ## Compared with the official grammar
 

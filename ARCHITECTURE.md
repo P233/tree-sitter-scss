@@ -18,18 +18,19 @@ scripts/preview.js ── fresh inspect.js process + standard CLI highlighting
 preview-client.js ── temporary browser draft
 ```
 
-| Boundary                                     | Owns                                                                            | Does not own                                                        |
-| -------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `grammar.js`                                 | Syntax structure, fields, precedence, block contexts and external-token order   | Editor completion, semantic evaluation or runtime caches            |
-| `src/scanner.c`                              | Lexical boundaries, statement breaks, dialect identity and CSS lexer adaptation | Document state, source mutation, history or persisted scanner state |
-| Generated `src/` files                       | Reproducible projections of the grammar and generator version                   | Independent handwritten decisions                                   |
-| `queries/`                                   | Portable capture names and their ordered overrides                              | Host colors, fonts or editing commands                              |
-| `bindings/node/`, `bindings/rust/`           | Native language exports and access to schema/query                              | Build orchestration and preview lifecycle                           |
-| `scripts/grammar.js`                         | Checkout root, CLI executable/options/cache, generation and native build        | Syntax decisions or preview state                                   |
-| `scripts/benchmark.js`                       | Sample timing, per-dialect parser/tree lifetime and process resource reporting  | Parser allocation policy, editor latency or document history        |
-| `scripts/fuzz.js`, `scripts/valid-inputs.js` | Deterministic inputs, edit recording and baseline/candidate comparison          | Syntax recovery or Sass evaluation                                  |
-| `scripts/preview.js`                         | HTTP requests, file watching, build invalidation and published preview revision | Durable documents or browser drafts                                 |
-| `scripts/preview-client.js`                  | Draft text, one active generation request, focus restoration and update notice  | Parser lifecycle or source-file writes                              |
+| Boundary                                            | Owns                                                                            | Does not own                                                        |
+| --------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `grammar.js`                                        | Syntax structure, fields, precedence, block contexts and external-token order   | Editor completion, semantic evaluation or runtime caches            |
+| `src/scanner.c`                                     | Lexical boundaries, statement breaks, dialect identity and CSS lexer adaptation | Document state, source mutation, history or persisted scanner state |
+| Generated `src/` files                              | Reproducible projections of the grammar and generator version                   | Independent handwritten decisions                                   |
+| `queries/`                                          | Portable capture names and their ordered overrides                              | Host colors, fonts or editing commands                              |
+| `bindings/node/`, `bindings/rust/`                  | Native language exports and access to schema/query                              | Build orchestration and preview lifecycle                           |
+| `scripts/grammar.js`                                | Checkout root, CLI executable/options/cache, generation and native build        | Syntax decisions or preview state                                   |
+| `scripts/benchmark.js`                              | Sample timing, per-dialect parser/tree lifetime and process resource reporting  | Parser allocation policy, editor latency or document history        |
+| `scripts/fuzz.js`, `scripts/valid-inputs.js`        | Deterministic inputs, edit recording and baseline/candidate comparison          | Syntax recovery or Sass evaluation                                  |
+| `scripts/recovery-cost.js`, `scripts/parser-cost.c` | Temporary scanner ablation, native timing and retained allocation measurement   | Runtime recovery switches or host fontification                     |
+| `scripts/preview.js`                                | HTTP requests, file watching, build invalidation and published preview revision | Durable documents or browser drafts                                 |
+| `scripts/preview-client.js`                         | Draft text, one active generation request, focus restoration and update notice  | Parser lifecycle or source-file writes                              |
 
 `pnpm compare:build` builds the standalone comparison page and both grammars into `comparison/dist/`. Its browser worker owns parsers and queries for the page lifetime and deletes each completed parse tree. Diagnostics and difference markers are projections of that parse result; the page adds no parser or editor state to the library.
 
@@ -63,7 +64,7 @@ Two grammar tolerances complete the set. A bare `$` lexes as an incomplete varia
 
 A new site must lower a typing counter or move a case out of the `recovery debt stays visible` test, and must add no fuzz-comparison differences on error-free input. A break must never be emitted where identifier recovery lands: a compound-start break lost declaration captures in 51 of 40,000 seeded edits, against 5 for the adopted sites.
 
-The breaks cost about 3% of parsing time on the author's 335-file local corpus, which is not in the repository, and 3–6% across the benchmark workloads (about 1% with captures); in exchange, typing on a blank line above a declaration changes 53 KB of ranges instead of 3,238 KB, and none of 1,000 seeded letter, digit or space insertions into the corpus concatenation reparses more than half the file (45 did without the breaks).
+Recovery cost must be remeasured when a site changes; [the scanner ablation](#recovery-cost) keeps its baseline and workload definitions reproducible. Historical typing measurements motivated the sites, but do not establish the cost of a later scanner.
 
 ## Grammar and query shape
 
@@ -154,6 +155,21 @@ The runner compiles the highlight query once per language and reports its cost s
 Before samples, the runner requests GC when exposed and yields to let queued native finalizers run. Cleanup and validation are outside timing. Each dialect releases its final parser/tree before the final resource report. `maxRssKiB` and `processRssAfterCleanupBytes` include the runtime and harness; they are not live tree allocation sizes. Hashes identify sources, query and workloads, but do not certify a stale binary: rebuild both revisions before comparison.
 
 Alternate baseline/candidate order on the same machine and compare repeated runs with matching runtime and workload hashes. Spaced/multiline pseudo chains and long comments retain coverage against repeated scanning of the remaining source. Report parsing separately from capture-query time; neither includes host font-lock, layout, repaint or GUI latency. Generated size alone is not evidence of a speedup.
+
+### Recovery cost
+
+```sh
+node scripts/recovery-cost.js
+node scripts/recovery-cost.js --repo /path/to/checkout --corpus /path/to/file-list.txt
+```
+
+The runner needs a POSIX C11 compiler (`CC` overrides `cc`) and builds two native executables in a temporary directory with the same generated parser and Tree-sitter runtime, linking the scanner last so both place the shared code at the same addresses. The second disables scanner recovery decisions only; grammar recovery states, `[a=]` tolerance and runtime error recovery remain. The runner refuses a scanner other than the one the ablation was reviewed against, by hash: a new recovery decision can match none of its source landmarks, so a scanner change needs the ablation reviewed and the hash updated. Source landmarks must still match. `--repo` therefore measures another checkout only when its scanner is the reviewed one; measure a different scanner revision with that revision's own runner. Supported complete inputs must have identical tree fingerprints before timing; erroneous workloads are reported as non-comparable. The deterministic valid-input suite and corpus comparison must also pass against the disabled scanner when changing the ablation.
+
+Defaults are seven alternating process pairs with three warmups and 25 measured parses per process, compiled at `-O2`. The parse ratio compares the medians of the process medians; tree deletion is outside timing. A separate counted-allocator run reports requested bytes released when the tree is deleted, with the parser still alive, and checks cleanup after deleting the parser. This measures retained tree allocations, not RSS or peak memory. Output retains each process's median and minimum, compiler and runtime identity, and source and workload hashes. Run on an otherwise idle machine; compare the same workloads and rerun a threshold-crossing result before accepting it.
+
+The acceptance target on a representative large real file is at most 3% extra parse time and 1% extra retained tree memory against this scanner-disabled baseline. Record the input hash; also report the bundled stress fixture and generated flat, nested and 20,000-rule selector workloads separately. The target is not evidence that a candidate passes. An over-budget result remains a failed acceptance item; do not raise the limit to admit it. Further recovery work must reduce an existing cost or demonstrate no measurable increase, and must still preserve complete-input behavior.
+
+Three local Apple M1 Pro runs with Clang 21.0.0 and Tree-sitter 0.25.1, 11 rounds each, measured the local 692 KB `big.scss` (SHA-256 `ea288e64ca38…`) at 2.85–2.95% extra parse time in SCSS and 2.51–2.62% in CSS, with 0.12% extra retained tree memory, and the 248 KB `bigc.css` (`8b0e5492f25e…`) at 2.86–2.96% and 2.60–2.69%, with 0.04%. Both stay within the 3% parse target by only 0.04–0.5 points, so a small scanner change can cross it. The generated workloads measured 2.6–3.6%, and the stress fixture 3.4–3.6% with 0.67% more tree memory; CSS rejects parts of that fixture, so its CSS timing is excluded. These results exclude grammar recovery states: the bare-`$` branch makes every `variable_name` a node wrapping its token, about 1.5% of `big.scss` tree memory.
 
 ## Known limits
 
