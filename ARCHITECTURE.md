@@ -18,18 +18,18 @@ scripts/preview.js ── fresh inspect.js process + standard CLI highlighting
 preview-client.js ── temporary browser draft
 ```
 
-| Boundary                           | Owns                                                                            | Does not own                                                        |
-| ---------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `grammar.js`                       | Syntax structure, fields, precedence, block contexts and external-token order   | Editor completion, semantic evaluation or runtime caches            |
-| `src/scanner.c`                    | Lexical boundaries, statement breaks, dialect identity and CSS lexer adaptation | Document state, source mutation, history or persisted scanner state |
-| Generated `src/` files             | Reproducible projections of the grammar and generator version                   | Independent handwritten decisions                                   |
-| `queries/`                         | Portable capture names and their ordered overrides                              | Host colors, fonts or editing commands                              |
-| `bindings/node/`, `bindings/rust/` | Native language exports and access to schema/query                              | Build orchestration and preview lifecycle                           |
-| `scripts/grammar.js`               | Checkout root, CLI executable/options/cache, generation and native build        | Syntax decisions or preview state                                   |
-| `scripts/benchmark.js`             | Sample timing, per-dialect parser/tree lifetime and process resource reporting  | Parser allocation policy, editor latency or document history        |
-| `scripts/fuzz.js`                  | Seeded random-edit recording and baseline/candidate comparison                  | Parser policy or acceptance decisions beyond its exit rules         |
-| `scripts/preview.js`               | HTTP requests, file watching, build invalidation and published preview revision | Durable documents or browser drafts                                 |
-| `scripts/preview-client.js`        | Draft text, one active generation request, focus restoration and update notice  | Parser lifecycle or source-file writes                              |
+| Boundary                                     | Owns                                                                            | Does not own                                                        |
+| -------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `grammar.js`                                 | Syntax structure, fields, precedence, block contexts and external-token order   | Editor completion, semantic evaluation or runtime caches            |
+| `src/scanner.c`                              | Lexical boundaries, statement breaks, dialect identity and CSS lexer adaptation | Document state, source mutation, history or persisted scanner state |
+| Generated `src/` files                       | Reproducible projections of the grammar and generator version                   | Independent handwritten decisions                                   |
+| `queries/`                                   | Portable capture names and their ordered overrides                              | Host colors, fonts or editing commands                              |
+| `bindings/node/`, `bindings/rust/`           | Native language exports and access to schema/query                              | Build orchestration and preview lifecycle                           |
+| `scripts/grammar.js`                         | Checkout root, CLI executable/options/cache, generation and native build        | Syntax decisions or preview state                                   |
+| `scripts/benchmark.js`                       | Sample timing, per-dialect parser/tree lifetime and process resource reporting  | Parser allocation policy, editor latency or document history        |
+| `scripts/fuzz.js`, `scripts/valid-inputs.js` | Deterministic inputs, edit recording and baseline/candidate comparison          | Syntax recovery or Sass evaluation                                  |
+| `scripts/preview.js`                         | HTTP requests, file watching, build invalidation and published preview revision | Durable documents or browser drafts                                 |
+| `scripts/preview-client.js`                  | Draft text, one active generation request, focus restoration and update notice  | Parser lifecycle or source-file writes                              |
 
 `pnpm compare:build` builds the standalone comparison page and both grammars into `comparison/dist/`. Its browser worker owns parsers and queries for the page lifetime and deletes each completed parse tree. Diagnostics and difference markers are projections of that parse result; the page adds no parser or editor state to the library.
 
@@ -110,7 +110,7 @@ These were measured and rejected; revisit them only with new evidence.
 
 ## Independent validation
 
-`pnpm check` runs lint, formatting, generated-file equality, native build, corpus/highlight assertions, Node and development tests, Rust tests/formatting, package contents and preview export. `pnpm check:generated` fails when the generated parser exceeds 525 large parse states; source size and state counts do not substitute for performance measurements.
+`pnpm check` runs lint, formatting, generated-file equality, native build, corpus/highlight assertions, Node and development tests, deterministic valid-input checks, Rust tests/formatting, package contents and preview export. `pnpm check:generated` fails when the generated parser exceeds 525 large parse states; source size and state counts do not substitute for performance measurements.
 
 Native tests cover complete syntax and highlight roles, source ranges, dialect boundaries, incremental context changes, and repair back to complete input. Resource smoke tests parse deeply nested or damaged input in a subprocess with a timeout, without requiring a particular erroneous tree. `recovery_test.js` checks each statement-break site, same-line typos and unfinished variables by the error text and the intact later rules, not by the whole erroneous tree, and keeps the known gaps visible.
 
@@ -125,6 +125,18 @@ node scripts/fuzz.js compare base.jsonl candidate.jsonl
 ```
 
 Comparison rejects misaligned or malformed recordings. It fails on baseline error-free tree changes, ordered capture changes even when trees agree, or candidate incremental/repair failures on error-free input. Error-input tree and capture differences are informational. A baseline may accept malformed syntax under an older tolerance; inspect such differences against the complete-input contract instead of treating the baseline's `hasError` flag as a language validator. Removing a tolerance does not authorize unexplained changes to valid syntax.
+
+`pnpm test:valid` uses the same recorder with every template in `scripts/valid-inputs.js`: multiline headers, selectors and values; touching or spaced colons; LF/CRLF and indentation variants; escapes, raw preludes, and header comments long enough to exhaust the lookahead budget. Each original is parsed directly, then edited at the statement start and end and repaired. Expected original validity is declared independently of either parser. The quoted-URL comment cases remain explicit known errors and are reported separately; new failures are never filtered out. Add a complete continuation to this suite for each new recovery site.
+
+```sh
+node scripts/fuzz.js record --suite valid --repo /path/to/baseline --out base-valid.jsonl
+node scripts/fuzz.js record --suite valid --out candidate-valid.jsonl
+node scripts/fuzz.js compare base-valid.jsonl candidate-valid.jsonl
+# Optional: use an already installed Dart Sass module, without adding a dependency.
+node scripts/fuzz.js record --suite valid --sass /path/to/node_modules/sass
+```
+
+The optional Sass check compiles every original, including the declared parser gaps, and reports the Sass implementation version. A rejection fails the run. Sass acceptance supplements the parser's syntax assertions; it does not define the tree or highlight schema.
 
 ## Performance measurements
 

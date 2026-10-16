@@ -1,4 +1,4 @@
-// Seeded random-edit differential: record single-edit cases, then compare a baseline recording with a candidate.
+// Edit differential: record seeded random edits or the valid suite's enumerated edits, then compare two recordings.
 const { createHash } = require("node:crypto");
 const { closeSync, createReadStream, openSync, readFileSync, readdirSync, writeSync } = require("node:fs");
 const { createRequire } = require("node:module");
@@ -6,6 +6,7 @@ const { join, resolve } = require("node:path");
 const { createInterface } = require("node:readline");
 const { setImmediate: yieldToEventLoop } = require("node:timers/promises");
 const { parseArgs } = require("node:util");
+const { validInputs, validEdits, checkSass } = require("./valid-inputs.js");
 
 const root = join(__dirname, "..");
 const INPUT_SOURCES = [
@@ -114,6 +115,7 @@ const RECORD_FIELDS = {
 const CORPUS_ATTRIBUTE = /^:(?:(?:skip|error|fail-fast|cst)(?:\(|$)|(?:platform|language)\(.*\)$)/s;
 const USAGE = [
   "Usage: node scripts/fuzz.js record [--seed N] [--cases N] [--corpus FILE-LIST] [--repo PATH] [--out FILE]",
+  "       node scripts/fuzz.js record --suite valid [--repo PATH] [--out FILE] [--sass MODULE-PATH]",
   "       node scripts/fuzz.js compare BASE.jsonl CANDIDATE.jsonl"
 ].join("\n");
 
@@ -258,7 +260,16 @@ function shape(tree) {
   }
 }
 
-async function* recordCases({ Parser, language, highlightsQuery, inputs, seed, cases }) {
+async function* recordCases({
+  Parser,
+  language,
+  highlightsQuery,
+  inputs,
+  seed,
+  cases,
+  edits,
+  requiresValidInputs = false
+}) {
   const parser = new Parser();
   parser.setLanguage(language);
   const query = new Parser.Query(language, highlightsQuery);
@@ -271,14 +282,20 @@ async function* recordCases({ Parser, language, highlightsQuery, inputs, seed, c
   const inputHashes = inputs.map(input => hash(input.text));
   const originals = new Map();
   const next = random(seed);
-  for (let index = 0; index < cases; index++) {
+  for (let index = 0; index < (edits?.length ?? cases); index++) {
     // Native trees are freed by finalizers that run only after control returns to the event loop.
     await yieldToEventLoop();
-    const { input, start, del, insert } = nextEdit(next, inputs);
+    const { input, start, del, insert } = edits ? edits[index] : nextEdit(next, inputs);
     const original = inputs[input].text;
     const text = original.slice(0, start) + insert + original.slice(start + del);
     if (!originals.has(input)) {
       const tree = parser.parse(original);
+      if (requiresValidInputs && tree.rootNode.hasError !== Boolean(inputs[input].hasKnownError)) {
+        const expected = inputs[input].hasKnownError
+          ? "expected documented syntax gap"
+          : "expected complete valid input";
+        throw new Error(`${language.name}: ${expected}: ${inputs[input].id}\n${tree.rootNode}`);
+      }
       originals.set(input, { shape: shape(tree), captures: captures(tree), hasError: tree.rootNode.hasError });
     }
     const before = originals.get(input);
@@ -349,7 +366,7 @@ function sameCaptures(left, right) {
 
 // Both recordings must replay the same cases; only their parse results may differ.
 function checkAligned(index, base, candidate) {
-  const hint = "Record both with the same --seed, --cases and --corpus.";
+  const hint = "Record both with the same --suite, --seed, --cases and --corpus.";
   if (base.done !== candidate.done) {
     throw new Error(
       `Recordings are not aligned: the ${base.done ? "baseline" : "candidate"} ends at line ${index + 1}. ${hint}`
@@ -422,19 +439,40 @@ function integer(value, name, fallback, minimum) {
 }
 
 async function recordCommand(options) {
+  const suite = options.suite ?? "edits";
+  if (!["edits", "valid"].includes(suite)) throw new Error(`Unknown suite: ${suite}.\n${USAGE}`);
+  if (suite === "valid" && ["seed", "cases", "corpus"].some(name => options[name] !== undefined)) {
+    throw new Error(`The valid suite enumerates its own inputs and edits; --seed, --cases and --corpus do not apply.`);
+  }
+  if (options.sass !== undefined && suite !== "valid") throw new Error("--sass requires --suite valid.");
+  if (options.sass === "") throw new Error("--sass needs the path of an installed Sass module.");
   const seed = integer(options.seed, "seed", 1, 0);
   const cases = integer(options.cases, "cases", 5000, 1);
   const checkout = resolve(options.repo || root);
   const local = createRequire(join(checkout, "package.json"));
   const Parser = local("tree-sitter");
   const Scss = local("./bindings/node");
-  const inputs = [...repositoryInputs(), ...(options.corpus ? listedInputs(options.corpus) : [])];
+  const inputs =
+    suite === "valid"
+      ? validInputs()
+      : [...repositoryInputs(), ...(options.corpus ? listedInputs(options.corpus) : [])];
+  const edits = suite === "valid" ? validEdits(inputs) : undefined;
+  const sass = options.sass === undefined ? undefined : checkSass(inputs, require(resolve(options.sass)));
   const highlightsQuery = Scss.HIGHLIGHTS_QUERY;
   const summary = createSummary();
   const output = options.out === undefined ? undefined : openSync(options.out, "w");
   try {
     for (const language of [Scss, Scss.cssLanguage]) {
-      for await (const result of recordCases({ Parser, language, highlightsQuery, inputs, seed, cases })) {
+      for await (const result of recordCases({
+        Parser,
+        language,
+        highlightsQuery,
+        inputs,
+        seed,
+        cases,
+        edits,
+        requiresValidInputs: suite === "valid"
+      })) {
         if (output !== undefined) writeSync(output, `${JSON.stringify(result)}\n`);
         tally(summary, result);
       }
@@ -443,7 +481,22 @@ async function recordCommand(options) {
     if (output !== undefined) closeSync(output);
   }
   const runtime = local("tree-sitter/package.json").version;
-  console.log(JSON.stringify({ checkout, runtime, seed, cases, inputs: inputs.length, ...summary }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        checkout,
+        runtime,
+        suite,
+        ...(edits ? { cases: edits.length } : { seed, cases }),
+        inputs: inputs.length,
+        ...(edits ? { knownErrorInputs: inputs.filter(input => input.hasKnownError).length } : {}),
+        sass,
+        ...summary
+      },
+      null,
+      2
+    )
+  );
   return hasCleanFailure(summary) ? 1 : 0;
 }
 
@@ -454,7 +507,7 @@ async function compareCommand(baseFile, candidateFile) {
 }
 
 async function main(args) {
-  const names = ["seed", "cases", "corpus", "repo", "out"];
+  const names = ["seed", "cases", "corpus", "repo", "out", "suite", "sass"];
   const { values, positionals } = parseArgs({
     args,
     allowPositionals: true,

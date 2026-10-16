@@ -78,6 +78,7 @@ A later capture of the same range overrides an earlier one, as in the Tree-sitte
 ## Known limits
 
 - Typed `attr()` unions, as in `attr(data-width type(<length> | <percentage>), 10px)`, are parse errors.
+- A comment before a quoted `url()` argument, as in `url(/* note */ "a.png")`, is a parse error even though Dart Sass accepts it. The deterministic valid-input suite retains these cases as explicit syntax debt.
 - In a custom property, `url(https://a.test/x.png)` highlights the scheme apart from the rest of the address.
 - While being typed, these selector states can still take the rules after them out of the tree, though those rules keep their highlighting: a block's last line that stops at a pseudo-class colon (`&:`), is only an interpolation (`#{$sel}`) or leaves `:is(` open, and an unpaired `[` or an empty `[]`.
 - An unclosed `#{` typed into an SCSS string or block comment, as in `"a #{$b c"` or `/* #{$b c */`, can absorb the rules after it; after a block comment they also lose their highlighting. An unclosed `url(` can take the next declaration's name.
@@ -93,7 +94,7 @@ pnpm check   # What CI runs: lint, formatting, generated files, build, tests, pa
 pnpm dev     # Live preview of trees and highlights at http://127.0.0.1:4173
 ```
 
-`grammar.js` and `src/scanner.c` are the authored sources; `pnpm generate` regenerates everything else under `src/`. After `pnpm build`, `pnpm test:node` runs the native acceptance tests, `pnpm test:fuzz` checks incremental parses after seeded random edits, and `pnpm benchmark` measures parsing, highlight queries, incremental edits, and key-by-key typing. See [Architecture](ARCHITECTURE.md) for ownership, invariants, and how to compare revisions. `comparison/` holds the comparison page; [its README](comparison/README.md) covers building, previewing and deploying it.
+`grammar.js` and `src/scanner.c` are the authored sources; `pnpm generate` regenerates everything else under `src/`. After `pnpm build`, `pnpm test:node` runs the native acceptance tests, `pnpm test:valid` enumerates complete statements with whitespace and colon variants, and `pnpm test:fuzz` checks incremental parses after seeded random edits. `pnpm benchmark` measures parsing, highlight queries, incremental edits, and key-by-key typing. See [Architecture](ARCHITECTURE.md) for ownership, invariants, optional Dart Sass validation, and how to compare revisions. `comparison/` holds the comparison page; [its README](comparison/README.md) covers building, previewing and deploying it.
 
 ## License
 
