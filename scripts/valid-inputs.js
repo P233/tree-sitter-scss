@@ -55,6 +55,12 @@ const TEMPLATES = [
   ["header/starting-style", ({ gap }) => `@starting-style${gap}{ color: red; }`],
   ["header/at-root", ({ gap }) => `@at-root${gap}.a\\}b { color: red; }`],
   ["header/page", ({ gap }) => `@page${gap}:first { margin: 1px; }`],
+  // Sass passes these through without a block, also as a block's last statement.
+  ["header/bodiless-container", ({ gap }) => `.child { @container sidebar${gap}(width > 1px) }`],
+  ["header/bodiless-layer", ({ gap }) => `.child { @layer${gap}components }`],
+  ["header/bodiless-starting-style", () => `.child { @starting-style }`],
+  ["header/bodiless-media-case", ({ gap, colon }) => `.child { @MEDIA screen and${gap}(min-width${colon}1px) }`],
+  ["header/bodiless-supports-case", ({ gap, colon }) => `.child { @Supports${gap}(display${colon}grid) }`],
   ["value/declaration", ({ colon }) => `font${colon}bold;`],
   ["value/interpolated-name", ({ gap, colon }) => `#{$p}${colon}${gap}red;`],
   ["value/final-interpolated-name", ({ colon }) => `.child { #{$p}${colon}red }`],

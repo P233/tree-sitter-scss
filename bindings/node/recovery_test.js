@@ -224,6 +224,37 @@ test("an unfinished block at-rule header ends at its block's closing brace", () 
   });
 });
 
+test("a rule Sass accepts without a block may end at its block's closing brace", () => {
+  eachParser((parser, dialect) => {
+    // Sass passes these through as unknown at-rules, as it does `@media` and `@supports` in any other spelling.
+    const rules = [
+      "@container card (min-width: 1px)",
+      "@starting-style",
+      "@layer base",
+      "@MEDIA screen",
+      "@Supports (a: b)"
+    ];
+    for (const rule of rules) {
+      for (const end of [" }", "\n}"]) {
+        const root = parser.parse(`.a {\n  color: red;\n  ${rule}${end}\n.y {\n  color: blue;\n}\n`).rootNode;
+        assert.equal(root.hasError, false, `${dialect}: ${rule}${end}`);
+      }
+    }
+    // A top-level `}` closes nothing, so it ends such a rule's header as an error.
+    for (const rule of ["@container card (min-width: 1px)", "@layer base"]) {
+      const root = parser.parse(`${rule} }\n.y {\n  color: blue;\n}\n${tail}\n`).rootNode;
+      assert.equal(root.namedChildCount, 302, `${dialect}: top-level ${rule}`);
+      assert.deepEqual(errors(root), [`${rule} }`], `${dialect}: top-level ${rule}`);
+    }
+    // Sass requires the blocks of lowercase `@media` and `@supports`.
+    for (const rule of ["@media screen", "@supports (a: b)"]) {
+      const root = parser.parse(`.a {\n  color: red;\n  ${rule}\n}\n.y {\n  color: blue;\n}\n${tail}\n`).rootNode;
+      assert.equal(root.namedChildCount, 302, `${dialect}: ${rule}`);
+      assert.deepEqual(errors(root), [rule], `${dialect}: ${rule}`);
+    }
+  });
+});
+
 test("a header cut off by its block's closing brace below an unfinished selector keeps the following rules", () => {
   eachParser((parser, dialect) => {
     // The selector ends above the header, so recovery returns to the statement list instead of skipping the `}` and

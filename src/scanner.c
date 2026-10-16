@@ -695,8 +695,8 @@ static bool rule_line_follows(TSLexer *lexer, int32_t first, unsigned *budget) {
 typedef enum {
   // A CSS prelude, or a Sass definition's name and parameters.
   PLAIN_PRELUDE,
-  // `@layer`'s, which may also end its statement at a `}`.
-  LAYER_PRELUDE,
+  // A rule's that Sass also passes through without a block, which may end its statement at its block's `}`.
+  BODILESS_PRELUDE,
   // A SassScript expression, which an unquoted `#name` string or the `%` operator may continue.
   SASS_EXPRESSION,
   // A selector, which a rule line may continue.
@@ -753,10 +753,10 @@ static bool header_ends_early(TSLexer *lexer, Prelude prelude, unsigned brace_sy
       if (!groups) return false;
       groups--;
     } else if (character == '}') {
-      // Only `@layer` may end at a `}`, and recovery skipping one could hold the block open to the end of the file.
-      // Inside a group that closes after it, a `}` is a stray character instead.
+      // Recovery skipping the `}` could hold the block open to the end of the file, so only a rule Sass passes through
+      // without a block may end its statement there. Inside a group that closes after it, the `}` is a stray character.
       lexer->result_symbol = brace_symbol;
-      return prelude != LAYER_PRELUDE && (!groups || !group_closes_ahead(lexer, &budget));
+      return groups ? !group_closes_ahead(lexer, &budget) : prelude != BODILESS_PRELUDE;
     } else if (character == '{' || character == ';') {
       return false;
     }
@@ -770,7 +770,8 @@ static bool header_ends_early(TSLexer *lexer, Prelude prelude, unsigned brace_sy
 static bool scan_unfinished_header(TSLexer *lexer, bool is_line_start, bool is_in_block) {
   static const char *const names[] = {"if", "each", "for", "while", "at-root", "mixin", "function", "page",
                                       "media", "supports", "container", "layer", "scope", "starting-style"};
-  enum { CONTROL_NAMES = 4, AT_ROOT = 4, MIXIN = 5, FUNCTION = 6, PAGE = 7, LAYER = 11 };
+  enum { CONTROL_NAMES = 4, AT_ROOT = 4, MIXIN = 5, FUNCTION = 6, PAGE = 7, MEDIA = 8, SUPPORTS = 9, CONTAINER = 10,
+         LAYER = 11, STARTING_STYLE = 13 };
   enum { SASS_NAMES = 6, NAME_BUFFER = 15 };
   lexer->advance(lexer, false);
   char name[NAME_BUFFER];
@@ -793,9 +794,13 @@ static bool scan_unfinished_header(TSLexer *lexer, bool is_line_start, bool is_i
   if (match < 0 || (is_definition && is_line_start)) return false;
   lexer->mark_end(lexer);
   lexer->result_symbol = UNFINISHED_HEADER;
+  // Sass passes these through without a block, as it does `@media` and `@supports` spelled in any other case, so they
+  // may end at their block's `}`; a top-level `}` closes nothing.
+  bool is_bodiless = is_in_block && (match == CONTAINER || match == LAYER || match == STARTING_STYLE ||
+                                     ((match == MEDIA || match == SUPPORTS) && strcmp(name, folded) != 0));
   Prelude prelude = match < CONTROL_NAMES               ? SASS_EXPRESSION
                     : match == AT_ROOT || match == PAGE ? SELECTOR_PRELUDE
-                    : match == LAYER                    ? LAYER_PRELUDE
+                    : is_bodiless                       ? BODILESS_PRELUDE
                                                         : PLAIN_PRELUDE;
   return header_ends_early(lexer, prelude, is_in_block ? HEADER_AT_BRACE : UNFINISHED_HEADER);
 }
