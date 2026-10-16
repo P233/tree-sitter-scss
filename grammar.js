@@ -109,7 +109,7 @@ module.exports = grammar({
     $._missing_variable_name,
     // Ends a statement before a declaration; selector states reject it, so recovery resumes in the statement list.
     $._statement_break,
-    // Never valid: a cut-off at-rule header or a line of leading punctuation above a declaration is one error.
+    // Never valid: a cut-off header, a colon typed into a name or a punctuation line above a declaration is one error.
     $._unfinished_header,
     // Never emitted: marks a raw at-rule prelude, which may continue onto declaration-like lines.
     $._raw_prelude

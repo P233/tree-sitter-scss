@@ -384,6 +384,45 @@ test("repairing an unfinished comment restores syntax and capture ranges", () =>
   }
 });
 
+test("unclosed value comment debt stays visible and inserting its close restores the comment", () => {
+  const shape = node => [node.type, node.startIndex, node.endIndex, node.isMissing, ...node.children.map(shape)];
+  for (const language of [Scss, Scss.cssLanguage]) {
+    const parser = new Parser();
+    parser.setLanguage(language);
+    const source = ".a { color: red /* note; } .next {}";
+    const tree = parser.parse(source);
+    // Without any later close, the value grammar can read the opener as two operators.
+    assert.equal(tree.rootNode.hasError, false);
+    assert.equal(tree.rootNode.descendantsOfType("block_comment").length, 0);
+    assert.deepEqual(
+      tree.rootNode.descendantsOfType("operator").map(node => node.text),
+      ["/", "*"]
+    );
+    assert.equal(tree.rootNode.lastNamedChild.text, ".next {}");
+    assert.equal(parser.parse("/* note").rootNode.hasError, true);
+    const start = source.indexOf(";");
+    const inserted = " */";
+    const repaired = source.slice(0, start) + inserted + source.slice(start);
+    tree.edit({
+      startIndex: start,
+      oldEndIndex: start,
+      newEndIndex: start + inserted.length,
+      startPosition: { row: 0, column: start },
+      oldEndPosition: { row: 0, column: start },
+      newEndPosition: { row: 0, column: start + inserted.length }
+    });
+    const incremental = parser.parse(repaired, tree);
+    const fresh = parse(repaired, language);
+    assert.deepEqual(shape(incremental.rootNode), shape(fresh.rootNode));
+    assert.equal(incremental.rootNode.descendantsOfType("block_comment")[0].text, "/* note */");
+    assert.equal(incremental.rootNode.lastNamedChild.text, ".next {}");
+    const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
+    const captures = tree =>
+      query.captures(tree.rootNode).map(({ name, node }) => [name, node.startIndex, node.endIndex]);
+    assert.deepEqual(captures(incremental), captures(fresh));
+  }
+});
+
 test("repairing a damaged branch reattaches else clauses across comments", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     const original = "@if true {} /* #{1} */ @else if false {} /* #{2} */ @else {} .next {}";
