@@ -289,6 +289,40 @@ test("a blockless @scope or @page header ends at its semicolon as one error", ()
   });
 });
 
+test("an unfinished expression ends before a class or pseudo rule line", () => {
+  eachParser((parser, dialect) => {
+    // No expression continues with `.name {` or `:name {`, so the rule keeps its tree whichever token the lexer offers.
+    for (const head of ["@debug", "@warn", "@return", "$local:", "$local: 1 +"]) {
+      for (const rule of [".panel {\n  padding: 4px;\n}", ":root {\n  --x: 1;\n}"]) {
+        for (const [before, after] of [
+          ["$gap: 8px;\n", ""],
+          [".a {\n  color: red;\n  ", "\n}"]
+        ]) {
+          const indent = before.endsWith("  ") ? "  " : "";
+          const root = parser.parse(
+            `${before}${head}\n${indent}${rule.replaceAll("\n", `\n${indent}`)}${after}\n${tail}\n`
+          ).rootNode;
+          const rules = root.descendantsOfType("rule_set").filter(node => !node.hasError);
+          assert.ok(
+            rules.some(node => node.text.startsWith(rule.split(" ")[0] + " {")),
+            `${dialect}: ${head} / ${rule}`
+          );
+          assert.equal(rules.filter(node => /^\.t\d/.test(node.text)).length, 300, `${dialect}: ${head} / ${rule}`);
+        }
+      }
+    }
+    // A number may still continue a value, and a selector may continue onto such a line.
+    for (const source of [
+      ".a { margin: 1px\n  .5px; }",
+      ".x { a\n:hover { color: red; } }",
+      ".a,\n.b {}",
+      "@keyframes k { 10%,\n.5% {} }"
+    ]) {
+      assert.equal(parser.parse(source).rootNode.hasError, false, `${dialect}: ${source}`);
+    }
+  });
+});
+
 test("a rule Sass accepts without a block may end at its block's closing brace", () => {
   eachParser((parser, dialect) => {
     // Sass passes these through as unknown at-rules, as it does `@media` and `@supports` in any other spelling.

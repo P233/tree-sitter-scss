@@ -1083,6 +1083,20 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
         return scan_keyword(lexer, valid_symbols, css, word, 1, line_end);
       }
     }
+    // A rule line led by a class or pseudo name never continues an expression, so the statement ends above it. A state
+    // that also accepts selector whitespace or a namespace prefix may still read the line as a selector.
+    bool is_expression =
+      !valid_symbols[DESCENDANT] && !valid_symbols[SPACE_BEFORE_COLON] && !valid_symbols[NAMESPACE_PREFIX];
+    if (line_end && is_expression && (lexer->lookahead == '.' || lexer->lookahead == ':')) {
+      int32_t first = lexer->lookahead;
+      lexer->advance(lexer, false);
+      if (first == '.' && digit(lexer->lookahead)) {
+        return scan_number_digits(lexer, css, true) && valid_symbols[lexer->result_symbol];
+      }
+      unsigned budget = LOOKAHEAD_LIMIT;
+      lexer->result_symbol = STATEMENT_BREAK;
+      return rule_line_follows(lexer, first, &budget) && (line_end == LINE_END || !group_closes_ahead(lexer, &budget));
+    }
     if (digit(lexer->lookahead) || lexer->lookahead == '.') {
       return scan_number(lexer, css) && valid_symbols[lexer->result_symbol];
     }
