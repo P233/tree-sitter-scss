@@ -1076,13 +1076,6 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     return valid_symbols[HEADER_AT_BRACE] && scan_unfinished_variable(lexer);
   }
   if (valid_symbols[SCALAR_NUMBER] || valid_symbols[DIMENSION_NUMBER]) {
-    if (lexer->lookahead == '-') {
-      lexer->advance(lexer, false);
-      if (!digit(lexer->lookahead) && lexer->lookahead != '.') {
-        char word[KEYWORD_BUFFER] = "-";
-        return scan_keyword(lexer, valid_symbols, css, word, 1, line_end);
-      }
-    }
     // A rule line led by a class or pseudo name never continues an expression, so the statement ends above it. A state
     // that also accepts selector whitespace or a namespace prefix may still read the line as a selector.
     bool is_expression =
@@ -1096,6 +1089,13 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
       unsigned budget = LOOKAHEAD_LIMIT;
       lexer->result_symbol = STATEMENT_BREAK;
       return rule_line_follows(lexer, first, &budget) && (line_end == LINE_END || !group_closes_ahead(lexer, &budget));
+    }
+    if (lexer->lookahead == '-') {
+      lexer->advance(lexer, false);
+      if (!digit(lexer->lookahead) && lexer->lookahead != '.') {
+        char word[KEYWORD_BUFFER] = "-";
+        return scan_keyword(lexer, valid_symbols, css, word, 1, line_end);
+      }
     }
     if (digit(lexer->lookahead) || lexer->lookahead == '.') {
       return scan_number(lexer, css) && valid_symbols[lexer->result_symbol];

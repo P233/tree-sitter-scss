@@ -290,6 +290,10 @@ test("a blockless @scope or @page header ends at its semicolon as one error", ()
 });
 
 test("an unfinished expression ends before a class or pseudo rule line", () => {
+  const isOutsideError = node => {
+    for (let parent = node.parent; parent; parent = parent.parent) if (parent.type === "ERROR") return false;
+    return true;
+  };
   eachParser((parser, dialect) => {
     // No expression continues with `.name {` or `:name {`, so the rule keeps its tree whichever token the lexer offers.
     for (const head of ["@debug", "@warn", "@return", "$local:", "$local: 1 +"]) {
@@ -302,15 +306,20 @@ test("an unfinished expression ends before a class or pseudo rule line", () => {
           const root = parser.parse(
             `${before}${head}\n${indent}${rule.replaceAll("\n", `\n${indent}`)}${after}\n${tail}\n`
           ).rootNode;
-          const rules = root.descendantsOfType("rule_set").filter(node => !node.hasError);
-          assert.ok(
-            rules.some(node => node.text.startsWith(rule.split(" ")[0] + " {")),
-            `${dialect}: ${head} / ${rule}`
-          );
-          assert.equal(rules.filter(node => /^\.t\d/.test(node.text)).length, 300, `${dialect}: ${head} / ${rule}`);
+          const name = rule.slice(0, rule.indexOf(" {"));
+          const isKept = node => node.text.startsWith(`${name} {`) && !node.hasError && isOutsideError(node);
+          assert.ok(root.descendantsOfType("rule_set").some(isKept), `${dialect}: ${head} / ${name}`);
+          const tailRules = root.namedChildren.filter(node => /^\.t\d/.test(node.text) && !node.hasError);
+          assert.equal(tailRules.length, 300, `${dialect}: ${head} / ${name}`);
         }
       }
     }
+    // A line led by a minus is no class rule line, so the value's error stays inside its block.
+    const minus = parser.parse(`.a {\n  margin: 1px\n  -.panel {\n    padding: 4px;\n  }\n}\n${tail}\n`).rootNode;
+    assert.ok(
+      minus.namedChildren.every(node => node.type !== "ERROR"),
+      `${dialect}: -.panel`
+    );
     // A number may still continue a value, and a selector may continue onto such a line.
     for (const source of [
       ".a { margin: 1px\n  .5px; }",
