@@ -445,6 +445,10 @@ test("unfinished variable and extend lines are claimed before a declaration", ()
 
 test("recovery debt stays visible", () => {
   eachParser((parser, dialect) => {
+    // Repairing dangling value punctuation must not hide a standalone malformed line.
+    for (const line of ["0.", "!"]) {
+      assert.equal(parser.parse(above(line)).rootNode.hasError, true, `${dialect}: ${line}`);
+    }
     // Inside an argument list, recovery may keep the group open over a declaration whose value starts with a call.
     const call = parser.parse(`.a {\n  margin: fn(c,\n  width: calc(1px + 2px);\n}\n.y {}\n${tail}\n`).rootNode;
     assert.ok(!declarations(call.firstNamedChild).includes("width: calc(1px + 2px);"), `${dialect}: call`);

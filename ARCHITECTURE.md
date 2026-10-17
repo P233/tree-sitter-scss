@@ -188,6 +188,8 @@ Three local Apple M1 Pro runs with Clang 21.0.0 and Tree-sitter 0.25.1, 11 round
 
 The README's [Known limits](README.md#known-limits) lists the gaps that editing real stylesheets meets. These causes, including rarer gaps, constrain changes here:
 
+- An incomplete map entry such as `$map: (key:)` or `$map: (key: value, o)` can take the following declaration as its value and insert a missing `)`. At the top level, where the next line is a rule rather than a declaration, the error can take the following rules. Closing the group and ending the variable require separate recovery steps.
+- Dangling `.` or `!` in a value can absorb the next declaration. A break covering the punctuation still has to be read again in a statement list after the missing semicolon; accepting it there also hides standalone malformed `0.` and `!` lines. Skipping the punctuation as an invalid token requires another recovery and can still lose the next declaration.
 - An unclosed `url(` loses the next declaration's name because the call reading wins recovery.
 - Punctuation after another statement or a `{` can join a statement break before a declaration on the next line without an error, as in `color: red; ,` followed by `width: 1px;`. The same comma before the closing `}` does report an error. A never-valid token at the break would make recovery merge the rest of the file.
 - In a short file, a last rule left open after a complete declaration can make the whole file one `ERROR`: Tree-sitter's recovery inserts the first missing token by symbol order whose state can reduce at the end of input, here a name rather than `}`.
