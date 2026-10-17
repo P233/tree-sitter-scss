@@ -98,7 +98,7 @@ pnpm check   # What CI runs: lint, formatting, generated files, build, tests, pa
 pnpm dev     # Live preview of trees and highlights at http://127.0.0.1:4173
 ```
 
-`grammar.js` and `src/scanner.c` are the authored sources; `pnpm generate` regenerates everything else under `src/`. After `pnpm build`, `pnpm test:node` runs the native acceptance tests, `pnpm test:valid` enumerates complete statements with whitespace and colon variants, and `pnpm test:fuzz` checks incremental parses after seeded random edits. `pnpm benchmark` measures parsing, highlight queries, incremental edits, and key-by-key typing. See [Architecture](ARCHITECTURE.md) for ownership, invariants, optional Dart Sass validation, and how to compare revisions. `comparison/` holds the comparison page; [its README](comparison/README.md) covers building, previewing and deploying it.
+`grammar.js` and `src/scanner.c` are the authored sources; `pnpm generate` regenerates everything else under `src/`. After `pnpm build`, `pnpm test:node` runs the native acceptance tests, `pnpm test:valid` enumerates complete statements with whitespace and colon variants, and `pnpm test:fuzz` checks incremental parses after seeded random edits. `pnpm test:recovery` freezes the measured typing boundary with exact per-key counters and no Sass dependency. `pnpm benchmark` measures parsing, highlight queries, incremental edits, and key-by-key typing. See [Architecture](ARCHITECTURE.md) for ownership, invariants, optional Dart Sass validation, and how to compare revisions. `comparison/` holds the comparison page; [its README](comparison/README.md) covers building, previewing and deploying it.
 
 ## License
 
