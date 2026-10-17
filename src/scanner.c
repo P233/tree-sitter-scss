@@ -638,6 +638,7 @@ static bool tail_ends_statement(TSLexer *lexer, unsigned token, bool is_selector
     lexer->mark_end(lexer);
   }
   bool has_crossed_line = false;
+  bool has_comment = false;
   while (budget) {
     if (css_space(lexer->lookahead)) {
       has_crossed_line |= line_break(lexer->lookahead);
@@ -647,13 +648,17 @@ static bool tail_ends_statement(TSLexer *lexer, unsigned token, bool is_selector
       lexer->advance(lexer, false);
       if (lexer->lookahead != '/' && lexer->lookahead != '*') return false;
       has_crossed_line |= skip_comment(lexer, &budget);
+      has_comment = true;
     } else {
       break;
     }
   }
   lexer->result_symbol = token;
   if (!budget || !has_crossed_line) return false;
-  return (is_selector && lexer->lookahead == '@') || declaration_name_follows(lexer, &budget);
+  if (is_selector && lexer->lookahead == '@') return true;
+  // Ending at the declaration leaves no newline after the skipped break, where recovery would find a second path.
+  if (token == STATEMENT_BREAK && !has_comment) lexer->mark_end(lexer);
+  return declaration_name_follows(lexer, &budget);
 }
 
 // After the character that starts it, a selector name and then `{` on the line: a rule line, which no header expression

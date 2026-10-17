@@ -87,6 +87,33 @@ test("a statement typed above a declaration ends at its own line", () => {
   });
 });
 
+test("recovery above a declaration settles on one parse version", () => {
+  // The runtime reuses no subtree while two versions are active, and versions whose errors differ by a skipped
+  // character never merge, so a second recovery path into one statement list reparses about 1,800 nodes on each key.
+  eachParser((parser, dialect) => {
+    for (const line of ["width:", "color: ", ".b > .c:", "&:is(.c,)", "> li +"]) {
+      let steps = 0;
+      let start = -1;
+      let longest = 0;
+      parser.setLogger((message, params) => {
+        if (message !== "process") return;
+        steps++;
+        const row = Number(params.row);
+        if (Number(params.version_count) === 1) {
+          start = -1;
+        } else {
+          if (start < 0) start = row;
+          longest = Math.max(longest, row - start);
+        }
+      });
+      parser.parse(above(line));
+      parser.setLogger(null);
+      assert.ok(steps > 0, `${dialect}: the parse log reports its steps`);
+      assert.ok(longest <= 3, `${dialect}: ${JSON.stringify(line)} keeps two versions over ${longest} rows`);
+    }
+  });
+});
+
 test("selector lines above another kind of statement keep one local error", () => {
   eachParser((parser, dialect) => {
     for (const [lines, error] of [
