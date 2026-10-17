@@ -49,6 +49,7 @@ const TEMPLATES = [
   ["header/media", ({ gap, colon }) => `@media screen and${gap}(min-width${colon}1px) { color: red; }`],
   ["header/supports", ({ gap, colon }) => `@supports${gap}(display${colon}grid) { color: red; }`],
   ["header/container", ({ gap }) => `@container sidebar${gap}(width > 1px) { color: red; }`],
+  ["header/container-without-prelude", ({ gap }) => `@container${gap}{ color: red; }`],
   ["header/layer", ({ gap }) => `@layer${gap}components { color: red; }`],
   ["header/layer-statement", ({ gap }) => `@layer base,${gap}components;`],
   ["header/scope", ({ gap }) => `@scope (.a)${gap}to (.b) { color: red; }`],
@@ -57,6 +58,7 @@ const TEMPLATES = [
   ["header/page", ({ gap }) => `@page${gap}:first { margin: 1px; }`],
   // Sass passes these through without a block, also as a block's last statement.
   ["header/bodiless-container", ({ gap }) => `.child { @container sidebar${gap}(width > 1px) }`],
+  ["header/bodiless-container-without-prelude", () => `.child { @container }`],
   ["header/bodiless-layer", ({ gap }) => `.child { @layer${gap}components }`],
   ["header/bodiless-starting-style", () => `.child { @starting-style }`],
   ["header/bodiless-media-case", ({ gap, colon }) => `.child { @MEDIA screen and${gap}(min-width${colon}1px) }`],

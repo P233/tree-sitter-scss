@@ -224,7 +224,7 @@
             "tail": 0,
             "lineValid": 0,
             "blockValid": 0,
-            "states": "800000000880000000000000000000000000"
+            "states": "800000000000000000000000000000000000"
           },
           "@include button-variant($primary, $radius: 4px);": {
             "keys": 48,
@@ -2137,7 +2137,7 @@
             "tail": 1,
             "lineValid": 0,
             "blockValid": 0,
-            "states": "80000000088000008888888888888888800f"
+            "states": "80000000000000008888888888888888800f"
           },
           "@include button-variant($primary, $radius: 4px);": {
             "keys": 48,

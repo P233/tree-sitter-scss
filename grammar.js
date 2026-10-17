@@ -713,11 +713,9 @@ module.exports = grammar({
     query_statement: $ => seq($._query_head, choice(";", $._block)),
     _query_head: $ =>
       choice(
-        seq(directive("media"), optional(field("prelude", $._query_value))),
-        seq(
-          choice(directive("supports"), directive("container"), directive("import")),
-          field("prelude", $._query_value)
-        )
+        // Sass passes `@container` through without a prelude.
+        seq(choice(directive("media"), directive("container")), optional(field("prelude", $._query_value))),
+        seq(choice(directive("supports"), directive("import")), field("prelude", $._query_value))
       ),
     _query_value: $ => seq(commaSep1(repeat1($._query_atom)), optional(",")),
     _query_atom: $ =>

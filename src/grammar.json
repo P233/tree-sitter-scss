@@ -8476,25 +8476,51 @@
           "type": "SEQ",
           "members": [
             {
-              "type": "ALIAS",
-              "content": {
-                "type": "TOKEN",
-                "content": {
-                  "type": "SEQ",
-                  "members": [
-                    {
-                      "type": "STRING",
-                      "value": "@"
-                    },
-                    {
-                      "type": "PATTERN",
-                      "value": "[mM][eE][dD][iI][aA]"
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "TOKEN",
+                    "content": {
+                      "type": "SEQ",
+                      "members": [
+                        {
+                          "type": "STRING",
+                          "value": "@"
+                        },
+                        {
+                          "type": "PATTERN",
+                          "value": "[mM][eE][dD][iI][aA]"
+                        }
+                      ]
                     }
-                  ]
+                  },
+                  "named": false,
+                  "value": "@media"
+                },
+                {
+                  "type": "ALIAS",
+                  "content": {
+                    "type": "TOKEN",
+                    "content": {
+                      "type": "SEQ",
+                      "members": [
+                        {
+                          "type": "STRING",
+                          "value": "@"
+                        },
+                        {
+                          "type": "PATTERN",
+                          "value": "[cC][oO][nN][tT][aA][iI][nN][eE][rR]"
+                        }
+                      ]
+                    }
+                  },
+                  "named": false,
+                  "value": "@container"
                 }
-              },
-              "named": false,
-              "value": "@media"
+              ]
             },
             {
               "type": "CHOICE",
@@ -8540,27 +8566,6 @@
                   },
                   "named": false,
                   "value": "@supports"
-                },
-                {
-                  "type": "ALIAS",
-                  "content": {
-                    "type": "TOKEN",
-                    "content": {
-                      "type": "SEQ",
-                      "members": [
-                        {
-                          "type": "STRING",
-                          "value": "@"
-                        },
-                        {
-                          "type": "PATTERN",
-                          "value": "[cC][oO][nN][tT][aA][iI][nN][eE][rR]"
-                        }
-                      ]
-                    }
-                  },
-                  "named": false,
-                  "value": "@container"
                 },
                 {
                   "type": "ALIAS",
