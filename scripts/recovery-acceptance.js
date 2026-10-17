@@ -11,11 +11,13 @@ const {
   typingStatements,
   blockStatements,
   headers,
+  unfinishedLines,
+  unfinishedHeaders,
   typos
 } = require("./recovery-fixtures.js");
 
 const EXPECTATIONS = join(__dirname, "recovery-acceptance.json");
-const SUITES = ["contract", "typing", "blockend", "headers", "typos"];
+const SUITES = ["contract", "typing", "blockend", "headers", "unfinished", "typos"];
 const rules = (name, count = 300) =>
   Array.from({ length: count }, (_, i) => `.${name}${i} {\n  margin: ${i}px;\n  &:hover { color: red; }\n}\n`).join("");
 const point = (text, index) => {
@@ -301,6 +303,32 @@ function cleanHeaders() {
   return results;
 }
 
+function headersAfterUnfinished() {
+  const parser = parserFor();
+  const tail = rules("t");
+  const layouts = {
+    next: [line => `.a {\n  color: red;\n  ${line}\n  `, `\n}\n${tail}`],
+    same: [line => `.a {\n  color: red;\n  ${line} `, `\n}\n${tail}`]
+  };
+  const results = {};
+  for (const [layout, [before, after]] of Object.entries(layouts)) {
+    for (const line of Object.values(unfinishedLines).flat()) {
+      for (const header of unfinishedHeaders) {
+        const row = (results[`${layout}/${line}/${header}`] = { keys: 0, broken: 0, tail: [] });
+        for (const { text } of typingStates(before(line), after, header, {})) {
+          const tree = parser.parse(text);
+          // An ERROR root can still hold intact rules, but the whole file is then one error.
+          const intact = tree.rootNode.type === "ERROR" ? 0 : tailIntact(tree);
+          row.keys++;
+          if (intact < 300) row.broken++;
+          row.tail.push(intact);
+        }
+      }
+    }
+  }
+  return results;
+}
+
 function typoProbes() {
   const tail = Array.from({ length: 300 }, (_, i) => `.t${i} { margin: ${i}px; }`).join("\n");
   const results = {};
@@ -341,11 +369,18 @@ function compare(expected, actual, path) {
 
 function runWorker(suite, isPlain) {
   if (!SUITES.includes(suite)) throw new Error(`Unknown recovery suite: ${suite}.`);
-  const measure = { contract, typing, blockend, headers: cleanHeaders, typos: typoProbes }[suite];
+  const measure = {
+    contract,
+    typing,
+    blockend,
+    headers: cleanHeaders,
+    unfinished: headersAfterUnfinished,
+    typos: typoProbes
+  }[suite];
   const result = measure(isPlain);
-  // Native node finalizers need not drain after the worker has serialized its counters.
-  writeFileSync(process.stdout.fd, JSON.stringify(result) + "\n");
-  process.exit(0);
+  // Exit once the pipe takes the counters; a synchronous write to it fails past its buffer, and native node finalizers
+  // need not drain.
+  process.stdout.write(JSON.stringify(result) + "\n", () => process.exit(0));
 }
 
 async function main(values) {

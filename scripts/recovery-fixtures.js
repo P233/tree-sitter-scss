@@ -164,6 +164,42 @@ const headers = [
   "@keyframes fade"
 ];
 
+// Lines left unfinished where a header is then typed, on the next line or after them, grouped by how they end.
+const unfinishedLines = {
+  compound: [
+    "b",
+    "&:hover",
+    ".b",
+    "a.b",
+    "&.c",
+    "&-x",
+    ".b:hover",
+    ".b::before",
+    "a[href]",
+    "*",
+    "#id",
+    "%ph",
+    "#{$s}",
+    ".b #{$x}"
+  ],
+  combinator: ["> .b", ".b .c", "ul > li", ".b:not(.c)", "~ a", "+ a"],
+  punctuation: [".b,", ".b >", ".b +", ".b ~", ".b:", ".b.", ".b, .c"],
+  marker: [".b .", ".b #", ".b :", ".b ::", ".b %", ".b [", "a #", "&:hover ."],
+  group: ["&[d", "&[d=", '&[d="x"', "&:is(", "&:is(.c", "&:not(.c,", "&:nth-child(2n of .c"],
+  other: ["color", "color:", "color: red", "@include m", "$x: 1", "margin: fn(1px,"]
+};
+
+const unfinishedHeaders = [
+  "@media",
+  "@media screen",
+  "@if $a",
+  "@supports (a: b)",
+  "@each $x in a",
+  "@layer x",
+  "@include m",
+  "@at-root"
+];
+
 const typos = {
   "space-in-name": ".a { cur sor: x; }",
   "stray-letter": ".a { a  display: flex; }",
@@ -182,5 +218,7 @@ module.exports = {
   typingStatements,
   blockStatements,
   headers,
+  unfinishedLines,
+  unfinishedHeaders,
   typos
 };
