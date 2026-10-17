@@ -845,7 +845,8 @@ static bool scan_unfinished_variable(TSLexer *lexer) {
   return budget && declaration_name_follows(lexer, &budget);
 }
 
-// Recovery ignores empty tokens, so this break covers the newline and indentation before a whole declaration line.
+// Recovery ignores empty tokens, so this break covers the newline and indentation before a whole declaration line or a
+// `}`.
 static bool scan_recovery_break(TSLexer *lexer) {
   if (!line_break(lexer->lookahead)) return false;
   unsigned budget = LOOKAHEAD_LIMIT;
@@ -853,6 +854,8 @@ static bool scan_recovery_break(TSLexer *lexer) {
   if (!budget) return false;
   lexer->mark_end(lexer);
   lexer->result_symbol = STATEMENT_BREAK;
+  // A block's `}` on the next line ends the statement too; skipping it would leave the block open to the end.
+  if (lexer->lookahead == '}') return true;
   return declaration_start(lexer, false, &budget, false) != NO_DECLARATION && group_line_rest(lexer, &budget);
 }
 

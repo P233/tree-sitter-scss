@@ -317,6 +317,22 @@ test("a header cut off by its block's closing brace below an unfinished selector
         assert.equal(parser.parse(source).rootNode.namedChildCount, 302, `${dialect}: ${line} / ${header}`);
       }
     }
+    // Recovery that reaches the line break before the `}` ends the statement there, below a spaced lone marker or an
+    // open group, and on the selector's own line.
+    for (const lines of [".b .\n  @media", "&[d\n  @media", "&:is(.c\n  @media", "&:hover @media", ".b .c @if $a"]) {
+      const source = `.a {\n  color: red;\n  ${lines}\n}\n.y {\n  color: blue;\n}\n${tail}\n`;
+      assert.equal(parser.parse(source).rootNode.namedChildCount, 302, `${dialect}: ${lines}`);
+    }
+  });
+});
+
+test("a selector line typed at a block's end keeps the following rules", () => {
+  eachParser((parser, dialect) => {
+    for (const line of ["&:", ".b:", "&.", "&#", "&[", "&[]", ".b []", "&:not(.)", "p::", "li:not(.)", "&-x:"]) {
+      const root = parser.parse(`.a {\n  color: red;\n  ${line}\n}\n.y {\n  color: blue;\n}\n${tail}\n`).rootNode;
+      assert.ok(root.hasError, `${dialect}: ${line}`);
+      assert.equal(root.namedChildCount, 302, `${dialect}: ${line}`);
+    }
   });
 });
 
@@ -532,20 +548,22 @@ test("recovery debt stays visible", () => {
       const root = parser.parse(above(`color: red;\n  ${line}`)).rootNode;
       assert.notDeepEqual(errors(root.firstNamedChild), [line], `${dialect}: ${line}`);
     }
-    // Below a selector line that ends with a spaced lone marker or leaves a group open, or on the selector's own line,
-    // a header cut off by the block's `}` still takes the rest of the file.
-    for (const line of [".b .\n  @media", "&[d\n  @media", "&:is(.c\n  @media", "&:hover @media"]) {
-      const root = parser.parse(`.a {\n  color: red;\n  ${line}\n}\n.y {}\n${tail}\n`).rootNode;
-      assert.notEqual(root.namedChildCount, 302, `${dialect}: ${line}`);
+    // A block's last line that is only an interpolation, stops at a colon after a descendant or namespaced compound,
+    // or leaves `:is(` open, or a header typed after an open group on its line, still takes the rest of the file, as
+    // does an unfinished selector in a one-line block.
+    for (const lines of ["#{$sel}", ".b .c:", "svg|a:", "&:is(", "&:not( @media screen"]) {
+      const root = parser.parse(`.a {\n  color: red;\n  ${lines}\n}\n.y {}\n${tail}\n`).rootNode;
+      assert.notEqual(root.namedChildCount, 302, `${dialect}: ${lines}`);
     }
+    assert.notEqual(parser.parse(`.a { color: red; &: }\n.y {}\n${tail}\n`).rootNode.namedChildCount, 302, dialect);
     // A `{` typed at a line start before a top-level comment reads the rest of the file as its block.
     const brace = parser.parse(`.x { a: b }\n\n{/* section */\n${tail}\n`).rootNode;
     assert.notEqual(brace.namedChildCount, 303, `${dialect}: stray brace`);
   });
-  // SCSS strings parse `#{` as an expression, so an unclosed one takes the rest of its string and more.
+  // SCSS strings parse `#{` as an expression, so an unclosed one can take the rest of its string and the rules after
+  // it; with the quote and semicolon typed, recovery ends the declaration at the line break.
   const parser = new Parser().setLanguage(Scss);
-  assert.notEqual(
-    parser.parse(`.a {\n  content: "a #{$b c";\n  color: red;\n}\n.after {}\n${tail}\n`).rootNode.namedChildCount,
-    302
-  );
+  const rules = (value, next) => parser.parse(`.a {\n  ${value}\n  ${next}\n}\n.after {}\n${tail}\n`).rootNode;
+  assert.notEqual(rules('content: "a #{$b c', "width: 1px;").namedChildCount, 302);
+  assert.equal(rules('content: "a #{$b c";', "color: red;").namedChildCount, 302);
 });
