@@ -603,11 +603,16 @@ static bool tail_start(int32_t character, bool is_touching) {
                           character == '%' || character == '|' || character == '('));
 }
 
-// Whether only such punctuation ends the line above a declaration; the token claims it. In a selector, where the break
-// is an error, an at-rule on the next line also ends the line, since it never continues a selector.
+static bool rule_line_follows(TSLexer *lexer, int32_t first, unsigned *budget);
+
+// Whether only such punctuation ends the line above a declaration, or a compound marker the line above a rule line; the
+// token claims it. In a selector, where the break is an error, an at-rule on the next line also ends the line.
 static bool tail_ends_statement(TSLexer *lexer, unsigned token, bool is_selector) {
   unsigned budget = LOOKAHEAD_LIMIT;
   bool is_touching = true;
+  // Punctuation that starts the text follows no selector, so claiming it would only hide its error.
+  bool is_text_start = lexer->is_at_included_range_start(lexer);
+  int32_t last = 0;
   // Decremented first: a closed interpolation may spend the rest of the budget.
   while (budget) {
     budget--;
@@ -621,9 +626,11 @@ static bool tail_ends_statement(TSLexer *lexer, unsigned token, bool is_selector
     if (character == '(' && !is_touching) break;
     if (character == '#') {
       lexer->advance(lexer, false);
+      last = '#';
       // A same-line interpolation, also one still open at the line end, leaves the line unfinished too.
       if (lexer->lookahead == '{') {
         lexer->advance(lexer, false);
+        last = '}';
         if (!skip_line_interpolation(lexer, &budget)) {
           lexer->mark_end(lexer);
           break;
@@ -631,6 +638,7 @@ static bool tail_ends_statement(TSLexer *lexer, unsigned token, bool is_selector
       }
     } else if (tail_start(character, true) || character == ')' || character == ']') {
       lexer->advance(lexer, false);
+      last = character;
     } else {
       break;
     }
@@ -656,8 +664,15 @@ static bool tail_ends_statement(TSLexer *lexer, unsigned token, bool is_selector
   lexer->result_symbol = token;
   if (!budget || !has_crossed_line) return false;
   if (is_selector && lexer->lookahead == '@') return true;
-  // Ending at the declaration leaves no newline after the skipped break, where recovery would find a second path.
+  // Ending at the next statement leaves no newline after the skipped break, where recovery would find a second path.
   if (token == STATEMENT_BREAK && !has_comment) lexer->mark_end(lexer);
+  // A compound marker needs a name touching it, so no later line continues the selector.
+  int32_t first = lexer->lookahead;
+  bool is_marker = last == '.' || last == ':' || last == '%' || last == '#';
+  if (is_marker && !is_text_start && (first == '.' || first == '%' || first == ':')) {
+    lexer->advance(lexer, false);
+    return rule_line_follows(lexer, first, &budget);
+  }
   return declaration_name_follows(lexer, &budget);
 }
 

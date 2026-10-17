@@ -130,6 +130,31 @@ test("selector lines above another kind of statement keep one local error", () =
   });
 });
 
+test("a selector line that stops at a compound marker ends before a rule line", () => {
+  eachParser((parser, dialect) => {
+    // `.`, `:`, `%` and `#` need a name touching them, so no later line continues the selector.
+    for (const [line, error] of [
+      [".a, .", ".a"],
+      [".card:", ".card"],
+      ["&::", "&"],
+      [".card:hover > .", ".card:hover"],
+      ['input[type="checkbox"]:', 'input[type="checkbox"]']
+    ]) {
+      const root = parser.parse(`${line}\n.panel {\n  padding: 4px;\n}\n${tail}\n`).rootNode;
+      assert.equal(root.namedChildCount, 302, `${dialect}: ${line}`);
+      assert.deepEqual(errors(root), [error], `${dialect}: ${line}`);
+      assert.equal(root.namedChildren[1].text, ".panel {\n  padding: 4px;\n}", `${dialect}: ${line}`);
+    }
+    // A comma, a combinator or a whole compound may continue the selector there.
+    for (const source of [".a,\n.b {}", ".a >\n.b {}", ".a:hover\n.b {}", "#{$sel}\n.panel {}"]) {
+      assert.equal(parser.parse(source).rootNode.hasError, false, `${dialect}: ${source}`);
+    }
+    // A lone marker that starts the text keeps its error; one touching a closed rule joins the break unreported.
+    assert.equal(parser.parse(".\n.panel {}").rootNode.hasError, true, dialect);
+    assert.equal(parser.parse(".a {}.\n.panel {}").rootNode.hasError, false, dialect);
+  });
+});
+
 test("same-line typos in a declaration block stay inside their block", () => {
   eachParser((parser, dialect) => {
     for (const block of [
