@@ -7,29 +7,6 @@ const SIMPLE_UNIT = new RegExp(`${NAME_START}(?:[_a-zA-Z0-9\\u0080-\\u{10ffff}]|
 const URL_NAME = keyword("url", true);
 const URL_WORD = token(prec(1, /[^\s()"'\\#$]+/));
 const RAW_FUNCTION_NAMES = ["element", "-moz-element"];
-const MATH_FUNCTIONS = [
-  "calc",
-  "min",
-  "max",
-  "clamp",
-  "round",
-  "mod",
-  "rem",
-  "sin",
-  "cos",
-  "tan",
-  "asin",
-  "acos",
-  "atan",
-  "atan2",
-  "pow",
-  "sqrt",
-  "hypot",
-  "log",
-  "exp",
-  "abs",
-  "sign"
-];
 const NTH_PSEUDOS = ["nth-child", "nth-last-child", "nth-of-type", "nth-last-of-type", "nth-col", "nth-last-col"];
 const VALUE_PSEUDOS = [
   "lang",
@@ -92,7 +69,6 @@ module.exports = grammar({
     $._sass_boolean,
     $._sass_null,
     $._sass_operator,
-    $._calculation_constant,
     $._css_var_function_name,
     $._scalar_number,
     $._dimension_number,
@@ -162,9 +138,7 @@ module.exports = grammar({
     [$.argument, $._query_atom],
     [$.conditional, $._query_atom],
     [$.arguments, $._query_atom],
-    [$._calculation_atom, $.map_entry],
     [$._value, $.map_entry, $._query_atom],
-    [$._value, $._calculation_atom, $.map_entry],
     [$.list, $.query_group],
     [$._property, $._expression_atom],
     [$.arguments, $._css_fallback_item],
@@ -387,7 +361,6 @@ module.exports = grammar({
       choice(
         functionCall($, $._css_var_function_name, alias($._css_var_arguments, $.arguments)),
         functionCall($, $._conditional_function_name),
-        prec(1, functionCall($, $._math_function_name, alias($._calculation_arguments, $.arguments))),
         functionCall($, $.dashed_name),
         seq(
           optional(seq(field("module", moduleName($)), token.immediate("."))),
@@ -435,7 +408,6 @@ module.exports = grammar({
     // Earlier rules win equal-length identifier ties. Equal lexical precedence
     // still lets a longer identifier keep its specialized-looking prefix.
     // One token per name group: identifier positions accept these names, so per-name tokens widen every state.
-    _math_function_name: () => token(choice(...MATH_FUNCTIONS.map(name => keyword(name, true)))),
     _selector_function_name: () => keyword("selector", true),
     _type_function_name: () => keyword("type", true),
     _query_function_name: () =>
@@ -445,22 +417,6 @@ module.exports = grammar({
     _conditional_function_name: () => keyword("if", true),
     _else_keyword: () => keyword("else", true),
     _result_property_name: () => keyword("result", true),
-    _calculation_arguments: $ =>
-      argumentList(
-        choice($.named_argument, $.feature_query, $._calculation_atom, alias($._calculation_argument, $.argument))
-      ),
-    _calculation_argument: $ => seq($._calculation_atom, repeat1($._calculation_atom)),
-    _calculation_atom: $ =>
-      choice($._expression_atom, $.map, alias($._calculation_group, $.list), $.calculation_constant),
-    _calculation_group: $ =>
-      prec(
-        1,
-        choice(
-          seq("(", optional(seq(commaSep1(repeat1($._calculation_atom)), optional(","))), ")"),
-          seq("[", optional($._value), "]")
-        )
-      ),
-    calculation_constant: $ => $._calculation_constant,
     member_expression: $ => seq(field("module", moduleName($)), token.immediate("."), field("name", $.variable_name)),
     list: $ => choice(seq("(", optional($._value), ")"), seq("[", optional($._value), "]")),
     map: $ => seq("(", commaSep1($.map_entry), optional(","), ")"),
@@ -1019,7 +975,6 @@ function featureName($) {
 function identifierWords($) {
   return [
     $._identifier,
-    $._math_function_name,
     $._query_function_name,
     $._query_word_operator,
     $._selector_function_name,

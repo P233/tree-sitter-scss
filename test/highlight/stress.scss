@@ -133,8 +133,8 @@ $x: true, tr\75 e, falsehood, #abcdfoo, #abc;
 //                               ^ constant
 
 .x { width: calc(PI); opacity: sin(pi); custom: PI; }
-//               ^ constant.builtin
-//                                 ^ constant.builtin
+//               ^ constant
+//                                 ^ constant
 //                                              ^ constant
 
 @m\65 dia screen { .x {} }

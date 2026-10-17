@@ -366,7 +366,12 @@ test("signed numbers are single values while subtraction keeps its operator", ()
       ["plain_value", "px"]
     ]);
     assert.deepEqual(values("calc(-infinity)", language)[0], ["call_expression", "calc(-infinity)"]);
-    assert.equal(parse(".a { b: calc(-infinity); }", language).descendantsOfType("calculation_constant").length, 1);
+    assert.deepEqual(
+      parse(".a { b: calc(-infinity); }", language)
+        .descendantsOfType("plain_value")
+        .map(node => node.text),
+      ["-infinity"]
+    );
   }
   assert.deepEqual(values("-1foo-bar", Scss), [["number", "-1foo-bar"]]);
   assert.deepEqual(values("-1px-2px", Scss.cssLanguage), [["number", "-1px-2px"]]);

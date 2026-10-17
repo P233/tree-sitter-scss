@@ -11,7 +11,7 @@
 [(number) (nth_formula)] @number
 (unit) @type.unit
 (type_name) @type
-[(boolean) (null) (calculation_constant)] @constant.builtin
+[(boolean) (null)] @constant.builtin
 [(flag) (important)] @keyword.modifier
 (at_keyword) @keyword.directive
 (attribute_modifier) @keyword

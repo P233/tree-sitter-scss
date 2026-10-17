@@ -61,7 +61,7 @@
   },
   {
     "name": "13 · Numbers, math & keyframes",
-    "focus": "Number / unit boundaries, exponents, slash separators, calculation constants, custom properties, and keyframe selector roles.",
+    "focus": "Number / unit boundaries, exponents, slash separators, custom properties, and keyframe selector roles.",
     "source": "@keyframes enter {\n  from { opacity: 0; transform: translateY(-.5rem); }\n  50% { opacity: .5; }\n  to { opacity: 1; transform: translateY(0); }\n}\n\n.card {\n  width: clamp(10rem, 50vw, 60rem);\n  height: calc(100% - var(--gap, 1rem));\n  rotate: calc(pi * 1rad);\n  opacity: 1e-1;\n  font: 12px/1.5 sans-serif;\n  grid-area: 1/2/3/4;\n  color: oklch(65% 0.2 270 / .8);\n  animation: enter 200ms ease-out;\n}\n"
   },
   {

@@ -12,10 +12,6 @@
           "named": true
         },
         {
-          "type": "calculation_constant",
-          "named": true
-        },
-        {
           "type": "call_expression",
           "named": true
         },
@@ -128,10 +124,6 @@
         },
         {
           "type": "boolean",
-          "named": true
-        },
-        {
-          "type": "calculation_constant",
           "named": true
         },
         {
@@ -447,11 +439,6 @@
   },
   {
     "type": "boolean",
-    "named": true,
-    "fields": {}
-  },
-  {
-    "type": "calculation_constant",
     "named": true,
     "fields": {}
   },
@@ -2211,10 +2198,6 @@
       "types": [
         {
           "type": "boolean",
-          "named": true
-        },
-        {
-          "type": "calculation_constant",
           "named": true
         },
         {

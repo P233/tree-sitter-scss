@@ -13,7 +13,6 @@ enum TokenType {
   SASS_BOOLEAN,
   SASS_NULL,
   SASS_OPERATOR,
-  CALCULATION_CONSTANT,
   CSS_VAR_FUNCTION_NAME,
   SCALAR_NUMBER,
   DIMENSION_NUMBER,
@@ -228,7 +227,7 @@ static bool scan_number(TSLexer *lexer, bool css) {
   return scan_number_digits(lexer, css, leading_dot);
 }
 
-// Longest keyword spelling (`important`, `-infinity`) plus its terminator.
+// Longest keyword spelling (`important`) plus its terminator.
 enum { KEYWORD_BUFFER = 10 };
 
 // A non-null `escaped` enables escape decoding; literal-only callers pass null, so an escape fails their scan.
@@ -916,14 +915,9 @@ static bool scan_keyword(TSLexer *lexer, const bool *valid_symbols, bool css, ch
   } else if (!css && !escaped && (strcmp(word, "not") == 0 || strcmp(word, "and") == 0 || strcmp(word, "or") == 0)) {
     token = SASS_OPERATOR;
   } else {
-    // Sass operators can precede a group (not(false)); numeric constants
-    // followed by a call or module suffix are ordinary names instead.
+    // A name followed by a call or module suffix is no declaration name.
     if (lexer->lookahead == '.' || lexer->lookahead == '(') return false;
-    if (strcmp(folded, "pi") != 0 && strcmp(folded, "e") != 0 && strcmp(folded, "infinity") != 0 &&
-        strcmp(folded, "-infinity") != 0 && strcmp(folded, "nan") != 0) {
-      return line_end && statement_ends_before(lexer, true, line_end);
-    }
-    token = CALCULATION_CONSTANT;
+    return line_end && statement_ends_before(lexer, true, line_end);
   }
   if (!valid_symbols[token]) return false;
   lexer->mark_end(lexer);
@@ -1030,7 +1024,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
   // A declaration value, also one in a feature query, accepts `!important`; maps, arguments and raw values do not.
   bool is_value_state = valid_symbols[IMPORTANT_BANG] && !valid_symbols[STATEMENT_BREAK] &&
                         (valid_symbols[SASS_BOOLEAN] || valid_symbols[SASS_NULL] || valid_symbols[SASS_OPERATOR] ||
-                         valid_symbols[CALCULATION_CONSTANT] || valid_symbols[CSS_VAR_FUNCTION_NAME]);
+                         valid_symbols[CSS_VAR_FUNCTION_NAME]);
   // Raw values and at-rule preludes, such as a custom property's or `@apply`'s, may span declaration-like lines.
   bool is_inside_statement = !valid_symbols[STATEMENT_BREAK] && !valid_symbols[STATEMENT_COMMENT_START] &&
                              !valid_symbols[LITERAL_RAW_INTERPOLATION] && !valid_symbols[RAW_PRELUDE];
@@ -1106,7 +1100,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
   if (css && valid_symbols[LITERAL_RAW_INTERPOLATION] && lexer->lookahead == '#') {
     return scan_literal_interpolation(lexer, LITERAL_RAW_INTERPOLATION);
   }
-  if ((css && valid_symbols[CSS_VAR_FUNCTION_NAME]) || valid_symbols[CALCULATION_CONSTANT] ||
+  if ((css && valid_symbols[CSS_VAR_FUNCTION_NAME]) ||
       (!css && (valid_symbols[SASS_BOOLEAN] || valid_symbols[SASS_NULL] || valid_symbols[SASS_OPERATOR]))) {
     char word[KEYWORD_BUFFER];
     return scan_keyword(lexer, valid_symbols, css, word, 0, line_end);

@@ -43,115 +43,14 @@ const mathFunctions = [
   "sign"
 ];
 
-for (const name of mathFunctions) {
-  test(`numeric constants belong to ${name} calculations in both dialects`, () => {
-    for (const language of [Scss, Scss.cssLanguage]) {
+test("math functions are ordinary calls whose constants are plain values in both dialects", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    for (const name of mathFunctions) {
       for (const spelling of [name, name.toUpperCase()]) {
         const result = captures(`.sample { width: ${spelling}(pi); }`, language);
         assertRole(result, spelling, "function");
-        assertRole(result, "pi", "constant.builtin");
+        assertRole(result, "pi", "constant", ["constant.builtin"]);
       }
-    }
-  });
-}
-
-test("escaped numeric constants retain builtin roles inside literal calculation names", () => {
-  for (const language of [Scss, Scss.cssLanguage]) {
-    for (const [call, constant] of [
-      [String.raw`calc(p\69)`, String.raw`p\69`],
-      [String.raw`calc(\000070i)`, String.raw`\000070i`],
-      [String.raw`sqrt(\pi)`, String.raw`\pi`],
-      [String.raw`acos(\65)`, String.raw`\65`],
-      [String.raw`calc(inf\69 nity)`, String.raw`inf\69 nity`],
-      [String.raw`calc(N\61 N)`, String.raw`N\61 N`]
-    ]) {
-      assertRole(captures(`.sample { width: ${call}; }`, language), constant, "constant.builtin", ["constant"]);
-    }
-  }
-});
-
-test("escaped calculation names remain ordinary calls with complete escape boundaries", () => {
-  for (const language of [Scss, Scss.cssLanguage]) {
-    for (const name of [
-      String.raw`\63\61lc`,
-      String.raw`\63\61\6c\63`,
-      String.raw`\6D in`,
-      String.raw`c\61 lc`,
-      String.raw`\000063alc`,
-      String.raw`\sqrt`,
-      String.raw`a\63 os`,
-      String.raw`\63alc`,
-      String.raw`\6Dax`,
-      String.raw`\61bs`,
-      String.raw`c\61  lc`
-    ]) {
-      assertRole(captures(`.a { width: ${name}(pi); }`, language), "pi", "constant", ["constant.builtin"]);
-    }
-    for (const name of [String.raw`\65e`, String.raw`\000065extra`]) {
-      assertRole(captures(`.a { width: calc(${name}); }`, language), name, "constant", ["constant.builtin"]);
-    }
-  }
-});
-
-test("nested calls and parenthesized math expressions retain numeric constant roles", () => {
-  for (const language of [Scss, Scss.cssLanguage]) {
-    for (const [call, constants] of [
-      ["calc(sqrt(pi) + min(e, max(infinity, 1)))", ["pi", "e", "infinity"]],
-      ["calc((pi + e))", ["pi", "e"]],
-      ["round(up, acos(pi / 4), 1)", ["pi"]]
-    ]) {
-      const result = captures(`.sample { width: ${call}; }`, language);
-      for (const constant of constants) assertRole(result, constant, "constant.builtin");
-    }
-  }
-});
-
-test("ordinary and module-qualified functions do not acquire calculation constants", () => {
-  for (const language of [Scss, Scss.cssLanguage]) {
-    for (const call of [
-      "ordinary(pi)",
-      "calc(ordinary(pi))",
-      "theme.calc(pi)",
-      "calc(theme.calc(pi))",
-      "calc(var(--value, pi))",
-      String.raw`theme.c\61 lc(pi)`,
-      String.raw`c\61 lcx(pi)`
-    ]) {
-      assertRole(captures(`.sample { width: ${call}; }`, language), "pi", "constant", ["constant.builtin"]);
-    }
-  }
-});
-
-test("numeric keyword module aliases remain module references inside calculations", () => {
-  for (const language of [Scss, Scss.cssLanguage]) {
-    for (const name of ["pi", "e", "infinity", "NaN", String.raw`p\69`]) {
-      const result = captures(`.sample { width: calc(${name}.$value); }`, language);
-      assertRole(result, name, "module", ["constant.builtin"]);
-      assertRole(result, "$value", "variable");
-    }
-  }
-});
-
-test("numeric keyword function names retain function roles inside calculations", () => {
-  for (const language of [Scss, Scss.cssLanguage]) {
-    for (const name of ["pi", "e", "infinity", "NaN", String.raw`p\69`]) {
-      const result = captures(`.sample { width: calc(${name}(1)); }`, language);
-      assertRole(result, name, "function", ["constant.builtin"]);
-    }
-  }
-});
-
-test("interpolation and identifier suffixes do not leave a builtin keyword prefix", () => {
-  for (const language of [Scss, Scss.cssLanguage]) {
-    for (const name of ["pi", "e", "infinity", "NaN", String.raw`p\69`]) {
-      const dynamic = `${name}#{$suffix}`;
-      const result = captures(`.sample { width: calc(${dynamic}); }`, language);
-      assertRole(result, dynamic, "constant", ["constant.builtin"]);
-      assertRole(result, "$suffix", "variable");
-      assert.ok(!result.some(({ name }) => name === "constant.builtin"), dynamic);
-      assertRole(captures(`.sample { width: calc(${name}extra); }`, language), `${name}extra`, "constant", [
-        "constant.builtin"
-      ]);
     }
   }
 });

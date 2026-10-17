@@ -584,7 +584,7 @@ $välit: 1rem;
 // R26.03: Distinguish grid line brackets from Sass bracketed lists by context.
 // R26.04: [MODERN] Preserve attr() type syntax and fallback commas.
 // R26.05: Preserve transform/easing/shape/image-set argument boundaries.
-// R26.06: Recognize calculation constants such as pi inside calculations.
+// R26.06: Read constants such as pi inside calculations as ordinary values.
 .stress-css-values {
   width: clamp(20rem, calc(50vw - 2rem), 80rem);
   height: min(100dvh, max(20rem, 50vh));
@@ -970,13 +970,13 @@ $stress-property-name: --stress-dynamic;
   box-shadow: str.unquote("");
 }
 
-// === 46 Calculation constants and conditional-expression boundaries ======
+// === 46 Calculation arguments and conditional-expression boundaries ======
 .stress-calculation-context {
   // R46.01: [MODERN] Preserve adjacent calculation terms with an unresolved var() operand.
   width: calc(1 var(--plus-two));
   // R46.02: [*] Parse Sass function arguments within a CSS calculation correctly.
   height: calc(100% - stress-scale(2px, 2));
-  // R46.03: [MODERN] Recognize e/infinity/-infinity/NaN as calculation constants here.
+  // R46.03: [MODERN] Read e/infinity/-infinity/NaN here as ordinary values.
   stress-e: calc(e);
   stress-infinity: calc(infinity);
   stress-negative-infinity: calc(-infinity);
@@ -1122,8 +1122,7 @@ $stress-tag: a;
   anchor-name: --stress-anchor;
   position-anchor: --stress-anchor;
   top: anchor(--stress-anchor bottom);
-  // R52.04: [*] Classify CALC() as a calculation but RGB() as a plain CSS function call.
-  // Calculation names are case-insensitive (CALC() evaluates to 3px); built-in names are not.
+  // R52.04: [*] Read CALC() and RGB() as function calls in any case.
   max-width: CALC(1px + 2px);
   color: RGB(1 2 3);
   // R52.05: Recognize the Sass-specific two-argument rgba() color form.
@@ -1257,7 +1256,7 @@ $stress-keyword-keys: (from: 1, to: 2, in: 3, through: 4, using: 5);
   width: round(nearest, 1.5px, 1px);
   height: mod(7px, 3px);
   inset: abs(-1px);
-  // R56.04: Recognize an uppercase calculation constant inside calc().
+  // R56.04: Read an uppercase constant inside calc() as an ordinary value.
   min-width: calc(PI * 1px);
   // R56.05: Treat whitespace inside an unquoted url() as padding, not URL text.
   background: url( spaced.png );
