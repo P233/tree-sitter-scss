@@ -105,7 +105,7 @@ module.exports = grammar({
     $._if_end,
     $._namespace_prefix,
     $._incomplete_variable_prefix,
-    // Never emitted: recovery inserts it after a bare `$`.
+    // Never emitted: recovery may insert it after a bare `$`.
     $._missing_variable_name,
     // Ends a statement before a declaration; selector states reject it, so recovery resumes in the statement list.
     $._statement_break,

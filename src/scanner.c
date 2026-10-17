@@ -1058,7 +1058,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
       (name_start(lexer->lookahead) || lexer->lookahead == '-' || lexer->lookahead == '\\')) {
     return scan_namespace_prefix(lexer, css, valid_symbols[STATEMENT_BREAK] && valid_symbols[STATEMENT_COMMENT_START]);
   }
-  // A `$` that does not start a name is unfinished; recovery supplies the missing name. CSS URL payloads own `$`.
+  // A `$` that does not start a name is one unfinished token, which keeps its error small. CSS URL payloads own `$`.
   if (valid_symbols[INCOMPLETE_VARIABLE_PREFIX] && !(css && valid_symbols[LITERAL_CSS_URL]) &&
       lexer->lookahead == '$') {
     lexer->advance(lexer, false);
