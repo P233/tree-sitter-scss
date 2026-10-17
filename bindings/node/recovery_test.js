@@ -443,6 +443,29 @@ test("an unfinished variable or else head keeps its callable scope", () => {
   });
 });
 
+test("a second recovery at a newline keeps the next declaration intact", () => {
+  eachParser((parser, dialect) => {
+    for (const line of [".b []", "color: map.get($)", "color: map.get($theme,)"]) {
+      const source = above(line);
+      const root = parser.parse(source).rootNode;
+      assert.ok(root.hasError, `${dialect}: ${line}`);
+      assert.equal(root.namedChildCount, 302, `${dialect}: ${line}`);
+      assert.ok(declarations(root.firstNamedChild).includes("width: 1px;"), `${dialect}: ${line}`);
+      for (const error of root.descendantsOfType("ERROR")) {
+        assert.ok(error.endIndex <= source.indexOf("\n  width:"), `${dialect}: ${line}: ${error.text}`);
+      }
+    }
+    for (const source of [
+      ".a { color: map.get((key: red), key);\n  width: 1px; }",
+      ".b [x] { color: red; }",
+      "$map: (\n  key: red,\n  other: blue\n);",
+      "@mixin m($key) {} .a { @include m(\n  $key: red\n); }"
+    ]) {
+      assert.equal(parser.parse(source).rootNode.hasError, false, `${dialect}: ${source}`);
+    }
+  });
+});
+
 test("unfinished variable and extend lines are claimed before a declaration", () => {
   eachParser((parser, dialect) => {
     for (const line of ["$local", "$local:", "$local:  ", "@extend", "@extend %"]) {
@@ -479,8 +502,8 @@ test("recovery debt stays visible", () => {
     // Inside an argument list, recovery may keep the group open over a declaration whose value starts with a call.
     const call = parser.parse(`.a {\n  margin: fn(c,\n  width: calc(1px + 2px);\n}\n.y {}\n${tail}\n`).rootNode;
     assert.ok(!declarations(call.firstNamedChild).includes("width: calc(1px + 2px);"), `${dialect}: call`);
-    // An unpaired or empty bracket in a selector still absorbs the following rules.
-    for (const line of ["&[d", ".b []"]) {
+    // An unpaired bracket in a selector still absorbs the next declaration.
+    for (const line of ["&[d"]) {
       const root = parser.parse(above(`color: red;\n  ${line}`)).rootNode;
       assert.notDeepEqual(errors(root.firstNamedChild), [line], `${dialect}: ${line}`);
     }

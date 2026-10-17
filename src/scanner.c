@@ -830,6 +830,17 @@ static bool scan_unfinished_variable(TSLexer *lexer) {
   return budget && declaration_name_follows(lexer, &budget);
 }
 
+// Recovery ignores empty tokens, so this break covers the newline and indentation before a whole declaration line.
+static bool scan_recovery_break(TSLexer *lexer) {
+  if (!line_break(lexer->lookahead)) return false;
+  unsigned budget = LOOKAHEAD_LIMIT;
+  for (; budget && css_space(lexer->lookahead); budget--) lexer->advance(lexer, false);
+  if (!budget) return false;
+  lexer->mark_end(lexer);
+  lexer->result_symbol = STATEMENT_BREAK;
+  return declaration_start(lexer, false, &budget, false) != NO_DECLARATION && group_line_rest(lexer, &budget);
+}
+
 // Whether a statement interior may end at the line break just skipped, and whether a group may still be open there.
 typedef enum { NO_LINE_END, LINE_END, LINE_END_IN_GROUP } LineEnd;
 
@@ -896,8 +907,10 @@ static bool scan_keyword(TSLexer *lexer, const bool *valid_symbols, bool css, ch
 }
 
 bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
-  // Recovery enables every external token; it must not choose a host context.
-  if (valid_symbols[LITERAL_DOUBLE_INTERPOLATION] && valid_symbols[LITERAL_SINGLE_INTERPOLATION]) return false;
+  // Recovery enables every external token; only a newline break may be emitted without choosing a host context.
+  if (valid_symbols[LITERAL_DOUBLE_INTERPOLATION] && valid_symbols[LITERAL_SINGLE_INTERPOLATION]) {
+    return scan_recovery_break(lexer);
+  }
   bool css = payload == &css_dialect;
   if (valid_symbols[IF_END]) {
     // The completed if node owns this dependency, so adding an else invalidates reuse.
