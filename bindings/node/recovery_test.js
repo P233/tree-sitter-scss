@@ -391,9 +391,11 @@ test("a value missing its semicolon ends before a declaration line", () => {
       assert.equal(root.namedChildCount, 302, `${dialect}: ${declaration}`);
       assert.deepEqual(declarations(root).slice(0, 2), ["color: red", declaration], `${dialect}: ${declaration}`);
     }
-    // An unclosed url( keeps the following rules, although the next declaration's name joins its error.
-    for (const head of ["background: url(a.png", "background: url("]) {
-      assert.equal(parser.parse(above(`color: red;\n  ${head}`)).rootNode.namedChildCount, 302, `${dialect}: ${head}`);
+    // An unclosed url( ends at its line, keeping the next declaration and the following rules.
+    for (const head of ["background: url(a.png", "background: url(", "mask: url(#m"]) {
+      const root = parser.parse(above(`color: red;\n  ${head}`)).rootNode;
+      assert.equal(root.namedChildCount, 302, `${dialect}: ${head}`);
+      assert.deepEqual(declarations(root.firstNamedChild), ["color: red;", "width: 1px;"], `${dialect}: ${head}`);
     }
     // Groups, CSS if() branches, value lists and url( payloads may still continue onto declaration-like lines.
     for (const source of [

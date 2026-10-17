@@ -1024,21 +1024,20 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
   bool is_value_state = valid_symbols[IMPORTANT_BANG] && !valid_symbols[STATEMENT_BREAK] &&
                         (valid_symbols[SASS_BOOLEAN] || valid_symbols[SASS_NULL] || valid_symbols[SASS_OPERATOR] ||
                          valid_symbols[CALCULATION_CONSTANT] || valid_symbols[CSS_VAR_FUNCTION_NAME]);
-  bool is_url = valid_symbols[LITERAL_CSS_URL] && !valid_symbols[STATEMENT_BREAK];
   // Raw values and at-rule preludes, such as a custom property's or `@apply`'s, may span declaration-like lines.
   bool is_inside_statement = !valid_symbols[STATEMENT_BREAK] && !valid_symbols[STATEMENT_COMMENT_START] &&
                              !valid_symbols[LITERAL_RAW_INTERPOLATION] && !valid_symbols[RAW_PRELUDE];
   // Zero width at the end of the line above: a declaration that starts the next line ends the statement before it.
-  if ((is_value_state || is_url || is_inside_statement) && css_space(lexer->lookahead)) lexer->mark_end(lexer);
+  if ((is_value_state || is_inside_statement) && css_space(lexer->lookahead)) lexer->mark_end(lexer);
   while (css_space(lexer->lookahead)) {
     last_space = lexer->lookahead;
     has_crossed_line |= line_break(last_space);
     lexer->advance(lexer, true);
   }
   // Only a value state is known to be outside every group.
-  LineEnd line_end = !has_crossed_line || !(is_value_state || is_url || is_inside_statement) ? NO_LINE_END
-                     : is_value_state                                                       ? LINE_END
-                                                                                            : LINE_END_IN_GROUP;
+  LineEnd line_end = !has_crossed_line || !(is_value_state || is_inside_statement) ? NO_LINE_END
+                     : is_value_state                                             ? LINE_END
+                                                                                  : LINE_END_IN_GROUP;
   if (valid_symbols[STATEMENT_BREAK] && valid_symbols[STATEMENT_COMMENT_START]) {
     if (lexer->lookahead == '@') {
       // Skipped whitespace, not `get_column`, which rereads the line, decides a line start; no token ends with one.
@@ -1091,27 +1090,19 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     char word[KEYWORD_BUFFER];
     return scan_keyword(lexer, valid_symbols, css, word, 0, line_end);
   }
-  // A Sass url( payload is never a declaration; it and any other statement interior end before a declaration line.
-  // States that reach here may sit inside a group.
-  if (line_end && (!css || !is_url)) return statement_ends_before(lexer, false, LINE_END_IN_GROUP);
-  unsigned budget = LOOKAHEAD_LIMIT;
+  // A url( payload, in either dialect, and any other statement interior end before a declaration line. States that
+  // reach here may sit inside a group.
+  if (line_end) return statement_ends_before(lexer, false, LINE_END_IN_GROUP);
   if (!css || !valid_symbols[LITERAL_CSS_URL]) return false;
   bool content = false;
-  // A payload on a later line shaped `name:` may instead start a declaration below an unclosed url(.
-  bool is_name = has_crossed_line && (name_start(lexer->lookahead) || lexer->lookahead == '-');
-  bool has_colon = false;
   while (!lexer->eof(lexer) && !css_space(lexer->lookahead) &&
          lexer->lookahead != '(' && lexer->lookahead != ')' &&
          lexer->lookahead != '"' && lexer->lookahead != '\'' && lexer->lookahead != '\\') {
-    if (has_colon || !(name_character(lexer->lookahead) || lexer->lookahead == ':')) is_name = false;
-    has_colon |= lexer->lookahead == ':';
     lexer->advance(lexer, false);
     content = true;
   }
-  // Mark before the lookahead below, so a payload that starts no declaration keeps its own end.
   lexer->mark_end(lexer);
-  bool is_declaration = is_name && has_colon && css_space(lexer->lookahead) && group_line_rest(lexer, &budget);
-  lexer->result_symbol = is_declaration ? STATEMENT_BREAK : LITERAL_CSS_URL;
+  lexer->result_symbol = LITERAL_CSS_URL;
   return content;
 }
 

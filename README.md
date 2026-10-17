@@ -85,7 +85,7 @@ A later capture of the same range overrides an earlier one, as in the Tree-sitte
 - While being typed, a block's last selector line can still take the rules after it out of the tree, though those rules keep their highlighting, when it is only an interpolation (`#{$sel}`), stops at a pseudo-class colon after a descendant or namespaced compound (`.b .c:`, `svg|a:`) or leaves `:is(` open, and so can most unfinished selectors in a one-line block such as `.a { color: red; &: }`.
 - Escaped keywords and some selector or value readings differ from Sass; [Sass reading boundaries](ARCHITECTURE.md#sass-reading-boundaries) records the cases, including the deliberate CSS/SCSS difference for CRLF after a hexadecimal escape.
 - If no `*/` follows, a value such as `.a { color: red /* note; }` can read `/` and `*` as operators without an error or comment capture. A standalone unfinished block comment does report an error.
-- An unclosed `#{` typed into an SCSS string or block comment, as in `"a #{$b c"` or `/* #{$b c */`, can absorb the rules after it; after a block comment they also lose their highlighting. An unclosed `url(` can take the next declaration's name.
+- An unclosed `#{` typed into an SCSS string or block comment, as in `"a #{$b c"` or `/* #{$b c */`, can absorb the rules after it; after a block comment they also lose their highlighting.
 - In a short file, a last rule left open after a complete declaration (`.a { color: red;` at the end of the file) makes the whole file one `ERROR`; editor bracket pairing prevents it.
 
 ## Development

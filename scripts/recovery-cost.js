@@ -20,7 +20,7 @@ function sourceHash(directory) {
 }
 
 // The scanner the ablation below was reviewed against; a new recovery decision may match none of its landmarks.
-const REVIEWED_SCANNER = "93be6e7fdd18fedce21cc966034c2f44fe9729db16ccdb38951167a99f29b01b";
+const REVIEWED_SCANNER = "21b1535fe16d8a6bd997fdfd2dd7b0d99d106ba35feac4d09ac5ef25481983f1";
 
 // Fail for any other scanner or a moved landmark: the ablation must be reviewed again when the scanner changes.
 function disableRecovery(source) {
@@ -52,7 +52,7 @@ function disableRecovery(source) {
   replace(/LineEnd line_end = [^;]+;/, "LineEnd line_end = NO_LINE_END;");
   replace(/bool is_at_rule_line = [^;]+;/, "bool is_at_rule_line = false;");
   replace(
-    /  if \(\(is_value_state \|\| is_url \|\| is_inside_statement\) && css_space\(lexer->lookahead\)\) lexer->mark_end\(lexer\);/,
+    /  if \(\(is_value_state \|\| is_inside_statement\) && css_space\(lexer->lookahead\)\) lexer->mark_end\(lexer\);/,
     ""
   );
   replace(/if \(valid_symbols\[INCOMPLETE_VARIABLE_PREFIX\]/, "if (false && valid_symbols[INCOMPLETE_VARIABLE_PREFIX]");
