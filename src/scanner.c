@@ -723,9 +723,10 @@ typedef enum {
   SELECTOR_PRELUDE,
 } Prelude;
 
-// Whether a header meets a declaration line, a rule line its prelude cannot continue onto, or a `}` before its block.
-// The never-valid token covers the header; one that a `}` cuts off takes `brace_symbol` instead.
-static bool header_ends_early(TSLexer *lexer, Prelude prelude, unsigned brace_symbol) {
+// Whether a header meets a declaration line, a rule line its prelude cannot continue onto, or a `}` before its block,
+// or with `ends_at_semicolon` a `;`. The never-valid token covers the header; one that a `}` cuts off takes
+// `brace_symbol` instead.
+static bool header_ends_early(TSLexer *lexer, Prelude prelude, bool ends_at_semicolon, unsigned brace_symbol) {
   unsigned groups = 0;
   // Each later line is checked, up to one that starts a declaration; the one budget bounds the whole header.
   for (unsigned budget = LOOKAHEAD_LIMIT; budget && !lexer->eof(lexer);) {
@@ -777,6 +778,9 @@ static bool header_ends_early(TSLexer *lexer, Prelude prelude, unsigned brace_sy
       // without a block may end its statement there. Inside a group that closes after it, the `}` is a stray character.
       lexer->result_symbol = brace_symbol;
       return groups ? !group_closes_ahead(lexer, &budget) : prelude != BODILESS_PRELUDE;
+    } else if (character == ';' && ends_at_semicolon && !groups) {
+      lexer->mark_end(lexer);
+      return true;
     } else if (character == '{' || character == ';') {
       return false;
     }
@@ -791,7 +795,7 @@ static bool scan_unfinished_header(TSLexer *lexer, bool is_line_start, bool is_i
   static const char *const names[] = {"if", "each", "for", "while", "at-root", "mixin", "function", "page",
                                       "media", "supports", "container", "layer", "scope", "starting-style"};
   enum { CONTROL_NAMES = 4, AT_ROOT = 4, MIXIN = 5, FUNCTION = 6, PAGE = 7, MEDIA = 8, SUPPORTS = 9, CONTAINER = 10,
-         LAYER = 11, STARTING_STYLE = 13 };
+         LAYER = 11, SCOPE = 12, STARTING_STYLE = 13 };
   enum { SASS_NAMES = 6, NAME_BUFFER = 15 };
   lexer->advance(lexer, false);
   char name[NAME_BUFFER];
@@ -824,7 +828,10 @@ static bool scan_unfinished_header(TSLexer *lexer, bool is_line_start, bool is_i
                     : match == AT_ROOT || match == PAGE ? SELECTOR_PRELUDE
                     : is_bodiless                       ? BODILESS_PRELUDE
                                                         : PLAIN_PRELUDE;
-  return header_ends_early(lexer, prelude, is_in_block ? HEADER_AT_BRACE : UNFINISHED_HEADER);
+  // Sass passes `@page` and `@scope` through without a block, which the grammar requires; a `;` ends such a header as
+  // one error instead of leaving recovery to take the rules after it.
+  bool ends_at_semicolon = match == PAGE || match == SCOPE;
+  return header_ends_early(lexer, prelude, ends_at_semicolon, is_in_block ? HEADER_AT_BRACE : UNFINISHED_HEADER);
 }
 
 // Whether the rest of a variable name, optionally followed by its colon, ends its line above a declaration.
@@ -938,7 +945,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     // An else header cut off by a declaration line is skipped as one error, with the trivia before it.
     lexer->mark_end(lexer);
     lexer->result_symbol = UNFINISHED_HEADER;
-    return header_ends_early(lexer, SASS_EXPRESSION, UNFINISHED_HEADER);
+    return header_ends_early(lexer, SASS_EXPRESSION, false, UNFINISHED_HEADER);
   }
   // CSS text hosts keep interpolation literal. SCSS always uses the grammar's expression parser.
   // Check before skipping whitespace, which belongs to the host's content.

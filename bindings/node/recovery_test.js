@@ -276,6 +276,19 @@ test("an unfinished block at-rule header ends at its block's closing brace", () 
   });
 });
 
+test("a blockless @scope or @page header ends at its semicolon as one error", () => {
+  eachParser((parser, dialect) => {
+    // The grammar requires their blocks, although Sass passes both through without one.
+    for (const header of ["@scope (.a)", "@scope (.a) to (.b)", "@page", "@page :first"]) {
+      for (const source of [`.x { ${header}; }\n.y {}\n${tail}\n`, `${header};\n.y {}\n${tail}\n`]) {
+        const root = parser.parse(source).rootNode;
+        assert.equal(root.namedChildCount, 302, `${dialect}: ${source.slice(0, 30)}`);
+        assert.deepEqual(errors(root), [`${header};`], `${dialect}: ${source.slice(0, 30)}`);
+      }
+    }
+  });
+});
+
 test("a rule Sass accepts without a block may end at its block's closing brace", () => {
   eachParser((parser, dialect) => {
     // Sass passes these through as unknown at-rules, as it does `@media` and `@supports` in any other spelling.
