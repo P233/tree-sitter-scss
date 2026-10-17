@@ -790,19 +790,39 @@ static bool scan_unfinished_header(TSLexer *lexer, bool is_line_start, bool is_i
     if (strcmp(index < SASS_NAMES ? name : folded, names[index]) == 0) match = (int)index;
   }
   bool is_definition = match == MIXIN || match == FUNCTION;
+  bool is_extend = match < 0 && strcmp(name, "extend") == 0;
   // A definition starting its line is top-level and keeps its body with its header; a nested one is claimed.
-  if (match < 0 || (is_definition && is_line_start)) return false;
+  if ((match < 0 && !is_extend) || (is_definition && is_line_start)) return false;
   lexer->mark_end(lexer);
   lexer->result_symbol = UNFINISHED_HEADER;
   // Sass passes these through without a block, as it does `@media` and `@supports` spelled in any other case, so they
   // may end at their block's `}`; a top-level `}` closes nothing.
   bool is_bodiless = is_in_block && (match == CONTAINER || match == LAYER || match == STARTING_STYLE ||
                                      ((match == MEDIA || match == SUPPORTS) && strcmp(name, folded) != 0));
-  Prelude prelude = match < CONTROL_NAMES               ? SASS_EXPRESSION
+  Prelude prelude = is_extend                           ? BODILESS_PRELUDE
+                    : match < CONTROL_NAMES             ? SASS_EXPRESSION
                     : match == AT_ROOT || match == PAGE ? SELECTOR_PRELUDE
                     : is_bodiless                       ? BODILESS_PRELUDE
                                                         : PLAIN_PRELUDE;
   return header_ends_early(lexer, prelude, is_in_block ? HEADER_AT_BRACE : UNFINISHED_HEADER);
+}
+
+// Whether the rest of a variable name, optionally followed by its colon, ends its line above a declaration.
+static bool scan_unfinished_variable(TSLexer *lexer) {
+  unsigned budget = LOOKAHEAD_LIMIT;
+  for (; budget && name_character(lexer->lookahead); budget--) lexer->advance(lexer, false);
+  lexer->mark_end(lexer);
+  for (; budget && (lexer->lookahead == ' ' || lexer->lookahead == '\t'); budget--) lexer->advance(lexer, false);
+  if (budget && lexer->lookahead == ':') {
+    budget--;
+    lexer->advance(lexer, false);
+    lexer->mark_end(lexer);
+    for (; budget && (lexer->lookahead == ' ' || lexer->lookahead == '\t'); budget--) lexer->advance(lexer, false);
+  }
+  if (!budget || !line_break(lexer->lookahead)) return false;
+  for (; budget && css_space(lexer->lookahead); budget--) lexer->advance(lexer, false);
+  lexer->result_symbol = UNFINISHED_HEADER;
+  return budget && declaration_name_follows(lexer, &budget);
 }
 
 // Whether a statement interior may end at the line break just skipped, and whether a group may still be open there.
@@ -1009,7 +1029,9 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     lexer->advance(lexer, false);
     lexer->mark_end(lexer);
     lexer->result_symbol = INCOMPLETE_VARIABLE_PREFIX;
-    return !name_start(lexer->lookahead) && lexer->lookahead != '-' && lexer->lookahead != '\\';
+    if (!name_start(lexer->lookahead) && lexer->lookahead != '-' && lexer->lookahead != '\\') return true;
+    // Claim a block line of only `$name` or `$name:`; otherwise the declaration below would join its error.
+    return valid_symbols[HEADER_AT_BRACE] && scan_unfinished_variable(lexer);
   }
   if (valid_symbols[SCALAR_NUMBER] || valid_symbols[DIMENSION_NUMBER]) {
     if (lexer->lookahead == '-') {

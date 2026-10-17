@@ -416,6 +416,33 @@ test("an unfinished variable or else head keeps its callable scope", () => {
   });
 });
 
+test("unfinished variable and extend lines are claimed before a declaration", () => {
+  eachParser((parser, dialect) => {
+    for (const line of ["$local", "$local:", "$local:  ", "@extend", "@extend %"]) {
+      const root = parser.parse(above(line)).rootNode;
+      assert.equal(root.namedChildCount, 302, `${dialect}: ${line}`);
+      assert.deepEqual(declarations(root.firstNamedChild), ["width: 1px;"], `${dialect}: ${line}`);
+      assert.deepEqual(errors(root), [line.trimEnd()], `${dialect}: ${line}`);
+    }
+    for (const source of [
+      "$a:\n  1px; .a { width: $a; }",
+      ".a { width: 1px; } .b { @extend .a,\n  .c; } .c {}",
+      ".a { width: 1px; } .b { @extend .a }",
+      '.a { content: "$"; --literal: $; }',
+      "$a: 1; .a { width: $a; }"
+    ]) {
+      assert.equal(parser.parse(source).rootNode.hasError, false, `${dialect}: ${source}`);
+    }
+    const top = parser.parse(`$a\n  bz: if((a,b),(c:d),(e,f));\n${tail}\n`).rootNode;
+    assert.ok(
+      top.namedChildren.some(node => node.type === "rule_set" && !node.hasError && node.text.startsWith(".t0 ")),
+      `${dialect}: a top-level variable must not strand a declaration-like line`
+    );
+  });
+  const parser = new Parser().setLanguage(Scss.cssLanguage);
+  assert.equal(parser.parse('.a { content: "$"; background: url($file.png); }').rootNode.hasError, false);
+});
+
 test("recovery debt stays visible", () => {
   eachParser((parser, dialect) => {
     // Inside an argument list, recovery may keep the group open over a declaration whose value starts with a call.
