@@ -20,7 +20,7 @@ function sourceHash(directory) {
 }
 
 // The scanner the ablation below was reviewed against; a new recovery decision may match none of its landmarks.
-const REVIEWED_SCANNER = "d9cbed7124466509299f4ad03ecacb03554a77c078f5f857499c405c03ef87e6";
+const REVIEWED_SCANNER = "1ea6097ec5c3b91f48242a2bee7201e57fd3a3786c035f24648b4082b6441b92";
 
 // Fail for any other scanner or a moved landmark: the ablation must be reviewed again when the scanner changes.
 function disableRecovery(source) {
@@ -41,8 +41,7 @@ function disableRecovery(source) {
     "damaged_declaration_rest",
     "header_ends_early",
     "scan_unfinished_header",
-    "statement_ends_before",
-    "group_line_rest"
+    "statement_ends_before"
   ]) {
     replace(new RegExp(`static bool ${name}\\([^;{]*\\) \\{`), "$&\n  return false;");
   }

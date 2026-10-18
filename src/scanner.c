@@ -554,11 +554,6 @@ static bool group_closes_ahead(TSLexer *lexer, unsigned *budget) {
   return stop == EXCESS_CLOSE || stop == UNCLOSED_UNIT || stop == LINE_BUDGET;
 }
 
-// Inside a group, a declaration line's value ends on the line and the group never closes after it.
-static bool group_line_rest(TSLexer *lexer, unsigned *budget) {
-  return value_ends_on_line(lexer, budget) && !group_closes_ahead(lexer, budget);
-}
-
 typedef enum { NO_DECLARATION, DECLARATION, TOUCHING_COLON } DeclarationStart;
 
 // Reads a declaration name and its colon; a name touching the colon may still be a pseudo-class. Where `is_line_local`,
@@ -600,10 +595,21 @@ static DeclarationStart declaration_start(TSLexer *lexer, bool has_name, unsigne
   return css_space(next) || !is_touching ? DECLARATION : TOUCHING_COLON;
 }
 
+// Evidence ranges from a name and colon, to a whole declaration line, to one with no later group close.
+typedef enum { DECLARATION_NAME, DECLARATION_LINE, DECLARATION_IN_GROUP } DeclarationStrength;
+
+static bool declaration_follows(TSLexer *lexer, unsigned *budget, DeclarationStart start,
+                                DeclarationStrength strength) {
+  if (start == NO_DECLARATION) return false;
+  if (strength == DECLARATION_NAME && start == DECLARATION) return true;
+  return value_ends_on_line(lexer, budget) &&
+         (strength != DECLARATION_IN_GROUP || !group_closes_ahead(lexer, budget));
+}
+
 // A declaration starts here: its name and colon, and its whole line when the colon touches a name.
 static bool declaration_name_follows(TSLexer *lexer, unsigned *budget) {
   DeclarationStart start = declaration_start(lexer, false, budget, false);
-  return start == DECLARATION || (start == TOUCHING_COLON && value_ends_on_line(lexer, budget));
+  return declaration_follows(lexer, budget, start, DECLARATION_NAME);
 }
 
 // After a name and the colon touching it, a second name with its own colon, as in `op:acity:`, makes a line neither a
@@ -636,7 +642,8 @@ static bool damaged_declaration_rest(TSLexer *lexer) {
   // The line ended without `;`: it is one error before the block's `}` or a declaration line, past comments.
   if (!skip_whitespace_and_comments(lexer, &budget).is_valid) return false;
   if (lexer->lookahead == '}') return true;
-  return declaration_start(lexer, false, &budget, false) != NO_DECLARATION && value_ends_on_line(lexer, &budget);
+  DeclarationStart start = declaration_start(lexer, false, &budget, false);
+  return declaration_follows(lexer, &budget, start, DECLARATION_LINE);
 }
 
 // A combinator or comma, or a compound part touching the compound before it, can leave a selector line unfinished.
@@ -756,12 +763,13 @@ static bool header_ends_early(TSLexer *lexer, Prelude prelude, bool ends_at_semi
         if (first != '#' || lexer->lookahead != '{') return rule_line_follows(lexer, first, &budget);
         lexer->advance(lexer, false);
         if (!skip_line_interpolation(lexer, &budget)) return false;
-        if (declaration_start(lexer, true, &budget, true) == NO_DECLARATION) return false;
-        return value_ends_on_line(lexer, &budget);
+        DeclarationStart start = declaration_start(lexer, true, &budget, true);
+        return declaration_follows(lexer, &budget, start, DECLARATION_LINE);
       }
       // An open group ends the header there only if it never closes.
-      if (declaration_start(lexer, false, &budget, true) != NO_DECLARATION) {
-        return groups ? group_line_rest(lexer, &budget) : value_ends_on_line(lexer, &budget);
+      DeclarationStart start = declaration_start(lexer, false, &budget, true);
+      if (start != NO_DECLARATION) {
+        return declaration_follows(lexer, &budget, start, groups ? DECLARATION_IN_GROUP : DECLARATION_LINE);
       }
       continue;
     }
@@ -853,7 +861,8 @@ static bool scan_recovery_break(TSLexer *lexer) {
   lexer->result_symbol = STATEMENT_BREAK;
   // A block's `}` on the next line ends the statement too; skipping it would leave the block open to the end.
   if (lexer->lookahead == '}') return true;
-  return declaration_start(lexer, false, &budget, false) != NO_DECLARATION && group_line_rest(lexer, &budget);
+  DeclarationStart start = declaration_start(lexer, false, &budget, false);
+  return declaration_follows(lexer, &budget, start, DECLARATION_IN_GROUP);
 }
 
 // Whether a statement interior may end at the line break just skipped, and whether a group may still be open there.
@@ -864,8 +873,9 @@ typedef enum { NO_LINE_END, LINE_END, LINE_END_IN_GROUP } LineEnd;
 static bool statement_ends_before(TSLexer *lexer, bool has_name, LineEnd line_end) {
   unsigned budget = LOOKAHEAD_LIMIT;
   lexer->result_symbol = STATEMENT_BREAK;
-  if (declaration_start(lexer, has_name, &budget, false) == NO_DECLARATION) return false;
-  return line_end == LINE_END_IN_GROUP ? group_line_rest(lexer, &budget) : value_ends_on_line(lexer, &budget);
+  DeclarationStart start = declaration_start(lexer, has_name, &budget, false);
+  return declaration_follows(lexer, &budget, start,
+                             line_end == LINE_END_IN_GROUP ? DECLARATION_IN_GROUP : DECLARATION_LINE);
 }
 
 static bool scan_literal_interpolation(TSLexer *lexer, unsigned token) {
