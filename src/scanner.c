@@ -734,18 +734,28 @@ static bool rule_line_follows(TSLexer *lexer, int32_t first, unsigned *budget) {
 typedef enum {
   // A CSS prelude, or a Sass definition's name and parameters.
   PLAIN_PRELUDE,
-  // A rule's that Sass also passes through without a block, which may end its statement at its block's `}`.
-  BODILESS_PRELUDE,
   // A SassScript expression, which an unquoted `#name` string or the `%` operator may continue.
   SASS_EXPRESSION,
   // A selector, which a rule line may continue.
   SELECTOR_PRELUDE,
 } Prelude;
 
+typedef enum {
+  // Recovery skipping this `}` could leave the enclosing block open to the end of the file.
+  CLAIM_HEADER_AT_BRACE,
+  // Let the statement end at any `}` outside groups.
+  END_STATEMENT_AT_BRACE,
+  // Let the statement end only at its enclosing block's `}`.
+  END_STATEMENT_AT_BLOCK_BRACE,
+  // Let a statement spelled other than in lowercase end only at its enclosing block's `}`.
+  END_MIXED_CASE_STATEMENT_AT_BLOCK_BRACE,
+} HeaderBracePolicy;
+
 // Whether a header meets a declaration line, a rule line its prelude cannot continue onto, or a `}` before its block,
 // or with `ends_at_semicolon` a `;`. The never-valid token covers the header; one that a `}` cuts off takes
 // `brace_symbol` instead.
-static bool header_ends_early(TSLexer *lexer, Prelude prelude, bool ends_at_semicolon, unsigned brace_symbol) {
+static bool header_ends_early(TSLexer *lexer, Prelude prelude, bool ends_at_semicolon,
+                              HeaderBracePolicy brace_policy, unsigned brace_symbol) {
   unsigned groups = 0;
   // Each later line is checked, up to one that starts a declaration; the one budget bounds the whole header.
   for (unsigned budget = LOOKAHEAD_LIMIT; budget && !lexer->eof(lexer);) {
@@ -774,10 +784,9 @@ static bool header_ends_early(TSLexer *lexer, Prelude prelude, bool ends_at_semi
       continue;
     }
     if (stop == CLOSE_BLOCK) {
-      // Recovery skipping the `}` could hold the block open to the end of the file, so only a rule Sass passes through
-      // without a block may end its statement there. Inside a group that closes after it, the `}` is a stray character.
+      // Inside a group that closes after it, the `}` is a stray character.
       lexer->result_symbol = brace_symbol;
-      return groups ? !group_closes_ahead(lexer, &budget) : prelude != BODILESS_PRELUDE;
+      return groups ? !group_closes_ahead(lexer, &budget) : brace_policy == CLAIM_HEADER_AT_BRACE;
     } else if (stop == SEMICOLON && ends_at_semicolon && !groups) {
       lexer->mark_end(lexer);
       return true;
@@ -787,14 +796,43 @@ static bool header_ends_early(TSLexer *lexer, Prelude prelude, bool ends_at_semi
   return false;
 }
 
-// Claims a block at-rule typed among declarations: Sass directives as spelled, CSS ones in any case. Inside a block,
-// the statement list accepts a header that the block's `}` cuts off.
+typedef struct {
+  const char *name;
+  bool is_case_sensitive;
+  // A definition starting its line keeps its body with its header.
+  bool is_definition;
+  Prelude prelude;
+  HeaderBracePolicy brace_policy;
+  // Claim `;` as one error so recovery cannot take the rules after this header.
+  bool ends_at_semicolon;
+} HeaderPolicy;
+
+// Claims an unfinished at-rule in a statement list: Sass directives as spelled, CSS ones in any case.
+// Inside a block, the statement list accepts HEADER_AT_BRACE followed by a never-emitted block, keeping the error at `}`.
 static bool scan_unfinished_header(TSLexer *lexer, bool is_line_start, bool is_in_block) {
-  static const char *const names[] = {"if", "each", "for", "while", "at-root", "mixin", "function", "page",
-                                      "media", "supports", "container", "layer", "scope", "starting-style"};
-  enum { CONTROL_NAMES = 4, AT_ROOT = 4, MIXIN = 5, FUNCTION = 6, PAGE = 7, MEDIA = 8, SUPPORTS = 9, CONTAINER = 10,
-         LAYER = 11, SCOPE = 12, STARTING_STYLE = 13 };
-  enum { SASS_NAMES = 6, NAME_BUFFER = 15 };
+  static const HeaderPolicy headers[] = {
+    {.name = "if", .is_case_sensitive = true, .prelude = SASS_EXPRESSION},
+    {.name = "each", .is_case_sensitive = true, .prelude = SASS_EXPRESSION},
+    {.name = "for", .is_case_sensitive = true, .prelude = SASS_EXPRESSION},
+    {.name = "while", .is_case_sensitive = true, .prelude = SASS_EXPRESSION},
+    {.name = "at-root", .is_case_sensitive = true, .prelude = SELECTOR_PRELUDE},
+    {.name = "mixin", .is_case_sensitive = true, .is_definition = true},
+    {.name = "function", .is_definition = true},
+    // Sass permits a blockless `@page`, but the grammar requires its block.
+    {.name = "page", .prelude = SELECTOR_PRELUDE, .ends_at_semicolon = true},
+    // Sass passes `@media` and `@supports` through without a block when spelled other than in lowercase.
+    {.name = "media", .brace_policy = END_MIXED_CASE_STATEMENT_AT_BLOCK_BRACE},
+    {.name = "supports", .brace_policy = END_MIXED_CASE_STATEMENT_AT_BLOCK_BRACE},
+    // Sass passes `@container`, `@layer` and `@starting-style` through without a block.
+    {.name = "container", .brace_policy = END_STATEMENT_AT_BLOCK_BRACE},
+    {.name = "layer", .brace_policy = END_STATEMENT_AT_BLOCK_BRACE},
+    {.name = "starting-style", .brace_policy = END_STATEMENT_AT_BLOCK_BRACE},
+    // Sass permits a blockless `@scope`, but the grammar requires its block.
+    {.name = "scope", .ends_at_semicolon = true},
+    // Sass's `@extend` has no block.
+    {.name = "extend", .is_case_sensitive = true, .brace_policy = END_STATEMENT_AT_BRACE},
+  };
+  enum { NAME_BUFFER = 15 };
   lexer->advance(lexer, false);
   char name[NAME_BUFFER];
   unsigned length = 0;
@@ -807,29 +845,24 @@ static bool scan_unfinished_header(TSLexer *lexer, bool is_line_start, bool is_i
   char folded[NAME_BUFFER];
   memcpy(folded, name, sizeof(folded));
   lowercase(folded);
-  int match = -1;
-  for (unsigned index = 0; index < sizeof(names) / sizeof(*names); index++) {
-    if (strcmp(index < SASS_NAMES ? name : folded, names[index]) == 0) match = (int)index;
+  const HeaderPolicy *header = NULL;
+  for (unsigned index = 0; index < sizeof(headers) / sizeof(*headers); index++) {
+    if (strcmp(headers[index].is_case_sensitive ? name : folded, headers[index].name) == 0) {
+      header = &headers[index];
+      break;
+    }
   }
-  bool is_definition = match == MIXIN || match == FUNCTION;
-  bool is_extend = match < 0 && strcmp(name, "extend") == 0;
-  // A definition starting its line is top-level and keeps its body with its header; a nested one is claimed.
-  if ((match < 0 && !is_extend) || (is_definition && is_line_start)) return false;
+  if (!header || (header->is_definition && is_line_start)) return false;
   lexer->mark_end(lexer);
   lexer->result_symbol = UNFINISHED_HEADER;
-  // Sass passes these through without a block, as it does `@media` and `@supports` spelled in any other case, so they
-  // may end at their block's `}`; a top-level `}` closes nothing.
-  bool is_bodiless = is_in_block && (match == CONTAINER || match == LAYER || match == STARTING_STYLE ||
-                                     ((match == MEDIA || match == SUPPORTS) && strcmp(name, folded) != 0));
-  Prelude prelude = is_extend                           ? BODILESS_PRELUDE
-                    : match < CONTROL_NAMES             ? SASS_EXPRESSION
-                    : match == AT_ROOT || match == PAGE ? SELECTOR_PRELUDE
-                    : is_bodiless                       ? BODILESS_PRELUDE
-                                                        : PLAIN_PRELUDE;
-  // Sass passes `@page` and `@scope` through without a block, which the grammar requires; a `;` ends such a header as
-  // one error instead of leaving recovery to take the rules after it.
-  bool ends_at_semicolon = match == PAGE || match == SCOPE;
-  return header_ends_early(lexer, prelude, ends_at_semicolon, is_in_block ? HEADER_AT_BRACE : UNFINISHED_HEADER);
+  // A top-level `}` closes no block; only `@extend` has no missing block to claim there.
+  bool can_end_statement =
+    header->brace_policy == END_STATEMENT_AT_BRACE ||
+    (is_in_block && (header->brace_policy == END_STATEMENT_AT_BLOCK_BRACE ||
+                     (header->brace_policy == END_MIXED_CASE_STATEMENT_AT_BLOCK_BRACE && strcmp(name, folded) != 0)));
+  HeaderBracePolicy brace_policy = can_end_statement ? END_STATEMENT_AT_BRACE : CLAIM_HEADER_AT_BRACE;
+  return header_ends_early(lexer, header->prelude, header->ends_at_semicolon, brace_policy,
+                           is_in_block ? HEADER_AT_BRACE : UNFINISHED_HEADER);
 }
 
 // Whether the rest of a variable name, optionally followed by its colon, ends its line above a declaration.
@@ -940,7 +973,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     // An else header cut off by a declaration line is skipped as one error, with the trivia before it.
     lexer->mark_end(lexer);
     lexer->result_symbol = UNFINISHED_HEADER;
-    return header_ends_early(lexer, SASS_EXPRESSION, false, UNFINISHED_HEADER);
+    return header_ends_early(lexer, SASS_EXPRESSION, false, CLAIM_HEADER_AT_BRACE, UNFINISHED_HEADER);
   }
   // CSS text hosts keep interpolation literal. SCSS always uses the grammar's expression parser.
   // Check before skipping whitespace, which belongs to the host's content.
