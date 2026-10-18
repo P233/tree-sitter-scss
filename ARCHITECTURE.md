@@ -221,6 +221,8 @@ Before samples, the runner requests GC when exposed and yields to let queued nat
 
 Alternate baseline/candidate order on the same machine and compare repeated runs with matching runtime and workload hashes. Spaced/multiline pseudo chains and long comments retain coverage against repeated scanning of the remaining source. Report parsing separately from capture-query time; neither includes host font-lock, layout, repaint or GUI latency. Generated size alone is not evidence of a speedup.
 
+On Apple M1 Pro with Clang 21 and Tree-sitter 0.25.1, an 11-round alternating C-host comparison on the local 19,109-byte `global.scss` (SHA-256 `963c9b32fc9b…`) found that writing all 181 declaration colons as `name :value` instead of `name: value` added about 11% parse time and about 6% retained tree memory in both dialects.
+
 ### Recovery cost
 
 ```sh
