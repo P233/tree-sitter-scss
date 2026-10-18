@@ -405,10 +405,9 @@ static bool skip_string(TSLexer *lexer, int32_t quote, unsigned *budget) {
   return false;
 }
 
-// Whether the consumed `character` opens a string, block comment or interpolation, which skip_unit consumes.
+// Whether the consumed `character` opens a string or interpolation, which skip_unit consumes.
 static bool opens_unit(TSLexer *lexer, int32_t character) {
-  return character == '"' || character == '\'' || (character == '#' && lexer->lookahead == '{') ||
-         (character == '/' && lexer->lookahead == '*');
+  return character == '"' || character == '\'' || (character == '#' && lexer->lookahead == '{');
 }
 
 // Consumes the rest of a unit that opens_unit accepted and returns whether it closed within the budget.
@@ -417,60 +416,114 @@ static bool skip_unit(TSLexer *lexer, int32_t character, unsigned *budget) {
     lexer->advance(lexer, false);
     return skip_line_interpolation(lexer, budget);
   }
-  if (character == '/') {
-    skip_comment(lexer, budget);
-    return *budget && !lexer->eof(lexer);
-  }
   return skip_string(lexer, character, budget);
+}
+
+typedef enum { COMMENT_TEXT, SKIP_COMMENT, STOP_AT_COMMENT } LineCommentPolicy;
+typedef enum { SEMICOLON_TEXT, STOP_OUTSIDE_GROUPS, STOP_AT_SEMICOLON } SemicolonPolicy;
+
+typedef struct {
+  bool crosses_line_breaks;
+  // An escaped character belongs to a name, as in `.a\}b`.
+  bool skips_escapes;
+  // Whitespace and comments stay outside the token, so a comment after a header stays a comment.
+  bool marks_token_end;
+  // A block's last declaration may lack its `;`; leave the `}` to the block.
+  bool stops_before_block_close;
+  LineCommentPolicy line_comment;
+  // Inside a group, `//` may belong to a URL, as in `url(//host)`.
+  LineCommentPolicy line_comment_in_groups;
+  SemicolonPolicy semicolon;
+} LineScanPolicy;
+
+static const LineScanPolicy VALUE_LINE = {
+  .line_comment = STOP_AT_COMMENT,
+  .semicolon = STOP_OUTSIDE_GROUPS,
+};
+static const LineScanPolicy OPEN_GROUP = {
+  .crosses_line_breaks = true,
+  .line_comment = SKIP_COMMENT,
+};
+static const LineScanPolicy RULE_LINE = {
+  .semicolon = STOP_AT_SEMICOLON,
+};
+static const LineScanPolicy DAMAGED_DECLARATION = {
+  .skips_escapes = true,
+  .marks_token_end = true,
+  .stops_before_block_close = true,
+  .line_comment = SKIP_COMMENT,
+  .line_comment_in_groups = STOP_AT_COMMENT,
+  .semicolon = STOP_OUTSIDE_GROUPS,
+};
+static const LineScanPolicy HEADER_LINE = {
+  .skips_escapes = true,
+  .marks_token_end = true,
+  .line_comment = SKIP_COMMENT,
+  .line_comment_in_groups = SKIP_COMMENT,
+  .semicolon = STOP_AT_SEMICOLON,
+};
+
+typedef enum {
+  LINE_BREAK, LINE_EOF, LINE_BUDGET, UNCLOSED_UNIT, LINE_COMMENT,
+  OPEN_BLOCK, CLOSE_BLOCK, EXCESS_CLOSE, SEMICOLON,
+} LineStop;
+
+static LineStop scan_line(TSLexer *lexer, unsigned *budget, unsigned *groups, const LineScanPolicy *policy) {
+  while (*budget && !lexer->eof(lexer)) {
+    int32_t character = lexer->lookahead;
+    if (!policy->crosses_line_breaks && line_break(character)) return LINE_BREAK;
+    (*budget)--;
+    if (policy->stops_before_block_close && character == '}' && !*groups) return CLOSE_BLOCK;
+    lexer->advance(lexer, false);
+    if (character == '\\' && policy->skips_escapes) {
+      if (!lexer->eof(lexer) && !line_break(lexer->lookahead)) lexer->advance(lexer, false);
+      if (policy->marks_token_end) lexer->mark_end(lexer);
+      continue;
+    }
+    if (character == '/' && lexer->lookahead == '*') {
+      skip_comment(lexer, budget);
+      if (!*budget || lexer->eof(lexer)) return UNCLOSED_UNIT;
+      continue;
+    }
+    if (character == '/' && lexer->lookahead == '/') {
+      LineCommentPolicy comment = *groups ? policy->line_comment_in_groups : policy->line_comment;
+      if (comment == STOP_AT_COMMENT) return LINE_COMMENT;
+      if (comment == SKIP_COMMENT) {
+        skip_comment(lexer, budget);
+        continue;
+      }
+    }
+    if (opens_unit(lexer, character)) {
+      if (!skip_unit(lexer, character, budget)) return UNCLOSED_UNIT;
+    } else if (character == '(' || character == '[') {
+      (*groups)++;
+    } else if (character == ')' || character == ']') {
+      if (!*groups) return EXCESS_CLOSE;
+      (*groups)--;
+    } else if (character == '{') {
+      return OPEN_BLOCK;
+    } else if (character == '}') {
+      return CLOSE_BLOCK;
+    } else if (character == ';' &&
+               (policy->semicolon == STOP_AT_SEMICOLON || (policy->semicolon == STOP_OUTSIDE_GROUPS && !*groups))) {
+      return SEMICOLON;
+    }
+    if (policy->marks_token_end && !css_space(character)) lexer->mark_end(lexer);
+  }
+  return lexer->eof(lexer) ? LINE_EOF : LINE_BUDGET;
 }
 
 // The rest of this line is a value ending with `;` outside any group, as a declaration line is.
 static bool value_ends_on_line(TSLexer *lexer, unsigned *budget) {
   unsigned groups = 0;
-  while (*budget && !lexer->eof(lexer) && !line_break(lexer->lookahead)) {
-    (*budget)--;
-    int32_t character = lexer->lookahead;
-    lexer->advance(lexer, false);
-    if (opens_unit(lexer, character)) {
-      if (!skip_unit(lexer, character, budget)) return false;
-    } else if (character == '/' && lexer->lookahead == '/' && !groups) {
-      return false;
-    } else if (character == '(' || character == '[') {
-      groups++;
-    } else if (character == ')' || character == ']') {
-      if (!groups) return false;
-      groups--;
-    } else if (character == '{' || character == '}') {
-      return false;
-    } else if (character == ';' && !groups) {
-      return true;
-    }
-  }
-  return false;
+  return scan_line(lexer, budget, &groups, &VALUE_LINE) == SEMICOLON;
 }
 
 // Whether a group still open around this point may close before the next block; an unknown answer counts as yes.
 static bool group_closes_ahead(TSLexer *lexer, unsigned *budget) {
   unsigned groups = 0;
-  while (!lexer->eof(lexer)) {
-    if (!*budget) return true;
-    (*budget)--;
-    int32_t character = lexer->lookahead;
-    lexer->advance(lexer, false);
-    if (opens_unit(lexer, character)) {
-      if (!skip_unit(lexer, character, budget)) return true;
-    } else if (character == '/' && lexer->lookahead == '/' && !groups) {
-      skip_comment(lexer, budget);
-    } else if (character == '(' || character == '[') {
-      groups++;
-    } else if (character == ')' || character == ']') {
-      if (!groups) return true;
-      groups--;
-    } else if (character == '{' || character == '}') {
-      return false;
-    }
-  }
-  return false;
+  LineStop stop = scan_line(lexer, budget, &groups, &OPEN_GROUP);
+  return stop == EXCESS_CLOSE || stop == UNCLOSED_UNIT || stop == LINE_BUDGET;
 }
 
 // Inside a group, a declaration line's value ends on the line and the group never closes after it.
@@ -545,39 +598,13 @@ static bool damaged_declaration_rest(TSLexer *lexer) {
   lexer->mark_end(lexer);
   lexer->result_symbol = UNFINISHED_HEADER;
   unsigned groups = 0;
-  while (budget && !lexer->eof(lexer) && !line_break(lexer->lookahead)) {
-    budget--;
-    int32_t character = lexer->lookahead;
-    // A block's last declaration may lack its `;`; the token leaves the `}` to the block.
-    if (character == '}' && !groups) return true;
-    lexer->advance(lexer, false);
-    // A comment that ends the line's text stays a comment; inside a group, `//` may belong to a URL.
-    if (character == '/' && (lexer->lookahead == '*' || (lexer->lookahead == '/' && !groups))) {
-      skip_comment(lexer, &budget);
-      continue;
-    }
-    if (!css_space(character)) lexer->mark_end(lexer);
-    if (character == '\\') {
-      if (lexer->eof(lexer) || line_break(lexer->lookahead)) continue;
-      lexer->advance(lexer, false);
-      lexer->mark_end(lexer);
-    } else if (opens_unit(lexer, character)) {
-      if (!skip_unit(lexer, character, &budget)) return false;
-      lexer->mark_end(lexer);
-    } else if (character == '/' && lexer->lookahead == '/') {
-      return false;
-    } else if (character == '(' || character == '[') {
-      groups++;
-    } else if (character == ')' || character == ']') {
-      if (!groups) return false;
-      groups--;
-    } else if (character == '{' || character == '}') {
-      return false;
-    } else if (character == ';' && !groups) {
-      return true;
-    }
+  LineStop stop = scan_line(lexer, &budget, &groups, &DAMAGED_DECLARATION);
+  if (stop == SEMICOLON) {
+    lexer->mark_end(lexer);
+    return true;
   }
-  if (!budget || groups || lexer->eof(lexer)) return false;
+  if (stop == CLOSE_BLOCK && !groups) return true;
+  if (stop != LINE_BREAK || groups) return false;
   // The line ended without `;`: it is one error before the block's `}` or a declaration line, past comments.
   while (budget) {
     if (css_space(lexer->lookahead)) {
@@ -690,24 +717,7 @@ static bool rule_line_follows(TSLexer *lexer, int32_t first, unsigned *budget) {
   }
   if (first == '#' && is_hex && (length == 3 || length == 4 || length == 6 || length == 8)) return false;
   unsigned groups = 0;
-  while (*budget && !lexer->eof(lexer) && !line_break(lexer->lookahead)) {
-    (*budget)--;
-    int32_t character = lexer->lookahead;
-    lexer->advance(lexer, false);
-    if (opens_unit(lexer, character)) {
-      if (!skip_unit(lexer, character, budget)) return false;
-    } else if (character == '(' || character == '[') {
-      groups++;
-    } else if (character == ')' || character == ']') {
-      if (!groups) return false;
-      groups--;
-    } else if (character == '{') {
-      return !groups;
-    } else if (character == '}' || character == ';') {
-      return false;
-    }
-  }
-  return false;
+  return scan_line(lexer, budget, &groups, &RULE_LINE) == OPEN_BLOCK && !groups;
 }
 
 // What a claimed header's prelude is decides which later lines may continue it.
@@ -729,8 +739,8 @@ static bool header_ends_early(TSLexer *lexer, Prelude prelude, bool ends_at_semi
   unsigned groups = 0;
   // Each later line is checked, up to one that starts a declaration; the one budget bounds the whole header.
   for (unsigned budget = LOOKAHEAD_LIMIT; budget && !lexer->eof(lexer);) {
-    int32_t character = lexer->lookahead;
-    if (line_break(character)) {
+    LineStop stop = scan_line(lexer, &budget, &groups, &HEADER_LINE);
+    if (stop == LINE_BREAK) {
       for (; budget && css_space(lexer->lookahead); budget--) lexer->advance(lexer, false);
       int32_t first = lexer->lookahead;
       // A `}` starting a line is read like one on the header's own line.
@@ -752,38 +762,16 @@ static bool header_ends_early(TSLexer *lexer, Prelude prelude, bool ends_at_semi
       }
       continue;
     }
-    budget--;
-    lexer->advance(lexer, false);
-    if (character == '\\') {
-      // An escaped character, as in `.a\}b`, belongs to a name.
-      if (!lexer->eof(lexer) && !line_break(lexer->lookahead)) lexer->advance(lexer, false);
-      lexer->mark_end(lexer);
-      continue;
-    }
-    if (character == '/' && (lexer->lookahead == '*' || lexer->lookahead == '/')) {
-      // A comment after the header stays a comment rather than joining the error.
-      skip_comment(lexer, &budget);
-      continue;
-    }
-    if (opens_unit(lexer, character)) {
-      if (!skip_unit(lexer, character, &budget)) return false;
-    } else if (character == '(' || character == '[') {
-      groups++;
-    } else if (character == ')' || character == ']') {
-      if (!groups) return false;
-      groups--;
-    } else if (character == '}') {
+    if (stop == CLOSE_BLOCK) {
       // Recovery skipping the `}` could hold the block open to the end of the file, so only a rule Sass passes through
       // without a block may end its statement there. Inside a group that closes after it, the `}` is a stray character.
       lexer->result_symbol = brace_symbol;
       return groups ? !group_closes_ahead(lexer, &budget) : prelude != BODILESS_PRELUDE;
-    } else if (character == ';' && ends_at_semicolon && !groups) {
+    } else if (stop == SEMICOLON && ends_at_semicolon && !groups) {
       lexer->mark_end(lexer);
       return true;
-    } else if (character == '{' || character == ';') {
-      return false;
     }
-    if (!css_space(character)) lexer->mark_end(lexer);
+    return false;
   }
   return false;
 }
