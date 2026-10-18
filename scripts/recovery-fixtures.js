@@ -230,6 +230,17 @@ const point = (text, index) => {
   return { row: before.split("\n").length - 1, column: index - before.lastIndexOf("\n") - 1 };
 };
 
+function inputEdit(before, after, start, oldEnd, newEnd) {
+  return {
+    startIndex: start,
+    oldEndIndex: oldEnd,
+    newEndIndex: newEnd,
+    startPosition: point(before, start),
+    oldEndPosition: point(before, oldEnd),
+    newEndPosition: point(after, newEnd)
+  };
+}
+
 function* typingStates(before, after, statement, pairs, includeOvertypes = false) {
   let text = before + after;
   let caret = before.length;
@@ -241,18 +252,11 @@ function* typingStates(before, after, statement, pairs, includeOvertypes = false
       continue;
     }
     const inserted = typed + (pairs[typed] || "");
-    const startPosition = point(text, caret);
+    const previous = text;
     text = text.slice(0, caret) + inserted + text.slice(caret);
     yield {
       text,
-      edit: {
-        startIndex: caret,
-        oldEndIndex: caret,
-        newEndIndex: caret + inserted.length,
-        startPosition,
-        oldEndPosition: startPosition,
-        newEndPosition: point(text, caret + inserted.length)
-      }
+      edit: inputEdit(previous, text, caret, caret, caret + inserted.length)
     };
     caret++;
   }
@@ -455,6 +459,8 @@ function* recoveryFixtures() {
 }
 
 module.exports = {
+  point,
+  inputEdit,
   recoveryFamilies,
   typingStates,
   contractStatements,

@@ -12,12 +12,12 @@ const {
   createSummary,
   hasCleanFailure,
   nextEdit,
-  position,
   recordCases,
   repositoryInputs,
   shape,
   tally
 } = require("./fuzz.js");
+const { point } = require("./recovery-fixtures.js");
 
 const languages = [Scss, Scss.cssLanguage];
 const NON_ASCII =
@@ -113,8 +113,8 @@ test("edits use the Node binding's positions and keep whole characters", async (
   const parser = new Parser();
   parser.setLanguage(Scss);
   const visit = node => {
-    assert.deepEqual(position(NON_ASCII, node.startIndex), node.startPosition, node.type);
-    assert.deepEqual(position(NON_ASCII, node.endIndex), node.endPosition, node.type);
+    assert.deepEqual(point(NON_ASCII, node.startIndex), node.startPosition, node.type);
+    assert.deepEqual(point(NON_ASCII, node.endIndex), node.endPosition, node.type);
     node.children.forEach(visit);
   };
   visit(parser.parse(NON_ASCII).rootNode);

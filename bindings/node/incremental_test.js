@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const { test } = require("node:test");
 const Parser = require("tree-sitter");
 const Scss = require("./index.js");
-const { inputEdit } = require("../../scripts/fuzz.js");
+const { inputEdit } = require("../../scripts/recovery-fixtures.js");
 
 function shape(node) {
   return [

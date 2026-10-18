@@ -7,6 +7,7 @@ const { createInterface } = require("node:readline");
 const { setImmediate: yieldToEventLoop } = require("node:timers/promises");
 const { parseArgs } = require("node:util");
 const { validInputs, validEdits, checkSass } = require("./valid-inputs.js");
+const { inputEdit } = require("./recovery-fixtures.js");
 
 const root = join(__dirname, "..");
 const INPUT_SOURCES = [
@@ -203,17 +204,6 @@ function listedInputs(list) {
     .map(file => ({ id: file, text: readFileSync(file, "utf8") }));
 }
 
-// The Node binding counts indices and columns in UTF-16 code units, and only "\n" starts a row.
-function position(text, index) {
-  let row = 0;
-  let lineStart = 0;
-  for (let next = text.indexOf("\n"); next !== -1 && next < index; next = text.indexOf("\n", next + 1)) {
-    row++;
-    lineStart = next + 1;
-  }
-  return { row, column: index - lineStart };
-}
-
 const isHighSurrogate = code => code >= 0xd800 && code <= 0xdbff;
 const isLowSurrogate = code => code >= 0xdc00 && code <= 0xdfff;
 
@@ -229,17 +219,6 @@ function nextEdit(next, inputs) {
   const deleted = next(4) === 0 ? next(Math.min(MAX_DELETION, text.length - start) + 1) : 0;
   const insert = next(5) === 0 ? "" : FRAGMENTS[next(FRAGMENTS.length)];
   return { input, start, del: boundary(text, start + deleted) - start, insert };
-}
-
-function inputEdit(before, after, start, oldEnd, newEnd) {
-  return {
-    startIndex: start,
-    oldEndIndex: oldEnd,
-    newEndIndex: newEnd,
-    startPosition: position(before, start),
-    oldEndPosition: position(before, oldEnd),
-    newEndPosition: position(after, newEnd)
-  };
 }
 
 // Every node, named or anonymous, with its field, range and MISSING flag; toString() omits ranges and tokens.
@@ -534,8 +513,6 @@ if (require.main === module) {
 module.exports = {
   corpusInputs,
   repositoryInputs,
-  position,
-  inputEdit,
   nextEdit,
   shape,
   recordCases,

@@ -3,6 +3,7 @@ const { spawnSync } = require("node:child_process");
 const { test } = require("node:test");
 const Parser = require("tree-sitter");
 const Scss = require("./index.js");
+const { inputEdit } = require("../../scripts/recovery-fixtures.js");
 
 function parse(source, language = Scss) {
   const parser = new Parser();
@@ -498,14 +499,7 @@ test("incremental comment context changes preserve fresh nodes and captures", ()
           oldEnd--;
           newEnd--;
         }
-        tree.edit({
-          startIndex: start,
-          oldEndIndex: oldEnd,
-          newEndIndex: newEnd,
-          startPosition: { row: 0, column: start },
-          oldEndPosition: { row: 0, column: oldEnd },
-          newEndPosition: { row: 0, column: newEnd }
-        });
+        tree.edit(inputEdit(source, edited, start, oldEnd, newEnd));
         const incremental = parser.parse(edited, tree);
         const fresh = parse(edited, language);
         assert.deepEqual(shape(incremental.rootNode), shape(fresh.rootNode), `${source} -> ${edited}`);
