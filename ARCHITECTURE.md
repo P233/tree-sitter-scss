@@ -51,6 +51,10 @@ An error-free reading can still change the next statement: an unfinished selecto
 
 `pnpm test:recovery`, also run by `pnpm check`, compares every statement's counters and per-key flags with [one exact expectation file](scripts/recovery-acceptance.json). It covers the line/block contract, incremental typing and nearby highlight roles, incremental and fresh block-end parses, headers typed after complete statements and after unfinished selector, declaration or directive lines, and declaration-name typos. It records changed bytes and retained tail counts per edit, so exchanged regressions cannot cancel in a total. Emmet typing remains an optional external check because its fixtures belong to emmet2-mode. Add a reproducing fixture before adding a recovery site; record proposed expectations with `node scripts/recovery-acceptance.js --record /tmp/recovery-candidate.json`, compare them with the checked-in file, and explain each accepted difference. Never regenerate expectations merely to admit a regression.
 
+### Error-state gate
+
+`pnpm test:error-state` checks the error state's tokens by enum and display name and the number of parse states sharing lex state 0 against `scripts/error-state.json`. Parse and large-state counts appear only as summary context; `check:generated` enforces the large-state budget. Tree-sitter builds the error state from conflict-free tokens and merges compatible normal states into its lexer, so a grammar change can alter the token read at an error in normal mode too. On a mismatch, record the full candidate with `node scripts/error-state.js --record /tmp/error-state-candidate.json`, explain every token and sharing change before updating the expectation and run the recovery gates: moving the error state is a recovery change. The gate prints one summary line on success and only the differences on failure. See the [recovery principle](#recovery-principle).
+
 ### Sass reading boundaries
 
 The parser retains source syntax without evaluating Sass. These readings matter to consumers even when parsing succeeds:

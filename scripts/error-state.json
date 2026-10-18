@@ -1,0 +1,496 @@
+{
+  "version": 1,
+  "lexState0": 406,
+  "tokens": [
+    {
+      "name": "anon_sym_AMP",
+      "display": "&",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_as",
+      "display": "as",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_AT",
+      "display": "@",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_BANG",
+      "display": "raw_text",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_BANG_EQ",
+      "display": "!=",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_COLON",
+      "display": ":",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_COMMA",
+      "display": ",",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_DASH",
+      "display": "-",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_DASH2",
+      "display": "-",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_DOT",
+      "display": ".",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_DOT2",
+      "display": ".",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_DQUOTE",
+      "display": "\"",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_DQUOTE2",
+      "display": "\"",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_EQ",
+      "display": "=",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_EQ_EQ",
+      "display": "==",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_from",
+      "display": "from",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_GT",
+      "display": ">",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_GT_EQ",
+      "display": ">=",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_hide",
+      "display": "hide",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_if",
+      "display": "if",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_in",
+      "display": "in",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_LBRACE",
+      "display": "{",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_LBRACK",
+      "display": "[",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_LPAREN",
+      "display": "(",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_LPAREN2",
+      "display": "(",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_LT",
+      "display": "<",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_LT_EQ",
+      "display": "<=",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_PERCENT",
+      "display": "%",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_PERCENT2",
+      "display": "%",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_PIPE",
+      "display": "|",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_PLUS",
+      "display": "+",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_POUND",
+      "display": "#",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_POUND_LBRACE",
+      "display": "#{",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_POUND2",
+      "display": "string_content",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_RBRACE",
+      "display": "}",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_RBRACK",
+      "display": "]",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_RPAREN",
+      "display": ")",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_SEMI",
+      "display": ";",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_show",
+      "display": "show",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_SLASH",
+      "display": "/",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_SQUOTE",
+      "display": "'",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_SQUOTE2",
+      "display": "'",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_STAR",
+      "display": "*",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_through",
+      "display": "through",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_TILDE",
+      "display": "~",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_to",
+      "display": "to",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_using",
+      "display": "using",
+      "isExternal": false
+    },
+    {
+      "name": "anon_sym_with",
+      "display": "with",
+      "isExternal": false
+    },
+    {
+      "name": "aux_sym__css_fallback_item_token1",
+      "display": "raw_text",
+      "isExternal": false
+    },
+    {
+      "name": "aux_sym__declaration_priority_token1",
+      "display": "important",
+      "isExternal": false
+    },
+    {
+      "name": "aux_sym__interpolated_pseudo_name_token1",
+      "display": "_interpolated_pseudo_name_token1",
+      "isExternal": false
+    },
+    {
+      "name": "aux_sym__statement_comment_token2",
+      "display": "comment_content",
+      "isExternal": false
+    },
+    {
+      "name": "aux_sym_call_expression_token1",
+      "display": "call_expression_token1",
+      "isExternal": false
+    },
+    {
+      "name": "aux_sym_number_token1",
+      "display": "number_token1",
+      "isExternal": false
+    },
+    {
+      "name": "aux_sym_special_call_token1",
+      "display": "function_name",
+      "isExternal": false
+    },
+    {
+      "name": "aux_sym_variable_name_token1",
+      "display": "variable_name_token1",
+      "isExternal": false
+    },
+    {
+      "name": "sym__conditional_function_name",
+      "display": "_conditional_function_name",
+      "isExternal": false
+    },
+    {
+      "name": "sym__css_var_function_name",
+      "display": "function_name",
+      "isExternal": true
+    },
+    {
+      "name": "sym__dashed_name",
+      "display": "_dashed_name",
+      "isExternal": false
+    },
+    {
+      "name": "sym__descendant",
+      "display": "_descendant",
+      "isExternal": true
+    },
+    {
+      "name": "sym__dimension_number",
+      "display": "_dimension_number",
+      "isExternal": true
+    },
+    {
+      "name": "sym__dimension_unit",
+      "display": "unit",
+      "isExternal": true
+    },
+    {
+      "name": "sym__else_keyword",
+      "display": "_else_keyword",
+      "isExternal": false
+    },
+    {
+      "name": "sym__header_at_brace",
+      "display": "_header_at_brace",
+      "isExternal": true
+    },
+    {
+      "name": "sym__identifier",
+      "display": "_identifier",
+      "isExternal": false
+    },
+    {
+      "name": "sym__if_end",
+      "display": "_if_end",
+      "isExternal": true
+    },
+    {
+      "name": "sym__important_bang",
+      "display": "!",
+      "isExternal": true
+    },
+    {
+      "name": "sym__incomplete_variable_prefix",
+      "display": "$",
+      "isExternal": true
+    },
+    {
+      "name": "sym__literal_comment_interpolation",
+      "display": "comment_content",
+      "isExternal": true
+    },
+    {
+      "name": "sym__literal_css_url",
+      "display": "raw_text",
+      "isExternal": true
+    },
+    {
+      "name": "sym__literal_double_interpolation",
+      "display": "string_content",
+      "isExternal": true
+    },
+    {
+      "name": "sym__literal_raw_interpolation",
+      "display": "raw_text",
+      "isExternal": true
+    },
+    {
+      "name": "sym__literal_single_interpolation",
+      "display": "string_content",
+      "isExternal": true
+    },
+    {
+      "name": "sym__missing_header_block",
+      "display": "_missing_header_block",
+      "isExternal": true
+    },
+    {
+      "name": "sym__missing_variable_name",
+      "display": "identifier",
+      "isExternal": true
+    },
+    {
+      "name": "sym__namespace_prefix",
+      "display": "namespace_name",
+      "isExternal": true
+    },
+    {
+      "name": "sym__query_function_name",
+      "display": "_query_function_name",
+      "isExternal": false
+    },
+    {
+      "name": "sym__query_word_operator",
+      "display": "_query_word_operator",
+      "isExternal": false
+    },
+    {
+      "name": "sym__raw_function_word",
+      "display": "_raw_function_word",
+      "isExternal": false
+    },
+    {
+      "name": "sym__raw_prelude",
+      "display": "_raw_prelude",
+      "isExternal": true
+    },
+    {
+      "name": "sym__result_property_name",
+      "display": "_result_property_name",
+      "isExternal": false
+    },
+    {
+      "name": "sym__sass_boolean",
+      "display": "_sass_boolean",
+      "isExternal": true
+    },
+    {
+      "name": "sym__sass_conditional_function_name",
+      "display": "_sass_conditional_function_name",
+      "isExternal": false
+    },
+    {
+      "name": "sym__sass_null",
+      "display": "_sass_null",
+      "isExternal": true
+    },
+    {
+      "name": "sym__sass_operator",
+      "display": "_sass_operator",
+      "isExternal": true
+    },
+    {
+      "name": "sym__scalar_number",
+      "display": "_scalar_number",
+      "isExternal": true
+    },
+    {
+      "name": "sym__selector_function_name",
+      "display": "_selector_function_name",
+      "isExternal": false
+    },
+    {
+      "name": "sym__space_before_colon",
+      "display": "_space_before_colon",
+      "isExternal": true
+    },
+    {
+      "name": "sym__statement_break",
+      "display": "_statement_break",
+      "isExternal": true
+    },
+    {
+      "name": "sym__statement_comment_start",
+      "display": "/*",
+      "isExternal": true
+    },
+    {
+      "name": "sym__subtraction_minus",
+      "display": "-",
+      "isExternal": true
+    },
+    {
+      "name": "sym__type_function_name",
+      "display": "function_name",
+      "isExternal": false
+    },
+    {
+      "name": "sym__unfinished_header",
+      "display": "_unfinished_header",
+      "isExternal": true
+    },
+    {
+      "name": "sym_block_comment",
+      "display": "block_comment",
+      "isExternal": false
+    },
+    {
+      "name": "sym_important",
+      "display": "important",
+      "isExternal": false
+    },
+    {
+      "name": "sym_inline_comment",
+      "display": "inline_comment",
+      "isExternal": false
+    },
+    {
+      "name": "sym_unicode_range",
+      "display": "unicode_range",
+      "isExternal": false
+    },
+    {
+      "name": "ts_builtin_sym_end",
+      "display": "end",
+      "isExternal": false
+    }
+  ]
+}
