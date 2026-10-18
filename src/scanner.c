@@ -394,6 +394,34 @@ static bool skip_comment(TSLexer *lexer, unsigned *budget) {
   return has_crossed_line;
 }
 
+typedef struct {
+  bool is_valid;
+  bool has_crossed_line;
+  bool has_comment;
+} Trivia;
+
+static Trivia skip_whitespace_and_comments(TSLexer *lexer, unsigned *budget) {
+  Trivia trivia = {.is_valid = true};
+  while (*budget) {
+    if (css_space(lexer->lookahead)) {
+      trivia.has_crossed_line |= line_break(lexer->lookahead);
+      lexer->advance(lexer, false);
+      (*budget)--;
+    } else if (lexer->lookahead == '/') {
+      lexer->advance(lexer, false);
+      if (lexer->lookahead != '*' && lexer->lookahead != '/') {
+        trivia.is_valid = false;
+        break;
+      }
+      trivia.has_crossed_line |= skip_comment(lexer, budget);
+      trivia.has_comment = true;
+    } else {
+      break;
+    }
+  }
+  return trivia;
+}
+
 // Consumes a quoted string after its quote and returns whether it closed; strings end at a line break.
 static bool skip_string(TSLexer *lexer, int32_t quote, unsigned *budget) {
   for (; *budget && !lexer->eof(lexer) && !line_break(lexer->lookahead); (*budget)--) {
@@ -606,18 +634,7 @@ static bool damaged_declaration_rest(TSLexer *lexer) {
   if (stop == CLOSE_BLOCK && !groups) return true;
   if (stop != LINE_BREAK || groups) return false;
   // The line ended without `;`: it is one error before the block's `}` or a declaration line, past comments.
-  while (budget) {
-    if (css_space(lexer->lookahead)) {
-      budget--;
-      lexer->advance(lexer, false);
-    } else if (lexer->lookahead == '/') {
-      lexer->advance(lexer, false);
-      if (lexer->lookahead != '*' && lexer->lookahead != '/') return false;
-      skip_comment(lexer, &budget);
-    } else {
-      break;
-    }
-  }
+  if (!skip_whitespace_and_comments(lexer, &budget).is_valid) return false;
   if (lexer->lookahead == '}') return true;
   return declaration_start(lexer, false, &budget, false) != NO_DECLARATION && value_ends_on_line(lexer, &budget);
 }
@@ -671,27 +688,13 @@ static bool tail_ends_statement(TSLexer *lexer, unsigned token, bool is_selector
     is_touching = true;
     lexer->mark_end(lexer);
   }
-  bool has_crossed_line = false;
-  bool has_comment = false;
-  while (budget) {
-    if (css_space(lexer->lookahead)) {
-      has_crossed_line |= line_break(lexer->lookahead);
-      lexer->advance(lexer, false);
-      budget--;
-    } else if (lexer->lookahead == '/') {
-      lexer->advance(lexer, false);
-      if (lexer->lookahead != '/' && lexer->lookahead != '*') return false;
-      has_crossed_line |= skip_comment(lexer, &budget);
-      has_comment = true;
-    } else {
-      break;
-    }
-  }
+  Trivia trivia = skip_whitespace_and_comments(lexer, &budget);
+  if (!trivia.is_valid) return false;
   lexer->result_symbol = token;
-  if (!budget || !has_crossed_line) return false;
+  if (!budget || !trivia.has_crossed_line) return false;
   if (is_selector && lexer->lookahead == '@') return true;
   // Ending at the next statement leaves no newline after the skipped break, where recovery would find a second path.
-  if (token == STATEMENT_BREAK && !has_comment) lexer->mark_end(lexer);
+  if (token == STATEMENT_BREAK && !trivia.has_comment) lexer->mark_end(lexer);
   // A compound marker needs a name touching it, so no later line continues the selector.
   int32_t first = lexer->lookahead;
   bool is_marker = last == '.' || last == ':' || last == '%' || last == '#';
