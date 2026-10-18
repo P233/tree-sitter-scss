@@ -30,7 +30,8 @@
     "format:check": "prettier --check \"**/*.{js,mjs}\" \"*.json\" \"*.yaml\" \"*.md\" \".github/workflows/*.yml\" \"scripts/*.json\" \"scripts/*.css\" \"test/config.json\" \"comparison/*.{json,css,html,md}\"",
     "check:package": "node scripts/check-package.js",
     "compare:build": "node comparison/build.js --build",
-    "test:error-state": "node scripts/error-state.js"
+    "test:error-state": "node scripts/error-state.js",
+    "test:scanner": "node scripts/scanner-replay.js"
   },
   "keywords": [
     "tree-sitter",

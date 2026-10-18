@@ -5,6 +5,7 @@ const { parseArgs, promisify } = require("node:util");
 const Parser = require("tree-sitter");
 const Scss = require("../bindings/node");
 const {
+  typingStates,
   contractStatements,
   contractBefore,
   contractLayouts,
@@ -20,39 +21,6 @@ const EXPECTATIONS = join(__dirname, "recovery-acceptance.json");
 const SUITES = ["contract", "typing", "blockend", "headers", "unfinished", "typos"];
 const rules = (name, count = 300) =>
   Array.from({ length: count }, (_, i) => `.${name}${i} {\n  margin: ${i}px;\n  &:hover { color: red; }\n}\n`).join("");
-const point = (text, index) => {
-  const before = text.slice(0, index);
-  return { row: before.split("\n").length - 1, column: index - before.lastIndexOf("\n") - 1 };
-};
-
-function* typingStates(before, after, statement, pairs, includeOvertypes = false) {
-  let text = before + after;
-  let caret = before.length;
-  const closers = Object.values(pairs);
-  for (const typed of statement) {
-    if (text[caret] === typed && closers.includes(typed)) {
-      caret++;
-      if (includeOvertypes) yield { text };
-      continue;
-    }
-    const inserted = typed + (pairs[typed] || "");
-    const startPosition = point(text, caret);
-    text = text.slice(0, caret) + inserted + text.slice(caret);
-    yield {
-      text,
-      edit: {
-        startIndex: caret,
-        oldEndIndex: caret,
-        newEndIndex: caret + inserted.length,
-        startPosition,
-        oldEndPosition: startPosition,
-        newEndPosition: point(text, caret + inserted.length)
-      }
-    };
-    caret++;
-  }
-}
-
 function parserFor(language = Scss) {
   const parser = new Parser();
   parser.setLanguage(language);

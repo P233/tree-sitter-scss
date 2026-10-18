@@ -225,7 +225,41 @@ const typos = {
   "nested-typo": ".a {\n  .b {\n    marg in: 0;\n  }\n}"
 };
 
+const point = (text, index) => {
+  const before = text.slice(0, index);
+  return { row: before.split("\n").length - 1, column: index - before.lastIndexOf("\n") - 1 };
+};
+
+function* typingStates(before, after, statement, pairs, includeOvertypes = false) {
+  let text = before + after;
+  let caret = before.length;
+  const closers = Object.values(pairs);
+  for (const typed of statement) {
+    if (text[caret] === typed && closers.includes(typed)) {
+      caret++;
+      if (includeOvertypes) yield { text };
+      continue;
+    }
+    const inserted = typed + (pairs[typed] || "");
+    const startPosition = point(text, caret);
+    text = text.slice(0, caret) + inserted + text.slice(caret);
+    yield {
+      text,
+      edit: {
+        startIndex: caret,
+        oldEndIndex: caret,
+        newEndIndex: caret + inserted.length,
+        startPosition,
+        oldEndPosition: startPosition,
+        newEndPosition: point(text, caret + inserted.length)
+      }
+    };
+    caret++;
+  }
+}
+
 module.exports = {
+  typingStates,
   contractStatements,
   contractBefore,
   contractLayouts,
