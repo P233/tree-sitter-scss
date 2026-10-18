@@ -76,3 +76,21 @@ $value: math.div($number: 4, $divisor: 2);
       (arguments
         (named_argument (variable_name) (number))
         (named_argument (variable_name) (number))))))
+
+==================
+Multiline selectors preserve one continued selector
+==================
+.first
+  .second { color: red; }
+---
+(stylesheet (rule_set (selectors (complex_selector (class_selector) (class_selector))) (declaration_block (property_declaration (property_name) (plain_value)))))
+
+==================
+Multiline maps keep their entries
+==================
+$map: (
+  first: 1,
+  second: 2
+);
+---
+(stylesheet (variable_declaration (variable_name) (map (map_entry (plain_value) (number)) (map_entry (plain_value) (number)))))

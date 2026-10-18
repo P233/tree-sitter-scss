@@ -180,3 +180,40 @@ A container query without a prelude
 @container { .a { color: red; } } .b { @container } .after {}
 ---
 (stylesheet (query_statement (declaration_block (rule_set (selectors (class_selector)) (declaration_block (property_declaration (property_name) (plain_value)))))) (rule_set (selectors (class_selector)) (declaration_block (query_statement))) (rule_set (selectors (class_selector))))
+
+==================
+Multiline parameters keep defaults
+==================
+@mixin m(
+  $first,
+  $second: 2px
+) { width: $second; }
+---
+(stylesheet (mixin_definition (function_name) (parameters (parameter (variable_name)) (parameter (variable_name) (number (unit)))) (declaration_block (property_declaration (property_name) (variable_name)))))
+
+==================
+Multiline queries keep feature groups
+==================
+@supports (
+  display: grid
+) and
+  (gap: 1px) { .x {} }
+---
+(stylesheet (query_statement (query_group (feature_query (property_name) (plain_value))) (operator) (query_group (feature_query (property_name) (number (unit)))) (declaration_block (rule_set (selectors (class_selector))))))
+
+==================
+Multiline raw groups keep semicolons inside the group
+==================
+@future { payload(
+  first: x;
+  second: y
+); }
+---
+(stylesheet (at_rule (at_keyword) (declaration_block (raw_statement (plain_value) (raw_group (plain_value) (plain_value) (plain_value) (plain_value))))))
+
+==================
+Statement comments parse complete interpolation
+==================
+/* before #{1 + 2} after */ .tail {}
+---
+(stylesheet (block_comment (comment_content) (interpolation (number) (operator) (number)) (comment_content)) (rule_set (selectors (class_selector))))

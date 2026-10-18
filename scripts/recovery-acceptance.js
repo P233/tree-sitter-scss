@@ -4,23 +4,12 @@ const { join, resolve } = require("node:path");
 const { parseArgs, promisify } = require("node:util");
 const Parser = require("tree-sitter");
 const Scss = require("../bindings/node");
-const {
-  typingStates,
-  contractStatements,
-  contractBefore,
-  contractLayouts,
-  typingStatements,
-  blockStatements,
-  headers,
-  unfinishedLines,
-  unfinishedHeaders,
-  typos
-} = require("./recovery-fixtures.js");
+const { typingStates, recoveryFamilies } = require("./recovery-fixtures.js");
+
+const { statementUnits, intactUnit, highlightRoles } = require("./recovery-assertions.js");
 
 const EXPECTATIONS = join(__dirname, "recovery-acceptance.json");
 const SUITES = ["contract", "typing", "blockend", "headers", "unfinished", "typos"];
-const rules = (name, count = 300) =>
-  Array.from({ length: count }, (_, i) => `.${name}${i} {\n  margin: ${i}px;\n  &:hover { color: red; }\n}\n`).join("");
 function parserFor(language = Scss) {
   const parser = new Parser();
   parser.setLanguage(language);
@@ -33,41 +22,15 @@ function tailIntact(tree) {
   ).length;
 }
 
-function statementUnits(root) {
-  const units = [];
-  const walk = node => {
-    for (const child of node.namedChildren) {
-      if ((node.type === "stylesheet" || node.type === "declaration_block") && child.type !== "ERROR") {
-        units.push({ start: child.startIndex, end: child.endIndex, type: child.type, sexp: child.toString() });
-      }
-      walk(child);
-    }
-  };
-  walk(root);
-  return units;
-}
-
-function intactUnit(root, start, end, unit) {
-  let node = root.descendantForIndex(start, Math.max(start, end - 1));
-  while (node && !(node.startIndex === start && node.endIndex === end && node.type === unit.type)) {
-    node = node.parent;
-  }
-  if (!node || node.toString() !== unit.sexp) return false;
-  for (let parent = node.parent; parent; parent = parent.parent) {
-    if (parent.type === "ERROR") return false;
-  }
-  return true;
-}
-
 function contract(isPlain) {
   const parser = parserFor();
-  const pairs = isPlain ? {} : { "(": ")", "[": "]", '"': '"', "{": "}" };
+  const family = recoveryFamilies.contract;
+  const pairs = isPlain ? {} : family.pairs;
   const results = {};
-  for (const [category, statements] of Object.entries(contractStatements)) {
-    for (const [layout, [pre, post]] of Object.entries(contractLayouts)) {
-      if (layout === "top" && category === "declaration") continue;
-      const before = contractBefore + pre;
-      const after = post + rules("t", 60);
+  for (const [category, statements] of Object.entries(family.statements)) {
+    for (const [layout, [pre, post]] of family.layouts(category)) {
+      const before = family.before + pre;
+      const after = post + family.tail;
       const base = parser.parse(before + after).rootNode;
       const units = statementUnits(base);
       const offset = before.length;
@@ -85,7 +48,7 @@ function contract(isPlain) {
           blockValid: 0,
           states: ""
         });
-        for (const { text } of typingStates(before, after, statement, pairs, true)) {
+        for (const { text } of typingStates(before, after, statement, pairs, family.includeOvertypes)) {
           const root = parser.parse(text).rootNode;
           const shift = text.length - before.length - after.length;
           let isLineBroken = false;
@@ -122,32 +85,17 @@ function contract(isPlain) {
 function typing(isPlain) {
   const parser = parserFor();
   const query = new Parser.Query(Scss, Scss.HIGHLIGHTS_QUERY);
-  const roles = (tree, start) => {
-    const end = start + 2000;
-    const result = new Array(end - start).fill(null);
-    for (const { name, node } of query.captures(tree.rootNode, { startIndex: start, endIndex: end })) {
-      for (let i = Math.max(node.startIndex, start); i < Math.min(node.endIndex, end); i++) result[i - start] = name;
-    }
-    return result.join("|");
-  };
-  const pairs = isPlain ? {} : { "{": "}", "(": ")", "[": "]", '"': '"' };
-  const head = rules("h", 500);
-  const tail = rules("t", 500);
-  const layouts = {
-    blank: [`${head}.a {\n  color: red;\n  `, `\n  width: 1px;\n}\n${tail}`],
-    same: [`${head}.a {\n  color: red;\n  `, `width: 1px;\n}\n${tail}`],
-    end: [`${head}.a {\n  color: red;\n  `, `\n}\n${tail}`],
-    top: [head, `\n${tail}`],
-    nested: [`${head}.a {\n  `, `\n  &:hover { color: red; }\n  width: 1px;\n}\n${tail}`]
-  };
+  const family = recoveryFamilies.typing;
+  const pairs = isPlain ? {} : family.pairs;
+  const layouts = family.layouts();
   const results = {};
   for (const [layout, [before, after]] of Object.entries(layouts)) {
     const rows = (results[layout] = {});
     const probes = [".t250", ".t499"].map(name => ({ name, offset: after.indexOf(`${name} {`) }));
-    for (const statement of typingStatements) {
+    for (const statement of family.statements) {
       let tree = parser.parse(before + after);
       const skip = Math.max(0, after.indexOf("\n"));
-      const baseline = roles(tree, before.length + skip);
+      const baseline = highlightRoles(query, tree, before.length + skip);
       const row = (rows[statement] = {
         keys: 0,
         changedKB: 0,
@@ -159,7 +107,7 @@ function typing(isPlain) {
         states: "",
         changedBytes: []
       });
-      for (const { text, edit } of typingStates(before, after, statement, pairs)) {
+      for (const { text, edit } of typingStates(before, after, statement, pairs, family.includeOvertypes)) {
         tree.edit(edit);
         const next = parser.parse(text, tree);
         const changed = tree
@@ -171,7 +119,7 @@ function typing(isPlain) {
           const node = next.rootNode.firstNamedChildForIndex(text.length - after.length + offset);
           return node?.type === "rule_set" && node.childForFieldName("selectors")?.text === name;
         });
-        const isNearChanged = roles(next, text.length - after.length + skip) !== baseline;
+        const isNearChanged = highlightRoles(query, next, text.length - after.length + skip) !== baseline;
         row.keys++;
         row.changedKB += changed / 1024;
         row.changedBytes.push(changed);
@@ -195,14 +143,9 @@ function typing(isPlain) {
 }
 
 function blockend(isPlain) {
-  const pairs = isPlain ? {} : { "(": ")", "[": "]", "{": "}" };
-  const head = rules("h");
-  const tail = rules("t");
-  const layouts = {
-    end: [`${head}.a {\n  color: red;\n  `, `\n}\n${tail}`],
-    nested: [`${head}.p {\n  .a {\n    color: red;\n    `, `\n  }\n  width: 1px;\n}\n${tail}`],
-    oneline: [`${head}.a { color: red; `, ` }\n${tail}`]
-  };
+  const family = recoveryFamilies.blockend;
+  const pairs = isPlain ? {} : family.pairs;
+  const layouts = family.layouts();
   const results = {};
   for (const [dialect, language] of [
     ["scss", Scss],
@@ -210,7 +153,7 @@ function blockend(isPlain) {
   ]) {
     const parser = parserFor(language);
     for (const [layout, [before, after]] of Object.entries(layouts)) {
-      for (const statement of blockStatements) {
+      for (const statement of family.statements) {
         let tree = parser.parse(before + after);
         const row = (results[`${dialect}/${layout}/${statement}`] = {
           states: 0,
@@ -224,7 +167,7 @@ function blockend(isPlain) {
           freshTail: [],
           rootErrors: ""
         });
-        for (const { text, edit } of typingStates(before, after, statement, pairs)) {
+        for (const { text, edit } of typingStates(before, after, statement, pairs, family.includeOvertypes)) {
           tree.edit(edit);
           tree = parser.parse(text, tree);
           const inc = tailIntact(tree);
@@ -249,18 +192,13 @@ function blockend(isPlain) {
 
 function cleanHeaders() {
   const parser = parserFor();
-  const tail = rules("t");
-  const layouts = {
-    newline: [`.a {\n  color: red;\n  `, `\n}\n${tail}`],
-    sameline: [`.a { color: red; `, ` }\n${tail}`],
-    nested: [`.p {\n  .a {\n    color: red;\n    `, `\n  }\n  width: 1px;\n}\n${tail}`],
-    afterif: [`.a {\n  @if $x { color: red; }\n  `, `\n}\n${tail}`]
-  };
+  const family = recoveryFamilies.headers;
+  const layouts = family.layouts();
   const results = {};
   for (const [layout, [before, after]] of Object.entries(layouts)) {
-    for (const header of headers) {
+    for (const header of family.statements) {
       const row = (results[`${layout}/${header}`] = { keys: 0, broken: 0, tail: [] });
-      for (const { text } of typingStates(before, after, header, { "(": ")", "[": "]" })) {
+      for (const { text } of typingStates(before, after, header, family.pairs, family.includeOvertypes)) {
         const intact = tailIntact(parser.parse(text));
         row.keys++;
         if (intact < 300) row.broken++;
@@ -273,17 +211,14 @@ function cleanHeaders() {
 
 function headersAfterUnfinished() {
   const parser = parserFor();
-  const tail = rules("t");
-  const layouts = {
-    next: [line => `.a {\n  color: red;\n  ${line}\n  `, `\n}\n${tail}`],
-    same: [line => `.a {\n  color: red;\n  ${line} `, `\n}\n${tail}`]
-  };
+  const family = recoveryFamilies.unfinished;
+  const layouts = family.layouts();
   const results = {};
   for (const [layout, [before, after]] of Object.entries(layouts)) {
-    for (const line of Object.values(unfinishedLines).flat()) {
-      for (const header of unfinishedHeaders) {
+    for (const line of Object.values(family.lines).flat()) {
+      for (const header of family.statements) {
         const row = (results[`${layout}/${line}/${header}`] = { keys: 0, broken: 0, tail: [] });
-        for (const { text } of typingStates(before(line), after, header, {})) {
+        for (const { text } of typingStates(before(line), after, header, family.pairs, family.includeOvertypes)) {
           const tree = parser.parse(text);
           // An ERROR root can still hold intact rules, but the whole file is then one error.
           const intact = tree.rootNode.type === "ERROR" ? 0 : tailIntact(tree);
@@ -298,15 +233,15 @@ function headersAfterUnfinished() {
 }
 
 function typoProbes() {
-  const tail = Array.from({ length: 300 }, (_, i) => `.t${i} { margin: ${i}px; }`).join("\n");
+  const family = recoveryFamilies.typos;
   const results = {};
   for (const [dialect, language] of [
     ["scss", Scss],
     ["css", Scss.cssLanguage]
   ]) {
     const parser = parserFor(language);
-    for (const [name, head] of Object.entries(typos)) {
-      const root = parser.parse(`${head}\n${tail}\n`).rootNode;
+    for (const [name, head] of Object.entries(family.statements)) {
+      const root = parser.parse(family.source(head)).rootNode;
       results[`${dialect}/${name}`] = { children: root.namedChildCount, hasError: root.hasError };
     }
   }

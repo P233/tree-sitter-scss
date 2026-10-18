@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const { test } = require("node:test");
 const Parser = require("tree-sitter");
 const Scss = require("./index.js");
+const { inputEdit } = require("../../scripts/fuzz.js");
 
 function shape(node) {
   return [
@@ -14,21 +15,9 @@ function shape(node) {
   ];
 }
 
-function position(source, index) {
-  const lines = source.slice(0, index).split("\n");
-  return { row: lines.length - 1, column: lines.at(-1).length };
-}
-
 function editAndCompare(parser, query, tree, source, start, end, replacement) {
   const edited = source.slice(0, start) + replacement + source.slice(end);
-  tree.edit({
-    startIndex: start,
-    oldEndIndex: end,
-    newEndIndex: start + replacement.length,
-    startPosition: position(source, start),
-    oldEndPosition: position(source, end),
-    newEndPosition: position(edited, start + replacement.length)
-  });
+  tree.edit(inputEdit(source, edited, start, end, start + replacement.length));
   const incremental = parser.parse(edited, tree);
   const fresh = parser.parse(edited);
   if (!fresh.rootNode.hasError) {
@@ -202,5 +191,62 @@ test("complete multiline selectors and values retain their contexts", () => {
     ]) {
       assert.equal(parser.parse(source).rootNode.hasError, false, source);
     }
+  }
+});
+
+test("edits on both sides of protected block boundaries close after repair and undo", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    const parser = new Parser().setLanguage(language);
+    const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
+    for (const newline of ["\n", "\r\n"]) {
+      const original = [
+        '.before { content: "é😀"; color: red; }',
+        ".box {",
+        "  width: 1px;",
+        "  height: 2px;",
+        "}",
+        ".tail { color: blue; }"
+      ].join(newline);
+      for (const [token, replacement] of [
+        ["red", "green"],
+        ["1px", "3px"],
+        ["2px", "4px"],
+        ["blue", "teal"]
+      ]) {
+        let source = original;
+        let tree = parser.parse(source);
+        assert.equal(tree.rootNode.hasError, false, original);
+        const start = source.indexOf(token);
+        [tree, source] = editAndCompare(parser, query, tree, source, start, start, "/* c */");
+        [tree, source] = editAndCompare(parser, query, tree, source, start, start + 7, "");
+        [tree, source] = editAndCompare(parser, query, tree, source, start, start + token.length, replacement);
+        [tree, source] = editAndCompare(parser, query, tree, source, start, start, "fn(");
+        [tree, source] = editAndCompare(parser, query, tree, source, start, start + 3, "");
+        assert.equal(tree.rootNode.hasError, false, "repaired " + source);
+        [tree, source] = editAndCompare(parser, query, tree, source, start, start + replacement.length, token);
+        assert.equal(source, original, "undo");
+        assert.equal(tree.rootNode.hasError, false, "undo " + source);
+      }
+    }
+  }
+});
+
+test("adding an else reparses the whole if chain and keeps later rules", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    const parser = new Parser().setLanguage(language);
+    const query = new Parser.Query(language, Scss.HIGHLIGHTS_QUERY);
+    let source = "@if true {}\n.tail {}";
+    const original = source;
+    let tree = parser.parse(source);
+    const start = source.indexOf("\n");
+    const clause = " @else { .branch {} }";
+    [tree, source] = editAndCompare(parser, query, tree, source, start, start, clause);
+    assert.equal(tree.rootNode.hasError, false);
+    assert.equal(tree.rootNode.firstNamedChild.type, "if_statement");
+    assert.equal(tree.rootNode.firstNamedChild.descendantsOfType("else_clause").length, 1);
+    assert.equal(tree.rootNode.namedChildCount, 2);
+    [tree, source] = editAndCompare(parser, query, tree, source, start, start + clause.length, "");
+    assert.equal(source, original);
+    assert.equal(tree.rootNode.firstNamedChild.descendantsOfType("else_clause").length, 0);
   }
 });

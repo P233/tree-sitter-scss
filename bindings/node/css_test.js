@@ -517,3 +517,18 @@ test("dialect word classification preserves full identifier and interpolation bo
   const cssTree = parse(source);
   assert.equal(texts(cssTree, "plain_value").length, 12);
 });
+
+test("CSS var fallback keeps a semicolon inside its raw group", () => {
+  const parser = new Parser().setLanguage(Scss.cssLanguage);
+  const root = parser.parse(".a { width: var(--x, [a;b]); color: red; } .tail {}").rootNode;
+  assert.equal(root.hasError, false);
+  const call = root.descendantsOfType("call_expression")[0];
+  const group = call.childForFieldName("arguments").descendantsOfType("raw_group")[0];
+  assert.equal(group.text, "[a;b]");
+  assert.deepEqual(
+    group.children.map(node => node.type),
+    ["[", "plain_value", ";", "plain_value", "]"]
+  );
+  assert.equal(root.descendantsOfType("property_declaration").length, 2);
+  assert.equal(root.lastNamedChild.text, ".tail {}");
+});

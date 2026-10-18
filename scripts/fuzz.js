@@ -243,14 +243,14 @@ function inputEdit(before, after, start, oldEnd, newEnd) {
 }
 
 // Every node, named or anonymous, with its field, range and MISSING flag; toString() omits ranges and tokens.
-function shape(tree) {
-  const cursor = tree.walk();
+function shape(treeOrNode, shift = 0) {
+  const cursor = treeOrNode.walk();
   const parts = [];
   for (;;) {
     const field = cursor.currentFieldName;
     const type = cursor.nodeIsNamed ? cursor.nodeType : JSON.stringify(cursor.nodeType);
     const missing = cursor.nodeIsMissing ? " MISSING" : "";
-    parts.push(`${field ? `${field}:` : ""}(${type} ${cursor.startIndex}-${cursor.endIndex}${missing}`);
+    parts.push(`${field ? `${field}:` : ""}(${type} ${cursor.startIndex - shift}-${cursor.endIndex - shift}${missing}`);
     if (cursor.gotoFirstChild()) continue;
     parts.push(")");
     while (!cursor.gotoNextSibling()) {
@@ -535,6 +535,7 @@ module.exports = {
   corpusInputs,
   repositoryInputs,
   position,
+  inputEdit,
   nextEdit,
   shape,
   recordCases,

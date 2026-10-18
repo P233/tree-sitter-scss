@@ -258,7 +258,204 @@ function* typingStates(before, after, statement, pairs, includeOvertypes = false
   }
 }
 
+const rules = (name, count = 300) =>
+  Array.from({ length: count }, (_, i) => `.${name}${i} {\n  margin: ${i}px;\n  &:hover { color: red; }\n}\n`).join("");
+
+function typingLayouts() {
+  const head = rules("h", 500);
+  const tail = recoveryFamilies.typing.tail;
+  return {
+    blank: [`${head}.a {\n  color: red;\n  `, `\n  width: 1px;\n}\n${tail}`],
+    same: [`${head}.a {\n  color: red;\n  `, `width: 1px;\n}\n${tail}`],
+    end: [`${head}.a {\n  color: red;\n  `, `\n}\n${tail}`],
+    top: [head, `\n${tail}`],
+    nested: [`${head}.a {\n  `, `\n  &:hover { color: red; }\n  width: 1px;\n}\n${tail}`]
+  };
+}
+
+function blockLayouts() {
+  const head = rules("h");
+  const tail = recoveryFamilies.blockend.tail;
+  return {
+    end: [`${head}.a {\n  color: red;\n  `, `\n}\n${tail}`],
+    nested: [`${head}.p {\n  .a {\n    color: red;\n    `, `\n  }\n  width: 1px;\n}\n${tail}`],
+    oneline: [`${head}.a { color: red; `, ` }\n${tail}`]
+  };
+}
+
+function headerLayouts() {
+  const tail = recoveryFamilies.headers.tail;
+  return {
+    newline: [`.a {\n  color: red;\n  `, `\n}\n${tail}`],
+    sameline: [`.a { color: red; `, ` }\n${tail}`],
+    nested: [`.p {\n  .a {\n    color: red;\n    `, `\n  }\n  width: 1px;\n}\n${tail}`],
+    afterif: [`.a {\n  @if $x { color: red; }\n  `, `\n}\n${tail}`]
+  };
+}
+
+function unfinishedLayouts() {
+  const tail = recoveryFamilies.unfinished.tail;
+  return {
+    next: [line => `.a {\n  color: red;\n  ${line}\n  `, `\n}\n${tail}`],
+    same: [line => `.a {\n  color: red;\n  ${line} `, `\n}\n${tail}`]
+  };
+}
+
+const typoTail = Array.from({ length: 300 }, (_, i) => `.t${i} { margin: ${i}px; }`).join("\n");
+
+const recoveryFamilies = {
+  contract: {
+    statements: contractStatements,
+    before: contractBefore,
+    layouts: category =>
+      Object.entries(contractLayouts).filter(([layout]) => category !== "declaration" || layout !== "top"),
+    tail: rules("t", 60),
+    pairs: { "(": ")", "[": "]", '"': '"', "{": "}" },
+    includeOvertypes: true
+  },
+  typing: {
+    statements: typingStatements,
+    layouts: typingLayouts,
+    tail: rules("t", 500),
+    pairs: { "(": ")", "[": "]", "{": "}", '"': '"' }
+  },
+  blockend: {
+    statements: blockStatements,
+    layouts: blockLayouts,
+    tail: rules("t"),
+    pairs: { "(": ")", "[": "]", "{": "}" }
+  },
+  headers: {
+    statements: headers,
+    layouts: headerLayouts,
+    tail: rules("t"),
+    pairs: { "(": ")", "[": "]" }
+  },
+  unfinished: {
+    lines: unfinishedLines,
+    statements: unfinishedHeaders,
+    layouts: unfinishedLayouts,
+    tail: rules("t"),
+    pairs: {}
+  },
+  typos: {
+    statements: typos,
+    tail: typoTail,
+    source: head => `${head}\n${typoTail}\n`
+  }
+};
+
+// Regions are source coordinates, independent of either parse; an if/else chain stays inside the editable block.
+function protectedRegions(before, after, prefixEnd, tail) {
+  const source = before + after;
+  return [
+    ...(prefixEnd ? [{ name: "before-block", start: 0, end: prefixEnd }] : []),
+    { name: "tail-rules", start: source.length - tail.length, end: source.length }
+  ];
+}
+
+function* recoveryFixtures() {
+  let index = 0;
+  const contract = recoveryFamilies.contract;
+  for (const [category, statements] of Object.entries(contract.statements)) {
+    for (const statement of statements) {
+      const layouts = contract.layouts(category);
+      const [layout, [pre, post]] = layouts[index % layouts.length];
+      const mode = index++ % 2 ? "plain" : "paired";
+      const before = contract.before + pre;
+      const tail = contract.tail;
+      const after = post + tail;
+      yield {
+        family: "contract",
+        key: `${category}/${layout}/${statement}`,
+        statement,
+        mode,
+        before,
+        after,
+        pairs: mode === "plain" ? {} : contract.pairs,
+        includeOvertypes: contract.includeOvertypes,
+        regions: protectedRegions(before, after, contract.before.length, tail)
+      };
+    }
+  }
+  for (const family of ["typing", "blockend", "headers"]) {
+    const parameters = recoveryFamilies[family];
+    const layouts = parameters.layouts();
+    index = 0;
+    for (const statement of parameters.statements) {
+      let [layout, [before, after]] = Object.entries(layouts)[index % Object.keys(layouts).length];
+      if (
+        family === "typing" &&
+        layout === "top" &&
+        ['content: "a #{$b} c";', "m10", "font: #{$s}/#{$l} $f;"].includes(statement)
+      ) {
+        // These top-level inputs absorb the first tail rule; use the existing block layout.
+        layout = "blank";
+        [before, after] = layouts[layout];
+      }
+      const isEven = index++ % 2 === 0;
+      const mode = family === "headers" || isEven ? "paired" : "plain";
+      const dialect = family === "blockend" && !isEven ? "css" : "scss";
+      const prefixEnd = before.indexOf(layout === "nested" && family !== "typing" ? ".p {" : ".a {");
+      yield {
+        family,
+        key: family === "blockend" ? `${dialect}/${layout}/${statement}` : `${layout}/${statement}`,
+        statement,
+        mode,
+        dialect,
+        before,
+        after,
+        pairs: mode === "plain" ? {} : parameters.pairs,
+        includeOvertypes: parameters.includeOvertypes,
+        regions: protectedRegions(before, after, prefixEnd < 0 ? before.length : prefixEnd, parameters.tail)
+      };
+    }
+  }
+  index = 0;
+  const unfinished = recoveryFamilies.unfinished;
+  for (const [category, lines] of Object.entries(unfinished.lines)) {
+    for (const line of lines) {
+      const layout = index % 2 ? "same" : "next";
+      const statement = unfinished.statements[index++ % unfinished.statements.length];
+      const [prefix, after] = unfinished.layouts()[layout];
+      const before = prefix(line);
+      const complete = prefix("") + after;
+      const tail = unfinished.tail;
+      yield {
+        family: "unfinished",
+        key: `${layout}/${line}/${statement}`,
+        category,
+        statement,
+        mode: "paired",
+        before,
+        after,
+        complete,
+        pairs: unfinished.pairs,
+        includeOvertypes: unfinished.includeOvertypes,
+        regions: protectedRegions(prefix(""), after, 0, tail)
+      };
+    }
+  }
+  const typo = recoveryFamilies.typos;
+  for (const [name, head] of Object.entries(typo.statements)) {
+    for (const dialect of ["scss", "css"]) {
+      const complete = typo.source(".a {}");
+      yield {
+        family: "typos",
+        key: `${dialect}/${name}`,
+        statement: head,
+        mode: "paired",
+        dialect,
+        complete,
+        text: typo.source(head),
+        regions: protectedRegions(".a {}", typo.source(""), 0, typo.tail + "\n")
+      };
+    }
+  }
+}
+
 module.exports = {
+  recoveryFamilies,
   typingStates,
   contractStatements,
   contractBefore,
@@ -268,5 +465,6 @@ module.exports = {
   headers,
   unfinishedLines,
   unfinishedHeaders,
-  typos
+  typos,
+  recoveryFixtures
 };
