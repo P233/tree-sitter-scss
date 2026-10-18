@@ -20,7 +20,7 @@ function sourceHash(directory) {
 }
 
 // The scanner the ablation below was reviewed against; a new recovery decision may match none of its landmarks.
-const REVIEWED_SCANNER = "1ea6097ec5c3b91f48242a2bee7201e57fd3a3786c035f24648b4082b6441b92";
+const REVIEWED_SCANNER = "84cad8153af5a3ebd255fff9043a409866b506d5cec2749f35e797ecaed02d26";
 
 // Fail for any other scanner or a moved landmark: the ablation must be reviewed again when the scanner changes.
 function disableRecovery(source) {
@@ -45,7 +45,7 @@ function disableRecovery(source) {
   ]) {
     replace(new RegExp(`static bool ${name}\\([^;{]*\\) \\{`), "$&\n  return false;");
   }
-  replace(/valid_symbols\[STATEMENT_BREAK\] && valid_symbols\[STATEMENT_COMMENT_START\]/g, "false");
+  replace(/bool is_statement_start = [^;]+;/, "bool is_statement_start = false;");
   replace(/bool is_value_state = [^;]+;/, "bool is_value_state = false;");
   replace(/bool is_inside_statement = [^;]+;/, "bool is_inside_statement = false;");
   replace(/LineEnd line_end = [^;]+;/, "LineEnd line_end = NO_LINE_END;");

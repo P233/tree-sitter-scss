@@ -967,8 +967,8 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     }
     if (!has_crossed_line) lexer->mark_end(lexer);
     int32_t first = lexer->lookahead;
-    if (!has_crossed_line && valid_symbols[DESCENDANT] && !valid_symbols[STATEMENT_BREAK] &&
-        tail_start(first, !has_space)) {
+    bool is_same_line_selector = !has_crossed_line && valid_symbols[DESCENDANT] && !valid_symbols[STATEMENT_BREAK];
+    if (is_same_line_selector && tail_start(first, !has_space)) {
       return tail_ends_statement(lexer, STATEMENT_BREAK, true);
     }
     if (has_space && (first == ':' || valid_symbols[DESCENDANT])) {
@@ -1011,7 +1011,8 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     return scan_unit(lexer, css, true, &complex);
   }
   // Recovering from an unfinished selector lexes the punctuation that ended its line again in the statement list.
-  if (valid_symbols[STATEMENT_BREAK] && valid_symbols[STATEMENT_COMMENT_START] && !valid_symbols[DESCENDANT]) {
+  bool is_statement_start = valid_symbols[STATEMENT_BREAK] && valid_symbols[STATEMENT_COMMENT_START];
+  if (is_statement_start && !valid_symbols[DESCENDANT]) {
     bool is_touching = true;
     while (lexer->lookahead == ' ' || lexer->lookahead == '\t') {
       is_touching = false;
@@ -1040,7 +1041,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
   LineEnd line_end = !has_crossed_line || !(is_value_state || is_inside_statement) ? NO_LINE_END
                      : is_value_state                                             ? LINE_END
                                                                                   : LINE_END_IN_GROUP;
-  if (valid_symbols[STATEMENT_BREAK] && valid_symbols[STATEMENT_COMMENT_START]) {
+  if (is_statement_start) {
     if (lexer->lookahead == '@') {
       // Skipped whitespace, not `get_column`, which rereads the line, decides a line start; no token ends with one.
       bool is_line_start = last_space ? line_break(last_space) : lexer->is_at_included_range_start(lexer);
@@ -1058,7 +1059,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
   // Where numbers are also valid, a signed number relies on the internal number lexer.
   if (valid_symbols[NAMESPACE_PREFIX] &&
       (name_start(lexer->lookahead) || lexer->lookahead == '-' || lexer->lookahead == '\\')) {
-    return scan_namespace_prefix(lexer, css, valid_symbols[STATEMENT_BREAK] && valid_symbols[STATEMENT_COMMENT_START]);
+    return scan_namespace_prefix(lexer, css, is_statement_start);
   }
   // A `$` that does not start a name is one unfinished token, which keeps its error small. CSS URL payloads own `$`.
   if (valid_symbols[INCOMPLETE_VARIABLE_PREFIX] && !(css && valid_symbols[LITERAL_CSS_URL]) &&
