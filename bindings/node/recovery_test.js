@@ -614,6 +614,15 @@ test("recovery debt stays visible", () => {
       assert.notEqual(root.namedChildCount, 302, `${dialect}: ${lines}`);
     }
     assert.notEqual(parser.parse(`.a { color: red; &: }\n.y {}\n${tail}\n`).rootNode.namedChildCount, 302, dialect);
+    // An unclosed nested math call can send recovery past the block's closing brace.
+    const document = value => `.a {\n  color: red;\n  ${value}\n}\n.y {}\n${tail}\n`;
+    const kept = root => root.namedChildren.filter(child => child.type === "rule_set" && /^\.t\d/.test(child.text));
+    for (const line of ["width: calc(100% - min(", "width: calc(100% - max("]) {
+      const root = parser.parse(document(line)).rootNode;
+      assert.ok(kept(root).length < 300, `${dialect}: ${line}`);
+      const paired = parser.parse(document(`${line}))`)).rootNode;
+      assert.equal(kept(paired).length, 300, `${dialect}: paired ${line}`);
+    }
     // A `{` typed at a line start before a top-level comment reads the rest of the file as its block.
     const brace = parser.parse(`.x { a: b }\n\n{/* section */\n${tail}\n`).rootNode;
     assert.notEqual(brace.namedChildCount, 303, `${dialect}: stray brace`);

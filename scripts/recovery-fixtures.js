@@ -57,7 +57,9 @@ const contractStatements = {
     "border: 1px solid rgba(0, 0, 0, 0.1);",
     "transform: translate(-50%, -50%) rotate(45deg);",
     "background-image: linear-gradient(to right, red, blue);",
-    "font-size: clamp(1rem, 2vw + 1rem, 3rem);"
+    "font-size: clamp(1rem, 2vw + 1rem, 3rem);",
+    "width: calc(100% - min(2rem, 5vw));",
+    "margin: max(1px, min(2px, 3px));"
   ],
   variable: ["$local: 10px;", "$map: (key: value, other: 2px);", "$list: 1px 2px 3px !default;"]
 };
@@ -140,7 +142,19 @@ const blockStatements = [
   ".b,",
   "&::before:",
   ".b .c:",
-  "&-x:"
+  "&-x:",
+  "width: calc(100% - max(1px, 2px));",
+  "width: calc(1px + min(2px, 3px));",
+  "width: calc(2 * max(1px, 2px));",
+  "width: calc(1px * pow(2, 3));",
+  "width: calc(100vw - env(x, 0));",
+  "width: calc(100% - fn(1px, 2px));",
+  "inset: calc(50% - var(--x, 4px));",
+  "width: calc(100% - (1px + 2px));",
+  "width: min(100%, max(1px, 2px));",
+  "width: fn(1px, max(2px, 3px));",
+  "width: calc(100% - min(2rem, 5vw));",
+  "margin: max(1px, min(2px, 3px));"
 ];
 
 const headers = [
