@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-// Both variants record callback-visible results, including scans that return false.
+// Failed scans keep their lookahead extent, but the runtime discards their symbol and token end.
 typedef struct {
   uint32_t found, symbol, end, position, advances, used_column;
 } ScanResult;
@@ -130,7 +130,17 @@ int main(int argc, char **argv) {
             ScanResult base = base_probe(text, length, offset, set, dialect, included);
             ScanResult candidate = candidate_probe(text, length, offset, set, dialect, included);
             calls++;
-            if (memcmp(&base, &candidate, sizeof(base)) == 0) continue;
+            bool changed[] = {
+              base.found != candidate.found,
+              base.found && candidate.found && base.symbol != candidate.symbol,
+              base.found && candidate.found && base.end != candidate.end,
+              base.position != candidate.position,
+              base.advances != candidate.advances,
+              base.used_column != candidate.used_column,
+            };
+            bool differs = false;
+            for (unsigned field = 0; field < 6; field++) differs |= changed[field];
+            if (!differs) continue;
             differences++;
             if (differences > 10) continue;
             printf("{\"input\":%u,\"offset\":%u,\"set\":%u,\"dialect\":\"%s\",\"includedRangeStart\":%s,\"base\":",
@@ -138,7 +148,15 @@ int main(int argc, char **argv) {
             print_result(base);
             fputs(",\"candidate\":", stdout);
             print_result(candidate);
-            puts("}");
+            fputs(",\"differingFields\":[", stdout);
+            const char *fields[] = {"return", "symbol", "markEnd", "position", "advances", "usedColumn"};
+            bool first = true;
+            for (unsigned field = 0; field < 6; field++) {
+              if (!changed[field]) continue;
+              printf("%s\"%s\"", first ? "" : ",", fields[field]);
+              first = false;
+            }
+            puts("]}");
           }
         }
       }

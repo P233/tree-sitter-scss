@@ -108,8 +108,8 @@ test("scanner replay corpus preserves raw bytes and hashes each unique input", t
 });
 
 test(
-  "native replay compares all six fields, byte offsets, dialects and included-range starts",
-  { timeout: 30_000 },
+  "native replay compares observable fields, byte offsets, dialects and included-range starts",
+  { timeout: 60_000 },
   t => {
     const directory = directoryFor(t);
     const base = join(directory, "base"),
@@ -226,6 +226,22 @@ test(
     assert.match(cli.stdout, /candidate: return=/);
     assert.doesNotMatch(cli.stdout, /"inputs":/);
     assert.equal(readFileSync(join(base, "src/scanner.c"), "utf8"), scanner.replace("BODY", ""));
+    const setBody = (path, body) => writeFileSync(join(path, "src/scanner.c"), scanner.replace("BODY", body));
+    const compare = (baseBody, candidateBody) => {
+      setBody(base, baseBody);
+      setBody(candidate, candidateBody);
+      return replay({ baseDir: base, repo: candidate, inputs });
+    };
+    const token = "l->result_symbol = 1; l->mark_end(l);";
+    result = compare("", token);
+    assert.equal(result.summary.differences, 0, "failed scans discard symbol and token end");
+    for (const change of ["l->result_symbol = 1;", "l->mark_end(l);"]) {
+      result = compare("", change);
+      assert.equal(result.summary.differences, 0, "failed scans discard each token field independently");
+      result = compare("return true;", change + " return true;");
+      assert.equal(result.summary.differences, result.summary.calls);
+      assert.deepEqual(result.differences[0].differingFields, [change.includes("symbol") ? "symbol" : "markEnd"]);
+    }
     writeFileSync(join(candidate, "src/scanner.c"), scanner.replace("BODY", "").replace("return 0; }", "return 1; }"));
     assert.throws(() => replay({ baseDir: base, repo: candidate, inputs }), /requires zero-byte serialization/);
   }

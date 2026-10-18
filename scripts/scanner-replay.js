@@ -252,7 +252,7 @@ function replay({ repo, base, baseDir, corpus, inputs: suppliedInputs }) {
     });
     return {
       scope:
-        "Every byte offset including EOF, nonempty external sets plus all-valid, both dialects and included-range-start flags; direct comparison of every result.",
+        "Every byte offset including EOF, nonempty external sets plus all-valid, both dialects and included-range-start flags; return, position, advances and column use always match; symbol and token end match on successful scans.",
       resultFields: ["return", "symbol", "markEnd", "position", "advances", "usedColumn"],
       unsetMarkEnd: 0xffffffff,
       node: process.version,
@@ -311,6 +311,7 @@ function formatReplay(result) {
     lines.push(
       `Difference: input=${JSON.stringify(difference.input)} offset=${difference.offset} set=${difference.set} ` +
         `dialect=${difference.dialect} includedRangeStart=${difference.includedRangeStart}`,
+      `  differing fields: ${difference.differingFields.join(", ")}`,
       `  valid: ${Array.isArray(difference.valid) ? difference.valid.join(", ") : difference.valid}`
     );
     for (const variant of ["base", "candidate"]) {
