@@ -395,13 +395,13 @@ static bool skip_comment(TSLexer *lexer, unsigned *budget) {
 }
 
 typedef struct {
-  bool is_valid;
+  bool has_non_comment_slash;
   bool has_crossed_line;
   bool has_comment;
 } Trivia;
 
 static Trivia skip_whitespace_and_comments(TSLexer *lexer, unsigned *budget) {
-  Trivia trivia = {.is_valid = true};
+  Trivia trivia = {0};
   while (*budget) {
     if (css_space(lexer->lookahead)) {
       trivia.has_crossed_line |= line_break(lexer->lookahead);
@@ -410,7 +410,7 @@ static Trivia skip_whitespace_and_comments(TSLexer *lexer, unsigned *budget) {
     } else if (lexer->lookahead == '/') {
       lexer->advance(lexer, false);
       if (lexer->lookahead != '*' && lexer->lookahead != '/') {
-        trivia.is_valid = false;
+        trivia.has_non_comment_slash = true;
         break;
       }
       trivia.has_crossed_line |= skip_comment(lexer, budget);
@@ -640,7 +640,7 @@ static bool damaged_declaration_rest(TSLexer *lexer) {
   if (stop == BEFORE_BLOCK_CLOSE) return true;
   if (stop != LINE_BREAK || groups) return false;
   // The line ended without `;`: it is one error before the block's `}` or a declaration line, past comments.
-  if (!skip_whitespace_and_comments(lexer, &budget).is_valid) return false;
+  if (skip_whitespace_and_comments(lexer, &budget).has_non_comment_slash || !budget) return false;
   if (lexer->lookahead == '}') return true;
   DeclarationStart start = declaration_start(lexer, false, &budget, false);
   return declaration_follows(lexer, &budget, start, DECLARATION_LINE);
@@ -696,7 +696,7 @@ static bool tail_ends_statement(TSLexer *lexer, unsigned token, bool is_selector
     lexer->mark_end(lexer);
   }
   Trivia trivia = skip_whitespace_and_comments(lexer, &budget);
-  if (!trivia.is_valid) return false;
+  if (trivia.has_non_comment_slash) return false;
   lexer->result_symbol = token;
   if (!budget || !trivia.has_crossed_line) return false;
   if (is_selector && lexer->lookahead == '@') return true;
@@ -881,7 +881,7 @@ static bool scan_unfinished_variable(TSLexer *lexer) {
     lexer->mark_end(lexer);
   }
   Trivia trivia = skip_whitespace_and_comments(lexer, &budget);
-  if (!budget || !trivia.is_valid || !trivia.has_crossed_line) return false;
+  if (!budget || trivia.has_non_comment_slash || !trivia.has_crossed_line) return false;
   lexer->result_symbol = UNFINISHED_HEADER;
   return declaration_name_follows(lexer, &budget);
 }

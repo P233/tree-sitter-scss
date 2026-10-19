@@ -683,3 +683,14 @@ test("corner-case incremental parses and captures agree with fresh parses", () =
     }
   }
 });
+
+test("exhausted comment lookahead does not claim a complete selector", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    // At 1013 the scanner's lookahead budget runs out exactly at the comment's `}`.
+    for (const length of [1012, 1013, 1014]) {
+      const source = "a:hover:focus\n/*" + "x".repeat(length) + "} */\n{ color: red; }\n";
+      const { tree } = parse(source, language);
+      assert.equal(tree.rootNode.descendantsOfType("property_declaration")[0].text, "color: red;");
+    }
+  }
+});

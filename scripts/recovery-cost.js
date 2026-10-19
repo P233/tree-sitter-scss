@@ -8,7 +8,7 @@ const { parseArgs } = require("node:util");
 const { hash, sourceHash, runtimeFor } = require("./native-tools.js");
 
 // The scanner the ablation below was reviewed against; a new recovery decision may match none of its landmarks.
-const REVIEWED_SCANNER = "89819bf84bb5998955b9f6e19c0aaa5e693797724af56554b473f70945252d7e";
+const REVIEWED_SCANNER = "b71e0ad4452e4b9f92f5496cfb7dda540de7848b000e3d3c65fa659067688342";
 
 // Fail for any other scanner or a moved landmark: the ablation must be reviewed again when the scanner changes.
 function disableRecovery(source) {
