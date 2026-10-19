@@ -6,6 +6,39 @@ const { recoveryFixtures, typingStates } = require("../../scripts/recovery-fixtu
 const { regionReference, assertRegion } = require("../../scripts/recovery-assertions.js");
 
 const selections = require("../../scripts/recovery-contract.json");
+const expectations = require("../../scripts/recovery-acceptance.json");
+const fixtures = [...recoveryFixtures()];
+const fixtureId = fixture => `${fixture.family}/${fixture.mode}/${fixture.key}`;
+
+function validateSelections(cases, selected, counters) {
+  assert.deepEqual(Object.keys(selected).sort(), cases.map(fixtureId).sort(), "reviewed fixture IDs");
+  for (const fixture of cases) {
+    const id = fixtureId(fixture);
+    const rows = counters.suites[fixture.family]?.[fixture.mode];
+    const layout = fixture.key.slice(0, -fixture.statement.length - 1);
+    const row = ["contract", "typing"].includes(fixture.family)
+      ? rows?.[layout]?.[fixture.statement]
+      : rows?.[fixture.key];
+    assert.ok(row, `${id}: no exact counter row`);
+    const key = selected[id];
+    if (key === null) continue;
+    const count = fixture.family === "typos" ? 1 : (row.keys ?? row.states);
+    assert.ok(Number.isInteger(key) && key > 0 && key <= count, `${id}: key ${key} outside ${count} counter keys`);
+  }
+}
+
+test("reviewed recovery selections resolve every fixture and counter key", () => {
+  validateSelections(fixtures, selections, expectations);
+  const fixture = fixtures[0];
+  const id = fixtureId(fixture);
+  const selected = { [id]: selections[id] };
+  assert.throws(() => validateSelections([fixture], { ...selected, stale: 1 }, expectations), /reviewed fixture IDs/);
+  assert.throws(() => validateSelections([fixture], selected, { suites: {} }), /no exact counter row/);
+  const counters = globalThis.structuredClone(expectations);
+  const layout = fixture.key.slice(0, -fixture.statement.length - 1);
+  counters.suites[fixture.family][fixture.mode][layout][fixture.statement].keys = selected[id] - 1;
+  assert.throws(() => validateSelections([fixture], selected, counters), /outside .* counter keys/);
+});
 
 function selectedState(fixture, key) {
   if (key === null) return null;
@@ -31,9 +64,9 @@ const hosts = new Map(
   ])
 );
 
-for (const fixture of recoveryFixtures()) {
+for (const fixture of fixtures) {
   const dialect = fixture.dialect ?? "scss";
-  const id = `${fixture.family}/${fixture.mode}/${fixture.key}`;
+  const id = fixtureId(fixture);
   assert.ok(Object.hasOwn(selections, id), `Missing reviewed recovery state: ${id}`);
   const state = selectedState(fixture, selections[id]);
   if (!state) continue;
@@ -42,15 +75,16 @@ for (const fixture of recoveryFixtures()) {
     const language = dialect === "css" ? Scss.cssLanguage : Scss;
     const { parser, query, references } = hosts.get(language);
     const original = fixture.complete ?? fixture.before + fixture.after;
-    if (!references.has(original)) {
+    const referenceKey = JSON.stringify([original, fixture.regions]);
+    if (!references.has(referenceKey)) {
       const complete = parser.parse(original);
       assert.equal(complete.rootNode.hasError, false, `${context}: complete reference`);
       references.set(
-        original,
+        referenceKey,
         fixture.regions.map(region => regionReference(query, complete, region))
       );
     }
-    const regions = references.get(original);
+    const regions = references.get(referenceKey);
     let current;
     if (fixture.family === "typing" || fixture.family === "blockend") {
       current = parser.parse(fixture.before + fixture.after);

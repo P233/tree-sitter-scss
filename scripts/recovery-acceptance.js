@@ -16,9 +16,10 @@ function parserFor(language = Scss) {
   return parser;
 }
 
-function tailIntact(tree) {
+function tailIntact(tree, family) {
+  const name = new RegExp(`^\\.${family.tail.name}\\d`);
   return tree.rootNode.namedChildren.filter(
-    child => child.type === "rule_set" && !child.hasError && /^\.t\d/.test(child.text)
+    child => child.type === "rule_set" && !child.hasError && name.test(child.text)
   ).length;
 }
 
@@ -28,12 +29,13 @@ function contract(isPlain) {
   const pairs = isPlain ? {} : family.pairs;
   const results = {};
   for (const [category, statements] of Object.entries(family.statements)) {
-    for (const [layout, [pre, post]] of family.layouts(category)) {
-      const before = family.before + pre;
-      const after = post + family.tail;
+    for (const [layout, [before, after]] of family.layouts(category)) {
       const base = parser.parse(before + after).rootNode;
+      // Ancestor-path equality rules out `ERROR` ancestors only when this reference has none.
+      if (base.hasError) throw new Error(`${category}/${layout}: contract reference has an error`);
       const units = statementUnits(base);
       const offset = before.length;
+      const tailStart = before.length + after.length - family.tail.text.length;
       const enclosing = units
         .filter(unit => unit.start < offset && unit.end > offset)
         .sort((a, b) => a.end - a.start - (b.end - b.start))[0];
@@ -61,7 +63,7 @@ function contract(isPlain) {
             if (intactUnit(root, start, end, unit)) continue;
             isLineBroken = true;
             if (!(enclosing && unit.start >= enclosing.start && unit.end <= enclosing.end)) isBlockBroken = true;
-            if (/^\.t\d/.test(base.text.slice(unit.start, unit.start + 3))) isTailBroken = true;
+            if (unit.start >= tailStart) isTailBroken = true;
           }
           row.keys++;
           if (!isLineBroken) row.line++;
@@ -91,7 +93,12 @@ function typing(isPlain) {
   const results = {};
   for (const [layout, [before, after]] of Object.entries(layouts)) {
     const rows = (results[layout] = {});
-    const probes = [".t250", ".t499"].map(name => ({ name, offset: after.indexOf(`${name} {`) }));
+    const probes = [Math.floor(family.tail.count / 2), family.tail.count - 1].map(index => {
+      const name = `.${family.tail.name}${index}`;
+      const offset = after.indexOf(`${name} {`);
+      if (offset < 0) throw new Error(`${layout}: missing recovery tail probe ${name}`);
+      return { name, offset };
+    });
     for (const statement of family.statements) {
       let tree = parser.parse(before + after);
       const skip = Math.max(0, after.indexOf("\n"));
@@ -160,7 +167,7 @@ function blockend(isPlain) {
           incBroken: 0,
           freshBroken: 0,
           rootError: 0,
-          worstInc: 300,
+          worstInc: family.tail.count,
           finalInc: 0,
           finalFresh: 0,
           incTail: [],
@@ -170,12 +177,12 @@ function blockend(isPlain) {
         for (const { text, edit } of typingStates(before, after, statement, pairs, family.includeOvertypes)) {
           tree.edit(edit);
           tree = parser.parse(text, tree);
-          const inc = tailIntact(tree);
-          const fresh = tailIntact(parser.parse(text));
+          const inc = tailIntact(tree, family);
+          const fresh = tailIntact(parser.parse(text), family);
           const isRootError = tree.rootNode.type === "ERROR";
           row.states++;
-          if (inc < 300) row.incBroken++;
-          if (fresh < 300) row.freshBroken++;
+          if (inc < family.tail.count) row.incBroken++;
+          if (fresh < family.tail.count) row.freshBroken++;
           if (isRootError) row.rootError++;
           row.worstInc = Math.min(row.worstInc, inc);
           row.finalInc = inc;
@@ -199,9 +206,9 @@ function cleanHeaders() {
     for (const header of family.statements) {
       const row = (results[`${layout}/${header}`] = { keys: 0, broken: 0, tail: [] });
       for (const { text } of typingStates(before, after, header, family.pairs, family.includeOvertypes)) {
-        const intact = tailIntact(parser.parse(text));
+        const intact = tailIntact(parser.parse(text), family);
         row.keys++;
-        if (intact < 300) row.broken++;
+        if (intact < family.tail.count) row.broken++;
         row.tail.push(intact);
       }
     }
@@ -221,9 +228,9 @@ function headersAfterUnfinished() {
         for (const { text } of typingStates(before(line), after, header, family.pairs, family.includeOvertypes)) {
           const tree = parser.parse(text);
           // An ERROR root can still hold intact rules, but the whole file is then one error.
-          const intact = tree.rootNode.type === "ERROR" ? 0 : tailIntact(tree);
+          const intact = tree.rootNode.type === "ERROR" ? 0 : tailIntact(tree, family);
           row.keys++;
-          if (intact < 300) row.broken++;
+          if (intact < family.tail.count) row.broken++;
           row.tail.push(intact);
         }
       }

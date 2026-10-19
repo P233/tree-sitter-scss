@@ -477,6 +477,13 @@ test("CSS var fallback groups preserve arguments, token roles and enclosing stat
           );
         }
       }
+      if (fallback === "[a;b]") {
+        const group = call.childForFieldName("arguments").descendantsOfType("raw_group")[0];
+        assert.deepEqual(
+          group.children.map(node => node.type),
+          ["[", "plain_value", ";", "plain_value", "]"]
+        );
+      }
       if (fallback.includes("calc")) {
         role(captures, "1px", "number");
         role(captures, "calc", "function");

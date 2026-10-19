@@ -229,6 +229,7 @@ const typos = {
   "nested-typo": ".a {\n  .b {\n    marg in: 0;\n  }\n}"
 };
 
+// Node edit points use UTF-16 code units; only \n starts a new row.
 const point = (text, index) => {
   const before = text.slice(0, index);
   return { row: before.split("\n").length - 1, column: index - before.lastIndexOf("\n") - 1 };
@@ -266,12 +267,15 @@ function* typingStates(before, after, statement, pairs, includeOvertypes = false
   }
 }
 
-const rules = (name, count = 300) =>
+const rules = (name, count) =>
   Array.from({ length: count }, (_, i) => `.${name}${i} {\n  margin: ${i}px;\n  &:hover { color: red; }\n}\n`).join("");
 
+const TAIL_NAME = "t";
+const ruleTail = count => ({ name: TAIL_NAME, count, text: rules(TAIL_NAME, count) });
+
 function typingLayouts() {
-  const head = rules("h", 500);
-  const tail = recoveryFamilies.typing.tail;
+  const head = recoveryFamilies.typing.head;
+  const tail = recoveryFamilies.typing.tail.text;
   return {
     blank: [`${head}.a {\n  color: red;\n  `, `\n  width: 1px;\n}\n${tail}`],
     same: [`${head}.a {\n  color: red;\n  `, `width: 1px;\n}\n${tail}`],
@@ -282,8 +286,8 @@ function typingLayouts() {
 }
 
 function blockLayouts() {
-  const head = rules("h");
-  const tail = recoveryFamilies.blockend.tail;
+  const head = recoveryFamilies.blockend.head;
+  const tail = recoveryFamilies.blockend.tail.text;
   return {
     end: [`${head}.a {\n  color: red;\n  `, `\n}\n${tail}`],
     nested: [`${head}.p {\n  .a {\n    color: red;\n    `, `\n  }\n  width: 1px;\n}\n${tail}`],
@@ -292,7 +296,7 @@ function blockLayouts() {
 }
 
 function headerLayouts() {
-  const tail = recoveryFamilies.headers.tail;
+  const tail = recoveryFamilies.headers.tail.text;
   return {
     newline: [`.a {\n  color: red;\n  `, `\n}\n${tail}`],
     sameline: [`.a { color: red; `, ` }\n${tail}`],
@@ -302,14 +306,17 @@ function headerLayouts() {
 }
 
 function unfinishedLayouts() {
-  const tail = recoveryFamilies.unfinished.tail;
+  const tail = recoveryFamilies.unfinished.tail.text;
   return {
     next: [line => `.a {\n  color: red;\n  ${line}\n  `, `\n}\n${tail}`],
     same: [line => `.a {\n  color: red;\n  ${line} `, `\n}\n${tail}`]
   };
 }
 
-const typoTail = Array.from({ length: 300 }, (_, i) => `.t${i} { margin: ${i}px; }`).join("\n");
+const typoTail = { name: TAIL_NAME, count: 300 };
+typoTail.text = Array.from({ length: typoTail.count }, (_, i) => `.${typoTail.name}${i} { margin: ${i}px; }`).join(
+  "\n"
+);
 
 function sharedContractLayouts(category) {
   return Object.entries(contractLayouts).filter(([layout]) => category !== "declaration" || layout !== "top");
@@ -318,52 +325,62 @@ function sharedContractLayouts(category) {
 const recoveryFamilies = {
   contract: {
     statements: contractStatements,
-    before: contractBefore,
-    layouts: category => [
-      ...sharedContractLayouts(category),
-      ...(category === "declaration" ? Object.entries(declarationLayouts) : [])
-    ],
-    tail: rules("t", 60),
+    head: contractBefore,
+    layouts: category =>
+      [
+        ...sharedContractLayouts(category),
+        ...(category === "declaration" ? Object.entries(declarationLayouts) : [])
+      ].map(([name, [before, after]]) => [
+        name,
+        [contractBefore + before, after + recoveryFamilies.contract.tail.text]
+      ]),
+    tail: ruleTail(60),
     pairs: { "(": ")", "[": "]", '"': '"', "{": "}" },
     includeOvertypes: true
   },
   typing: {
     statements: typingStatements,
+    head: rules("h", 500),
     layouts: typingLayouts,
-    tail: rules("t", 500),
+    tail: ruleTail(500),
     pairs: { "(": ")", "[": "]", "{": "}", '"': '"' }
   },
   blockend: {
     statements: blockStatements,
+    head: rules("h", 300),
     layouts: blockLayouts,
-    tail: rules("t"),
+    tail: ruleTail(300),
     pairs: { "(": ")", "[": "]", "{": "}" }
   },
   headers: {
     statements: headers,
+    head: "",
     layouts: headerLayouts,
-    tail: rules("t"),
+    tail: ruleTail(300),
     pairs: { "(": ")", "[": "]" }
   },
   unfinished: {
     lines: unfinishedLines,
     statements: unfinishedHeaders,
+    head: "",
     layouts: unfinishedLayouts,
-    tail: rules("t"),
+    tail: ruleTail(300),
     pairs: {}
   },
   typos: {
     statements: typos,
     tail: typoTail,
-    source: head => `${head}\n${typoTail}\n`
+    source: head => `${head}\n${typoTail.text}\n`
   }
 };
 
 // Regions are source coordinates, independent of either parse; an if/else chain stays inside the editable block.
-function protectedRegions(before, after, prefixEnd, tail) {
+function protectedRegions(before, after, head, tail) {
   const source = before + after;
+  if (!source.startsWith(head)) throw new Error("Recovery fixture is missing its head boundary.");
+  if (!source.endsWith(tail)) throw new Error("Recovery fixture is missing its tail boundary.");
   return [
-    ...(prefixEnd ? [{ name: "before-block", start: 0, end: prefixEnd }] : []),
+    ...(head.length ? [{ name: "before-block", start: 0, end: head.length }] : []),
     { name: "tail-rules", start: source.length - tail.length, end: source.length }
   ];
 }
@@ -374,12 +391,10 @@ function* recoveryFixtures() {
   for (const [category, statements] of Object.entries(contract.statements)) {
     for (const statement of statements) {
       // Rotate only shared layouts to keep the recorded isolation selections stable.
-      const layouts = sharedContractLayouts(category);
-      const [layout, [pre, post]] = layouts[index % layouts.length];
+      const layouts = contract.layouts(category).filter(([layout]) => Object.hasOwn(contractLayouts, layout));
+      const [layout, [before, after]] = layouts[index % layouts.length];
       const mode = index++ % 2 ? "plain" : "paired";
-      const before = contract.before + pre;
-      const tail = contract.tail;
-      const after = post + tail;
+      const tail = contract.tail.text;
       yield {
         family: "contract",
         key: `${category}/${layout}/${statement}`,
@@ -389,7 +404,7 @@ function* recoveryFixtures() {
         after,
         pairs: mode === "plain" ? {} : contract.pairs,
         includeOvertypes: contract.includeOvertypes,
-        regions: protectedRegions(before, after, contract.before.length, tail)
+        regions: protectedRegions(before, after, contract.head, tail)
       };
     }
   }
@@ -411,7 +426,6 @@ function* recoveryFixtures() {
       const isEven = index++ % 2 === 0;
       const mode = family === "headers" || isEven ? "paired" : "plain";
       const dialect = family === "blockend" && !isEven ? "css" : "scss";
-      const prefixEnd = before.indexOf(layout === "nested" && family !== "typing" ? ".p {" : ".a {");
       yield {
         family,
         key: family === "blockend" ? `${dialect}/${layout}/${statement}` : `${layout}/${statement}`,
@@ -422,7 +436,7 @@ function* recoveryFixtures() {
         after,
         pairs: mode === "plain" ? {} : parameters.pairs,
         includeOvertypes: parameters.includeOvertypes,
-        regions: protectedRegions(before, after, prefixEnd < 0 ? before.length : prefixEnd, parameters.tail)
+        regions: protectedRegions(before, after, parameters.head, parameters.tail.text)
       };
     }
   }
@@ -435,7 +449,7 @@ function* recoveryFixtures() {
       const [prefix, after] = unfinished.layouts()[layout];
       const before = prefix(line);
       const complete = prefix("") + after;
-      const tail = unfinished.tail;
+      const tail = unfinished.tail.text;
       yield {
         family: "unfinished",
         key: `${layout}/${line}/${statement}`,
@@ -447,7 +461,7 @@ function* recoveryFixtures() {
         complete,
         pairs: unfinished.pairs,
         includeOvertypes: unfinished.includeOvertypes,
-        regions: protectedRegions(prefix(""), after, 0, tail)
+        regions: protectedRegions(prefix(""), after, unfinished.head, tail)
       };
     }
   }
@@ -463,7 +477,7 @@ function* recoveryFixtures() {
         dialect,
         complete,
         text: typo.source(head),
-        regions: protectedRegions(".a {}", typo.source(""), 0, typo.tail + "\n")
+        regions: protectedRegions(complete, "", "", typo.tail.text + "\n")
       };
     }
   }

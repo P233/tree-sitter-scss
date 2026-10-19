@@ -1117,7 +1117,7 @@ test("trivia and names keep current readings after damaged statements", () => {
 
 test("the unclosed SCSS comment prefix /* before #{1 +& .tail {} keeps later rules", () => {
   const parser = new Parser().setLanguage(Scss);
-  const laterRules = recoveryFamilies.blockend.tail;
+  const laterRules = recoveryFamilies.blockend.tail.text;
   const reference = parser.parse(laterRules);
   assert.equal(reference.rootNode.hasError, false);
   const units = statementUnits(reference.rootNode);

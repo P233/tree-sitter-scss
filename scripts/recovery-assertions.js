@@ -5,12 +5,24 @@ function isStatement(parent, node) {
   return (parent.type === "stylesheet" || parent.type === "declaration_block") && node.type !== "ERROR";
 }
 
+function ancestorTypes(node) {
+  const types = [];
+  for (let parent = node.parent; parent; parent = parent.parent) types.push(parent.type);
+  return types.join("/");
+}
+
 function statementUnits(root) {
   const units = [];
   const walk = node => {
     for (const child of node.namedChildren) {
       if (isStatement(node, child)) {
-        units.push({ start: child.startIndex, end: child.endIndex, type: child.type, sexp: child.toString() });
+        units.push({
+          start: child.startIndex,
+          end: child.endIndex,
+          type: child.type,
+          ancestors: ancestorTypes(child),
+          sexp: child.toString()
+        });
       }
       walk(child);
     }
@@ -41,11 +53,7 @@ function unitNode(root, start, end, type) {
 
 function intactUnit(root, start, end, unit) {
   const node = unitNode(root, start, end, unit.type);
-  if (!node || node.toString() !== unit.sexp) return false;
-  for (let parent = node.parent; parent; parent = parent.parent) {
-    if (parent.type === "ERROR") return false;
-  }
-  return true;
+  return Boolean(node && node.toString() === unit.sexp && ancestorTypes(node) === unit.ancestors);
 }
 
 function highlightRoles(query, tree, start) {
@@ -80,6 +88,7 @@ function regionReference(query, complete, region) {
     start: node.startIndex,
     end: node.endIndex,
     type: node.type,
+    ancestors: ancestorTypes(node),
     shape: shape(node)
   }));
   assert.ok(units.length > 0, `${region.name}: no reference statements`);
@@ -92,9 +101,7 @@ function assertRegion(query, reference, current, shift, context) {
     const node = unitNode(current.rootNode, unit.start + shift, unit.end + shift, unit.type);
     assert.ok(node, `${label}: missing ${unit.type}@${unit.start + shift}-${unit.end + shift}`);
     assert.equal(node.hasError, false, `${label}: ERROR/MISSING in ${unit.type}@${node.startIndex}`);
-    for (let parent = node.parent; parent; parent = parent.parent) {
-      assert.ok(parent.type !== "ERROR", `${label}: ${parent.type} ancestor of ${unit.type}@${node.startIndex}`);
-    }
+    assert.equal(ancestorTypes(node), unit.ancestors, `${label}: ancestor path of ${unit.type}@${node.startIndex}`);
     firstDifference(unit.shape, shape(node, shift), `${label} node=${unit.type}@${node.startIndex}`);
   }
   const expected = reference.captures;
