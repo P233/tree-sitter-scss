@@ -1856,6 +1856,197 @@
             "states": "88888888888888888888888888888880"
           }
         },
+        "declaration/variable": {
+          "margin: 0 auto;": {
+            "keys": 15,
+            "line": 3,
+            "block": 15,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "889999999999990"
+          },
+          "color: map.get($theme, primary);": {
+            "keys": 32,
+            "line": 3,
+            "block": 32,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "88999999999999999999999999999990"
+          },
+          "width: calc(100% - #{$gap});": {
+            "keys": 28,
+            "line": 3,
+            "block": 28,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "8899999999999999999999999990"
+          },
+          "font-family: \"Helvetica Neue\", sans-serif;": {
+            "keys": 42,
+            "line": 3,
+            "block": 42,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "889999999999999999999999999999999999999990"
+          },
+          "background: url(\"a.png\") no-repeat;": {
+            "keys": 35,
+            "line": 3,
+            "block": 35,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "88999999999999999999999999999999990"
+          },
+          "transition: opacity 0.2s ease-in-out, transform 0.2s;": {
+            "keys": 53,
+            "line": 3,
+            "block": 53,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "88999999999999999999999999999999999999999999999999990"
+          },
+          "grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));": {
+            "keys": 61,
+            "line": 3,
+            "block": 61,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "8899999999999999999999999999999999999999999999999999999999990"
+          },
+          "$local: 10px;": {
+            "keys": 13,
+            "line": 2,
+            "block": 13,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "8999999999990"
+          },
+          "color: red !important;": {
+            "keys": 22,
+            "line": 12,
+            "block": 22,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "8899999999998888888880"
+          },
+          "--accent: #{$brand};": {
+            "keys": 20,
+            "line": 3,
+            "block": 20,
+            "tail": 0,
+            "lineValid": 9,
+            "blockValid": 0,
+            "states": "88999999111991111110"
+          },
+          "color: #fff;": {
+            "keys": 12,
+            "line": 3,
+            "block": 12,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "889999999990"
+          },
+          "margin: -$gap auto;": {
+            "keys": 19,
+            "line": 3,
+            "block": 19,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "8899999999999999990"
+          },
+          "width: math.div($gap, 2);": {
+            "keys": 25,
+            "line": 3,
+            "block": 25,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "8899999999999999999999990"
+          },
+          "font: 12px/1.5 $font-stack;": {
+            "keys": 27,
+            "line": 3,
+            "block": 27,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "889999999999999999999999990"
+          },
+          "content: \"\";": {
+            "keys": 12,
+            "line": 3,
+            "block": 12,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "889999999990"
+          },
+          "border: 1px solid rgba(0, 0, 0, 0.1);": {
+            "keys": 37,
+            "line": 3,
+            "block": 37,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "8899999999999999999999999999999999990"
+          },
+          "transform: translate(-50%, -50%) rotate(45deg);": {
+            "keys": 47,
+            "line": 3,
+            "block": 47,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "88999999999999999999999999999999999999999999990"
+          },
+          "background-image: linear-gradient(to right, red, blue);": {
+            "keys": 55,
+            "line": 3,
+            "block": 55,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "8899999999999999999999999999999999999999999999999999990"
+          },
+          "font-size: clamp(1rem, 2vw + 1rem, 3rem);": {
+            "keys": 41,
+            "line": 3,
+            "block": 41,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "88999999999999999999999999999999999999990"
+          },
+          "width: calc(100% - min(2rem, 5vw));": {
+            "keys": 35,
+            "line": 3,
+            "block": 35,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "88999999999999999999999999999999990"
+          },
+          "margin: max(1px, min(2px, 3px));": {
+            "keys": 32,
+            "line": 3,
+            "block": 32,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "88999999999999999999999999999990"
+          }
+        },
         "variable/above": {
           "$local: 10px;": {
             "keys": 13,
@@ -3821,6 +4012,197 @@
             "lineValid": 0,
             "blockValid": 0,
             "states": "888888888888888888888899fffff880"
+          }
+        },
+        "declaration/variable": {
+          "margin: 0 auto;": {
+            "keys": 15,
+            "line": 3,
+            "block": 15,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "889999999999990"
+          },
+          "color: map.get($theme, primary);": {
+            "keys": 32,
+            "line": 3,
+            "block": 32,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "88999999999999999999999999999990"
+          },
+          "width: calc(100% - #{$gap});": {
+            "keys": 28,
+            "line": 3,
+            "block": 28,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "8899999999999999999999999990"
+          },
+          "font-family: \"Helvetica Neue\", sans-serif;": {
+            "keys": 42,
+            "line": 3,
+            "block": 42,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "889999999999999999999999999999999999999990"
+          },
+          "background: url(\"a.png\") no-repeat;": {
+            "keys": 35,
+            "line": 3,
+            "block": 35,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "88999999999999999999999999999999990"
+          },
+          "transition: opacity 0.2s ease-in-out, transform 0.2s;": {
+            "keys": 53,
+            "line": 3,
+            "block": 53,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "88999999999999999999999999999999999999999999999999990"
+          },
+          "grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));": {
+            "keys": 61,
+            "line": 3,
+            "block": 61,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "8899999999999999999999999999999999999999999999999999999999990"
+          },
+          "$local: 10px;": {
+            "keys": 13,
+            "line": 2,
+            "block": 13,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "8999999999990"
+          },
+          "color: red !important;": {
+            "keys": 22,
+            "line": 12,
+            "block": 22,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "8899999999998888888880"
+          },
+          "--accent: #{$brand};": {
+            "keys": 20,
+            "line": 3,
+            "block": 20,
+            "tail": 0,
+            "lineValid": 4,
+            "blockValid": 0,
+            "states": "88999999111999999910"
+          },
+          "color: #fff;": {
+            "keys": 12,
+            "line": 3,
+            "block": 12,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "889999999990"
+          },
+          "margin: -$gap auto;": {
+            "keys": 19,
+            "line": 3,
+            "block": 19,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "8899999999999999990"
+          },
+          "width: math.div($gap, 2);": {
+            "keys": 25,
+            "line": 3,
+            "block": 25,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "8899999999999999999999990"
+          },
+          "font: 12px/1.5 $font-stack;": {
+            "keys": 27,
+            "line": 3,
+            "block": 27,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "889999999999999999999999990"
+          },
+          "content: \"\";": {
+            "keys": 12,
+            "line": 3,
+            "block": 12,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "889999999990"
+          },
+          "border: 1px solid rgba(0, 0, 0, 0.1);": {
+            "keys": 37,
+            "line": 3,
+            "block": 37,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "8899999999999999999999999999999999990"
+          },
+          "transform: translate(-50%, -50%) rotate(45deg);": {
+            "keys": 47,
+            "line": 3,
+            "block": 47,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "88999999999999999999999999999999999999999999990"
+          },
+          "background-image: linear-gradient(to right, red, blue);": {
+            "keys": 55,
+            "line": 3,
+            "block": 55,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "8899999999999999999999999999999999999999999999999999990"
+          },
+          "font-size: clamp(1rem, 2vw + 1rem, 3rem);": {
+            "keys": 41,
+            "line": 3,
+            "block": 41,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "88999999999999999999999999999999999999990"
+          },
+          "width: calc(100% - min(2rem, 5vw));": {
+            "keys": 35,
+            "line": 3,
+            "block": 30,
+            "tail": 5,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "889999999999999999999999999fffff990"
+          },
+          "margin: max(1px, min(2px, 3px));": {
+            "keys": 32,
+            "line": 3,
+            "block": 32,
+            "tail": 0,
+            "lineValid": 0,
+            "blockValid": 0,
+            "states": "88999999999999999999999999999990"
           }
         },
         "variable/above": {

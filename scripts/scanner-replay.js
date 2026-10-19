@@ -56,23 +56,33 @@ function assertSameSets(base, candidate) {
 
 function recoveryInputs() {
   const inputs = [];
+  const layouts = category =>
+    Object.entries(
+      category === "declaration"
+        ? { ...fixtures.contractLayouts, ...fixtures.declarationLayouts }
+        : fixtures.contractLayouts
+    );
   const add = (id, text) => inputs.push({ id: "recovery/" + id, text });
   for (const [category, statements] of Object.entries(fixtures.contractStatements)) {
-    for (const [layout, [before, after]] of Object.entries(fixtures.contractLayouts)) {
+    for (const [layout, [before, after]] of layouts(category)) {
       for (const [index, statement] of statements.entries()) {
         add(["contract", category, layout, index].join("/"), fixtures.contractBefore + before + statement + after);
       }
     }
   }
   const statements = [
-    ...Object.values(fixtures.contractStatements).flat(),
-    ...fixtures.typingStatements,
-    ...fixtures.blockStatements,
-    ...fixtures.headers,
-    ...fixtures.unfinishedHeaders
+    ...Object.entries(fixtures.contractStatements).flatMap(([category, statements]) =>
+      statements.map(statement => ({ statement, category }))
+    ),
+    ...[
+      ...fixtures.typingStatements,
+      ...fixtures.blockStatements,
+      ...fixtures.headers,
+      ...fixtures.unfinishedHeaders
+    ].map(statement => ({ statement }))
   ];
-  for (const [index, statement] of statements.entries()) {
-    for (const [layout, [before, after]] of Object.entries(fixtures.contractLayouts)) {
+  for (const [index, { statement, category }] of statements.entries()) {
+    for (const [layout, [before, after]] of layouts(category)) {
       for (const mode of ["plain", "paired"]) {
         const pairs = mode === "plain" ? {} : { "(": ")", "[": "]", "{": "}", '"': '"' };
         let key = 0;

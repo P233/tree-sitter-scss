@@ -1,5 +1,6 @@
 // Complete statements that recovery lookahead must leave to the grammar.
-const PRELUDE = '$a: 1; $b: 2; $n: 3; $x: item; $p: color; $sel: ".nested";\n@mixin m($a: 1) { width: $a; }\n';
+const PRELUDE =
+  '$a: 1; $b: 2; $n: 3; $x: item; $p: color; $sel: ".nested";\n@mixin m($a: 1) { width: $a; }\n@function fn($b: 1, $rest...) { @return $b; }\n';
 const SELECTORS = [
   "&:hover",
   ".child",
@@ -67,6 +68,7 @@ const TEMPLATES = [
   ["value/interpolated-name", ({ gap, colon }) => `#{$p}${colon}${gap}red;`],
   ["value/final-interpolated-name", ({ colon }) => `.child { #{$p}${colon}red }`],
   ["value/map", ({ gap, colon }) => `$map: (${gap}width${colon}1px,${gap}height${colon}2px${gap});`],
+  ["value/variable-continuation", () => "color: red\n  $a $b;"],
   ["value/list", ({ gap }) => `margin: 1px${gap}2px;`],
   ["value/function", ({ gap }) => `width: calc(1px +${gap}2px);`],
   ["value/css-if", ({ gap, colon }) => `width: if(${gap}style(--x)${colon}1px;${gap}else${colon}2px;${gap});`],
@@ -129,6 +131,9 @@ function validInputs() {
       );
     }
   }
+  add("value/named-argument-closed-on-its-line", ".a {\n  color: fn(\n  $b: 2);\n}", "  ", "\n");
+  add("value/named-argument-closed-on-a-later-line", ".a {\n  color: fn(\n  $b: 2\n  );\n}", "  ", "\n");
+  add("raw/variable-text-in-a-custom-property", ".a {\n  --x: red\n  $x: 1;\n}", "  ", "\n");
   return inputs;
 }
 

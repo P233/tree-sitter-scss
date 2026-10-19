@@ -82,6 +82,10 @@ const contractLayouts = {
   top: ["\n", "\n.panel {\n  padding: 4px;\n}\n"]
 };
 
+const declarationLayouts = {
+  variable: [contractLayouts.above[0], "\n  $x: 1;\n  .inner { margin: 0; }\n}\n"]
+};
+
 const typingStatements = [
   ".b { color: blue; }",
   ".b, .c { color: blue; }",
@@ -307,12 +311,18 @@ function unfinishedLayouts() {
 
 const typoTail = Array.from({ length: 300 }, (_, i) => `.t${i} { margin: ${i}px; }`).join("\n");
 
+function sharedContractLayouts(category) {
+  return Object.entries(contractLayouts).filter(([layout]) => category !== "declaration" || layout !== "top");
+}
+
 const recoveryFamilies = {
   contract: {
     statements: contractStatements,
     before: contractBefore,
-    layouts: category =>
-      Object.entries(contractLayouts).filter(([layout]) => category !== "declaration" || layout !== "top"),
+    layouts: category => [
+      ...sharedContractLayouts(category),
+      ...(category === "declaration" ? Object.entries(declarationLayouts) : [])
+    ],
     tail: rules("t", 60),
     pairs: { "(": ")", "[": "]", '"': '"', "{": "}" },
     includeOvertypes: true
@@ -363,7 +373,8 @@ function* recoveryFixtures() {
   const contract = recoveryFamilies.contract;
   for (const [category, statements] of Object.entries(contract.statements)) {
     for (const statement of statements) {
-      const layouts = contract.layouts(category);
+      // Rotate only shared layouts to keep the recorded isolation selections stable.
+      const layouts = sharedContractLayouts(category);
       const [layout, [pre, post]] = layouts[index % layouts.length];
       const mode = index++ % 2 ? "plain" : "paired";
       const before = contract.before + pre;
@@ -466,6 +477,7 @@ module.exports = {
   contractStatements,
   contractBefore,
   contractLayouts,
+  declarationLayouts,
   typingStatements,
   blockStatements,
   headers,

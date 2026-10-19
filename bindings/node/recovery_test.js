@@ -91,7 +91,20 @@ test("recovery above a declaration settles on one parse version", () => {
   // The runtime reuses no subtree while two versions are active, and versions whose errors differ by a skipped
   // character never merge, so a second recovery path into one statement list reparses about 1,800 nodes on each key.
   eachParser((parser, dialect) => {
-    for (const line of ["width:", "color: ", ".b > .c:", "&:is(.c,)", "> li +"]) {
+    for (const [line, bound] of [
+      ...["width:", "color: ", ".b > .c:", "&:is(.c,)", "> li +"].map(line => [line, 3]),
+      // Missing value terminators retain competing error costs beyond the ordinary convergence bound.
+      ["color: red", 17],
+      ["width: 1px", 17],
+      ["margin: 0 auto", 11],
+      ["color: red\n  top: 1;", 18],
+      ["width: 1px\n  top: 1;", 18],
+      ["margin: 0 auto\n  top: 1;", 12],
+      // The value reads a following variable line, a known limit, so no second version outlasts its row.
+      ["color: red\n  $x: 1;", 0],
+      ["width: 1px\n  $x: 1;", 0],
+      ["margin: 0 auto\n  $x: 1;", 0]
+    ]) {
       let steps = 0;
       let start = -1;
       let longest = 0;
@@ -109,7 +122,7 @@ test("recovery above a declaration settles on one parse version", () => {
       parser.parse(above(line));
       parser.setLogger(null);
       assert.ok(steps > 0, `${dialect}: the parse log reports its steps`);
-      assert.ok(longest <= 3, `${dialect}: ${JSON.stringify(line)} keeps two versions over ${longest} rows`);
+      assert.ok(longest <= bound, `${dialect}: ${JSON.stringify(line)} keeps two versions over ${longest} rows`);
     }
   });
 });
@@ -633,4 +646,162 @@ test("recovery debt stays visible", () => {
   const rules = (value, next) => parser.parse(`.a {\n  ${value}\n  ${next}\n}\n.after {}\n${tail}\n`).rootNode;
   assert.notEqual(rules('content: "a #{$b c', "width: 1px;").namedChildCount, 302);
   assert.equal(rules('content: "a #{$b c";', "color: red;").namedChildCount, 302);
+});
+
+function assertRecoveryCases(cases) {
+  eachParser((parser, dialect) => {
+    const reference = parser.parse(tail).rootNode;
+    const laterProperties = declarations(reference);
+    const laterRules = reference.namedChildren.map(node => node.text);
+    for (const { name, source, errorText, properties, variables, nodes } of cases) {
+      const root = parser.parse(source + "\n" + tail).rootNode;
+      const label = dialect + ": " + name;
+      assert.equal(root.hasError, true, label);
+      assert.deepEqual(errors(root), errorText, label);
+      assert.deepEqual(declarations(root), [...properties, ...laterProperties], label);
+      assert.deepEqual(
+        root.descendantsOfType("variable_declaration").map(node => node.text),
+        variables,
+        label
+      );
+      for (const [type, text] of nodes) {
+        assert.ok(
+          root.descendantsOfType(type).some(node => node.text === text),
+          label + ": " + type
+        );
+      }
+      assert.deepEqual(
+        root.namedChildren
+          .filter(node => node.startIndex > source.length && node.type === "rule_set" && !node.hasError)
+          .map(node => node.text),
+        laterRules,
+        label + ": intact following rules"
+      );
+    }
+  });
+}
+
+test("variable lines read into values and incomplete prefixes keep their scope", () => {
+  assertRecoveryCases([
+    {
+      name: "variable after property value",
+      source: ".a {\n  color: red\n  $x: 1;\n}",
+      errorText: [":"],
+      properties: ["color: red\n  $x: 1;"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "variable call after property value",
+      source: ".a {\n  color: red\n  $x:fn(1);\n}",
+      errorText: [":fn(1)"],
+      properties: ["color: red\n  $x"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "hyphenated variable after property value",
+      source: ".a {\n  color: red\n  $long-name: 1;\n}",
+      errorText: [":"],
+      properties: ["color: red\n  $long-name: 1;"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "variable value ending on a later line",
+      source: ".a {\n  color: red\n  $x: 1\n  ;\n}",
+      errorText: [":"],
+      properties: ["color: red\n  $x: 1\n  ;"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "variable line after an unclosed call",
+      source: ".a {\n  color: fn(\n  $b: 2;\n}",
+      errorText: [],
+      properties: ["color: fn(\n  $b: 2;"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "named argument in URL payload",
+      source: ".a {\n  background: url(\n  $b: 2);\n}",
+      errorText: [":"],
+      properties: ["background: url(\n  $b: 2);"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "variable after a top level variable value",
+      source: "$a: 1\n$b: 2;",
+      errorText: [":"],
+      properties: [],
+      variables: ["$a: 1\n$b: 2;"],
+      nodes: []
+    },
+    {
+      name: "variable after a block variable value",
+      source: ".a {\n  $a: 1\n  $b: 2;\n}",
+      errorText: [":"],
+      properties: [],
+      variables: ["$a: 1\n  $b: 2;"],
+      nodes: []
+    },
+    {
+      name: "variable after a feature query value",
+      source: "@supports (display: flex\n  $x: 1;\n) {}",
+      errorText: [":", ";"],
+      properties: [],
+      variables: [],
+      nodes: [["query_statement", "@supports (display: flex\n  $x: 1;\n) {}"]]
+    },
+    {
+      name: "variable after a nested media value",
+      source: ".a {\n  @media (min-width: 1px\n  $x: 1;\n) {}\n}",
+      errorText: [":", ";"],
+      properties: [],
+      variables: [],
+      nodes: [["query_statement", "@media (min-width: 1px\n  $x: 1;\n) {}"]]
+    },
+    {
+      name: "argument semicolon before a later call closer",
+      source: ".a {\n  color: fn(red\n  $x: 1;\n  );\n}",
+      errorText: [": fn(red\n  $x", ")"],
+      properties: ["color: fn(red\n  $x: 1;"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "bare variable marker after a value",
+      source: ".a {\n  color: red\n  $\n}",
+      errorText: ["$"],
+      properties: ["color: red"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "terminated bare variable marker after a value",
+      source: ".a {\n  color: red\n  $;\n}",
+      errorText: ["$"],
+      properties: ["color: red\n  $;"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "spaced variable marker after a value",
+      source: ".a {\n  color: red\n  $ x: 1;\n}",
+      errorText: ["$ x:"],
+      properties: ["color: red\n  $ x: 1;"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "interpolation cannot continue a variable name",
+      source: ".a {\n  color: red\n  $x-#{y}: 1;\n}",
+      errorText: [":"],
+      properties: ["color: red\n  $x-#{y}: 1;"],
+      variables: [],
+      nodes: []
+    }
+  ]);
 });
