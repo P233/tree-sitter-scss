@@ -842,3 +842,96 @@ test("grouped comment markers keep current URL and error readings", () => {
     }
   ]);
 });
+
+test("outside comments keep current declaration and error readings", () => {
+  assertRecoveryCases([
+    {
+      name: "comment block opener counts as rule line evidence",
+      source: ".a {\n  color:\n  .b // {\n  width: 1px;\n}",
+      errorText: ["color:\n  .b // {"],
+      properties: ["width: 1px;"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "a value absorbs a property with its semicolon in a comment",
+      source: ".a {\n  color: red\n  top: 1 // ;\n  ;\n}",
+      errorText: [":"],
+      properties: ["color: red\n  top: 1 // ;\n  ;"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "a value absorbs a following custom property whose URL holds a comment marker",
+      source: ".a {\n  color: red\n  --x: https://a.test/x;\n}",
+      errorText: [":", "://a.test/x;"],
+      properties: ["color: red\n  --x: https"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "a touching colon typo before a line comment stays one error",
+      source: ".a {\n  op:acity: x // ;\n  width: 1px;\n}",
+      errorText: ["op:acity: x"],
+      properties: ["width: 1px;"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "an if header before a commented brace ends before the property",
+      source: ".a {\n  @if $x // {\n  width: 1px;\n}",
+      errorText: ["@if $x"],
+      properties: ["width: 1px;"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "comment after an unfinished variable keeps the following property in its error",
+      source: ".a {\n  $local // todo\n  width: 1px;\n}",
+      errorText: ["width"],
+      properties: [],
+      variables: ["$local // todo\n  width: 1px;"],
+      nodes: []
+    },
+    {
+      name: "a commented closer leaves the call open and the following property intact",
+      source: ".a {\n  margin: fn(\n  width: 1px;\n  // )\n  \n}",
+      errorText: ["margin: fn("],
+      properties: ["width: 1px;"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "commented opener after a media header leaves the following property intact",
+      source: ".a {\n  @media screen\n  .b // {\n  width: 1px;\n}",
+      errorText: ["@media screen\n  .b"],
+      properties: ["width: 1px;"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "commented opener after a value leaves the value outside the error",
+      source: ".a {\n  color: red\n  .b // {}\n  width: 1px;\n}",
+      errorText: [".b"],
+      properties: ["color: red", "width: 1px;"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "block comment after an unfinished variable puts the following property in its error",
+      source: ".a {\n  $local /* todo */\n  width: 1px;\n}",
+      errorText: ["width"],
+      properties: [],
+      variables: ["$local /* todo */\n  width: 1px;"],
+      nodes: []
+    },
+    {
+      name: "line comment after an unfinished variable colon puts the following property in its error",
+      source: ".a {\n  $local: // todo\n  width: 1px;\n}",
+      errorText: ["width:"],
+      properties: [],
+      variables: ["$local: // todo\n  width: 1px;"],
+      nodes: []
+    }
+  ]);
+});

@@ -79,6 +79,7 @@ A later capture of the same range overrides an earlier one, as in the Tree-sitte
 
 - Typed `attr()` unions, as in `attr(data-width type(<length> | <percentage>), 10px)`, are parse errors.
 - A value or variable missing its `;` can read a following `$name: …;` line into its value, while a property line ends it.
+- A value missing its `;` can also absorb a following custom property whose value holds a literal `//`, such as `--x: https://a.test/x;`.
 - A dangling `.` or `!` in a value can absorb the next declaration.
 - An incomplete map entry such as `$map: (key:)` can absorb the next declaration. At the top level, incomplete maps can also take following rules.
 - A comment before a quoted `url()` argument, as in `url(/* note */ "a.png")`, is a parse error even though Dart Sass accepts it. The deterministic valid-input suite retains these cases as explicit syntax debt.

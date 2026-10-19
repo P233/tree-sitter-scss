@@ -140,6 +140,17 @@ function validInputs() {
   add("value/url-containing-a-semicolon", ".a {\n  background: url(http://host/a;b);\n}", "  ", "\n");
   add("value/comment-markers-inside-a-string", '.a {\n  content: "// ) ;";\n}', "  ", "\n");
   add("raw/comment-markers-inside-a-raw-custom-value", ".a {\n  --x: fn(//literal);\n}", "  ", "\n");
+  add("value/comment-after-a-complete-property", ".a {\n  color: red; // { ;\n  width: 1px;\n}", "  ", "\n");
+  add("value/block-opener-inside-a-string", '.a {\n  content: "// { ;";\n}', "  ", "\n");
+  add("raw/comment-markers-in-a-custom-property", ".a {\n  --x: // literal;\n}", "  ", "\n");
+  add(
+    "value/an-open-if-keeps-later-lines-past-a-commented-terminated-line",
+    ".a {\n  width: if(\n    style(--x): 1px;\n    else: 2px; // wide\n  );\n}",
+    "  ",
+    "\n"
+  );
+  add("value/line-comment-before-a-variable-colon", ".a {\n  $local // todo\n  : 1;\n}", "  ", "\n");
+  add("value/block-comment-before-a-variable-colon", ".a {\n  $local /* todo */\n  : 1;\n}", "  ", "\n");
   return inputs;
 }
 
