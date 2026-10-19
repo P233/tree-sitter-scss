@@ -179,6 +179,14 @@ function validInputs() {
     "selector/interpolated-negation-selector-escaped-delimiters",
     "$t: a;\n.x:not(\n  #{$t}:foo\\; bar\\{baz\n) { color: red; }"
   );
+  add("header/namespace-after-an-extend-comma", ".a {\n  @extend .b,\n  svg|a;\n}\n.b, svg|a {}", "  ", "\n");
+  add("header/namespace-in-an-at-root-prelude", ".a {\n  @at-root\n  svg|a { color: red; }\n}", "  ", "\n");
+  add("selector/namespace-after-a-combinator", ".a {\n  .b >\n  svg|a {}\n}", "  ", "\n");
+  add("selector/namespace-in-an-attribute-name", ".a {\n  a[\n  svg|href] {}\n}", "  ", "\n");
+  add("selector/namespace-in-selector-arguments", ".a {\n  &:is(\n  svg|a) {}\n}", "  ", "\n");
+  add("selector/namespace-in-an-nth-of-list", ".a {\n  &:nth-child(2n of\n  svg|a) {}\n}", "  ", "\n");
+  add("selector/namespace-after-a-descendant", ".a {\n  .b\n  svg|a {}\n}", "  ", "\n");
+  add("header/namespace-in-a-selector-query", ".a {\n  @supports selector(\n  svg|a) { .b {} }\n}", "  ", "\n");
   return inputs;
 }
 

@@ -1036,3 +1036,16 @@ test("escaped delimiters keep current value and error readings", () => {
     }
   ]);
 });
+
+test("an unfinished extend ends before a touching colon property", () => {
+  assertRecoveryCases([
+    {
+      name: "cut off extend before a touching colon property",
+      source: ".a {\n  @extend\n  color:red;\n}",
+      errorText: ["@extend"],
+      properties: ["color:red;"],
+      variables: [],
+      nodes: []
+    }
+  ]);
+});
