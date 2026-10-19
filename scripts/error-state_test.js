@@ -54,6 +54,37 @@ test("error-state extraction retains enum identity, display names and internal/e
   ]);
 });
 
+test("error-state names decode C escapes, including a question-mark literal", () => {
+  for (const [literal, display] of [
+    [String.raw`"\?"`, "?"],
+    [String.raw`"\\\"\'\a\b\f\n\r\t\v"`, "\\\"'\x07\b\f\n\r\t\v"],
+    [String.raw`"\101\x42\103"`, "ABC"],
+    [String.raw`"\303\251"`, "é"],
+    [String.raw`"\xC3\xA9"`, "é"],
+    [String.raw`"\xEF\xBB\xBFname"`, "\uFEFFname"],
+    [String.raw`"\u96EA\U0001F600"`, "雪😀"]
+  ]) {
+    const candidate = source.replace('[anon_sym_BANG] = "raw_text"', `[anon_sym_BANG] = ${literal}`);
+    assert.equal(extractErrorState(candidate).tokens.find(token => token.name === "anon_sym_BANG").display, display);
+  }
+});
+
+test("invalid C names identify the symbol and parser file", () => {
+  for (const literal of [
+    String.raw`"\z"`,
+    String.raw`"\x100"`,
+    String.raw`"\uD800"`,
+    String.raw`"\U00110000"`,
+    String.raw`"\xff"`
+  ]) {
+    const candidate = source.replace('[anon_sym_BANG] = "raw_text"', `[anon_sym_BANG] = ${literal}`);
+    assert.throws(
+      () => extractErrorState(candidate, "generated/example.c"),
+      /generated\/example\.c: cannot decode display name for anon_sym_BANG:/
+    );
+  }
+});
+
 test("error-state extraction fails on missing generated sections or incomplete lex modes", () => {
   for (const name of ["ts_symbol_names", "ts_external_scanner_symbol_map", "ts_parse_table", "ts_lex_modes"]) {
     assert.throws(() => extractErrorState(source.replaceAll(name, "missing")), new RegExp(`${name} is missing`));
@@ -100,6 +131,10 @@ test("error-state CLI records candidates and fails with actionable token and lex
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /^Error state: 4 parse states, 1 large states;/);
   assert.equal(result.stdout.trim().split("\n").length, 1);
+  writeFileSync(parser, source.replace('"raw_text"', String.raw`"\z"`));
+  result = invoke("--expect", expectation);
+  assert.equal(result.status, 1);
+  assert.ok(result.stderr.includes(`${parser}: cannot decode display name for anon_sym_BANG:`));
   writeFileSync(
     parser,
     source
