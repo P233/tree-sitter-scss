@@ -20,7 +20,7 @@ function sourceHash(directory) {
 }
 
 // The scanner the ablation below was reviewed against; a new recovery decision may match none of its landmarks.
-const REVIEWED_SCANNER = "345c3c07e9e968edf631dadac554fddb6fe9b56574ebb8a15cf31c578ab3d521";
+const REVIEWED_SCANNER = "35cb4bb78433ba29e4e7eaf16d41eba1d197f5b5a173f32088e2cfedf9007c23";
 
 // Fail for any other scanner or a moved landmark: the ablation must be reviewed again when the scanner changes.
 function disableRecovery(source) {

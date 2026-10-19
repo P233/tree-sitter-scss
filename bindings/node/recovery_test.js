@@ -939,42 +939,42 @@ test("outside comments keep current declaration and error readings", () => {
 test("escaped delimiters keep current value and error readings", () => {
   assertRecoveryCases([
     {
-      name: "escaped semicolon supplies early value line evidence",
+      name: "escaped semicolon supplies no same-line declaration evidence",
       source: ".a {\n  color: red\n  q: a\\;\n  ;\n}",
-      errorText: [],
-      properties: ["color: red", "q: a\\;\n  ;"],
+      errorText: [":"],
+      properties: ["color: red\n  q: a\\;\n  ;"],
       variables: [],
       nodes: []
     },
     {
-      name: "escaped opening brace keeps next property in the value above",
+      name: "escaped opening brace keeps the next property distinct",
       source: ".a {\n  color: red\n  q: a\\{b;\n}",
-      errorText: [":"],
-      properties: ["color: red\n  q: a\\{b;"],
+      errorText: [],
+      properties: ["color: red", "q: a\\{b;"],
       variables: [],
       nodes: []
     },
     {
-      name: "escaped closing brace keeps next property in the value above",
+      name: "escaped closing brace keeps the next property distinct",
       source: ".a {\n  color: red\n  q: a\\}b;\n}",
-      errorText: [":"],
-      properties: ["color: red\n  q: a\\}b;"],
+      errorText: [],
+      properties: ["color: red", "q: a\\}b;"],
       variables: [],
       nodes: []
     },
     {
-      name: "escaped opening parenthesis keeps next property in the value above",
+      name: "escaped opening parenthesis keeps the next property distinct",
       source: ".a {\n  color: red\n  q: a\\(b;\n}",
-      errorText: [":"],
-      properties: ["color: red\n  q: a\\(b;"],
+      errorText: [],
+      properties: ["color: red", "q: a\\(b;"],
       variables: [],
       nodes: []
     },
     {
-      name: "escaped closing parenthesis keeps next property in the value above",
+      name: "escaped closing parenthesis keeps the next property distinct",
       source: ".a {\n  color: red\n  q: a\\)b;\n}",
-      errorText: [":"],
-      properties: ["color: red\n  q: a\\)b;"],
+      errorText: [],
+      properties: ["color: red", "q: a\\)b;"],
       variables: [],
       nodes: []
     },
@@ -995,42 +995,42 @@ test("escaped delimiters keep current value and error readings", () => {
       nodes: []
     },
     {
-      name: "escaped semicolon before a real block reads the value into its selector",
+      name: "escaped semicolon before a real block leaves the value out of its selector",
       source: ".a {\n  color:\n  .b .c\\;x { color: blue; }\n  width: 1px;\n}",
-      errorText: [":"],
+      errorText: ["color"],
       properties: ["color: blue;", "width: 1px;"],
       variables: [],
-      nodes: [["selectors", "color:\n  .b .c\\;x"]]
+      nodes: [["selectors", ".b .c\\;x"]]
     },
     {
-      name: "escaped opener after a compound keeps the selector in one error",
+      name: "escaped opener after a compound keeps selector and colon errors",
       source: ".a {\n  color:\n  .b .c\\{x\n  width: 1px;\n}",
-      errorText: ["color:\n  .b .c\\{x"],
+      errorText: ["color:\n  .b .c\\{x", ":"],
       properties: ["width: 1px;"],
       variables: [],
       nodes: []
     },
     {
-      name: "a call with only an escaped closer swallows the following property",
+      name: "a call with only an escaped closer leaves the following property intact",
       source: ".a {\n  width: fn(\n  q: x;\n  a\\)\n}",
-      errorText: [";"],
-      properties: ["width: fn(\n  q: x;\n  a\\)"],
+      errorText: ["width: fn(", "a\\)"],
+      properties: ["q: x;"],
       variables: [],
       nodes: []
     },
     {
-      name: "escaped opener in an open call leaves the following property intact",
+      name: "escaped opener in an open call loses the following property",
       source: ".a {\n  margin: fn(1,\n  .b .c\\{x\n  width: 1px;\n}",
-      errorText: ["margin: fn(1,\n  .b .c\\{x"],
-      properties: ["width: 1px;"],
+      errorText: [".b .c\\{x\n  width:"],
+      properties: ["margin: fn(1,\n  .b .c\\{x\n  width: 1px;"],
       variables: [],
       nodes: []
     },
     {
-      name: "escaped semicolon after a value leaves the following property intact",
+      name: "escaped semicolon after a value swallows the following property",
       source: ".a {\n  color: red\n  a:b\\;\n  width: 1px;\n}",
-      errorText: ["color: red\n  a:b\\;"],
-      properties: ["color: red", "a:b\\;", "width: 1px;"],
+      errorText: [":b\\;\n  width:"],
+      properties: ["color: red\n  a:b\\;\n  width: 1px;"],
       variables: [],
       nodes: []
     }

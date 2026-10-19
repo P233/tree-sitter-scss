@@ -452,8 +452,6 @@ typedef enum { SEMICOLON_TEXT, STOP_OUTSIDE_GROUPS, STOP_AT_SEMICOLON } Semicolo
 
 typedef struct {
   bool crosses_line_breaks;
-  // An escaped character belongs to a name, as in `.a\}b`.
-  bool skips_escapes;
   // Whitespace and comments stay outside the token, so a comment after a header stays a comment.
   bool marks_token_end;
   // A block's last declaration may lack its `;`; leave the `}` to the block.
@@ -477,14 +475,12 @@ static const LineScanPolicy RULE_LINE = {
   .semicolon = STOP_AT_SEMICOLON,
 };
 static const LineScanPolicy DAMAGED_DECLARATION = {
-  .skips_escapes = true,
   .marks_token_end = true,
   .stops_before_block_close = true,
   .line_comment_in_groups = STOP_AT_COMMENT,
   .semicolon = STOP_OUTSIDE_GROUPS,
 };
 static const LineScanPolicy HEADER_LINE = {
-  .skips_escapes = true,
   .marks_token_end = true,
   .line_comment_in_groups = SKIP_COMMENT,
   .semicolon = STOP_AT_SEMICOLON,
@@ -502,7 +498,8 @@ static LineStop scan_line(TSLexer *lexer, unsigned *budget, unsigned *groups, co
     (*budget)--;
     if (policy->stops_before_block_close && character == '}' && !*groups) return CLOSE_BLOCK;
     lexer->advance(lexer, false);
-    if (character == '\\' && policy->skips_escapes) {
+    // An escaped delimiter belongs to its name instead of ending the walk.
+    if (character == '\\') {
       if (!lexer->eof(lexer) && !line_break(lexer->lookahead)) lexer->advance(lexer, false);
       if (policy->marks_token_end) lexer->mark_end(lexer);
       continue;

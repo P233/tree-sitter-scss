@@ -101,7 +101,7 @@ function validInputs() {
     const after = `\n  height: 2px;\n}${followingRule}`.replaceAll("\n", newline);
     addSource(id, before, body, after, hasKnownError);
   };
-  const addRoot = (id, body, hasKnownError = false) => addSource(id, PRELUDE, body, followingRule, hasKnownError);
+  const addRoot = (id, body) => addSource(id, PRELUDE, body, followingRule, false);
   for (const [name, template] of TEMPLATES) {
     const seen = new Set();
     for (const [gapIndex, gap] of [" ", "\n  ", "\n/* gap */\n  "].entries()) {
@@ -168,18 +168,16 @@ function validInputs() {
     "  ",
     "\n"
   );
-  addRoot("selector/comma-selector-escaped-semicolon", ".x,\n  a:b\\;c { color: red; }", true);
-  addRoot("selector/nested-comma-selector-escaped-semicolon", ".p {\n  .x,\n    a:b\\;c { color: red; }\n}", true);
-  addRoot("selector/selector-argument-escaped-semicolon", ".x:is(.y,\n  a:b\\;c\n) { color: red; }", true);
+  addRoot("selector/comma-selector-escaped-semicolon", ".x,\n  a:b\\;c { color: red; }");
+  addRoot("selector/nested-comma-selector-escaped-semicolon", ".p {\n  .x,\n    a:b\\;c { color: red; }\n}");
+  addRoot("selector/selector-argument-escaped-semicolon", ".x:is(.y,\n  a:b\\;c\n) { color: red; }");
   addRoot(
     "selector/interpolated-nth-selector-escaped-delimiters",
-    "$t: a;\n.x:nth-child(2n of\n  #{$t}:foo\\; bar\\{baz\n) { color: red; }",
-    true
+    "$t: a;\n.x:nth-child(2n of\n  #{$t}:foo\\; bar\\{baz\n) { color: red; }"
   );
   addRoot(
     "selector/interpolated-negation-selector-escaped-delimiters",
-    "$t: a;\n.x:not(\n  #{$t}:foo\\; bar\\{baz\n) { color: red; }",
-    true
+    "$t: a;\n.x:not(\n  #{$t}:foo\\; bar\\{baz\n) { color: red; }"
   );
   return inputs;
 }
