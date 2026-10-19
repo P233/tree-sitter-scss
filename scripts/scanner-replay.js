@@ -1,6 +1,5 @@
 const { Buffer } = require("node:buffer");
 const { execFileSync, spawnSync } = require("node:child_process");
-const { createHash } = require("node:crypto");
 const {
   closeSync,
   cpSync,
@@ -8,12 +7,10 @@ const {
   mkdirSync,
   openSync,
   readFileSync,
-  readdirSync,
   rmSync,
   writeFileSync,
   writeSync
 } = require("node:fs");
-const { createRequire } = require("node:module");
 const { cpus, tmpdir } = require("node:os");
 const { dirname, join, resolve } = require("node:path");
 const { parseArgs } = require("node:util");
@@ -22,7 +19,7 @@ const { repositoryInputs } = require("./fuzz.js");
 const { validInputs } = require("./valid-inputs.js");
 const fixtures = require("./recovery-fixtures.js");
 
-const hash = source => createHash("sha256").update(source).digest("hex");
+const { hash, sourceHash, runtimeFor } = require("./native-tools.js");
 const root = join(__dirname, "..");
 
 function externalSets(source) {
@@ -84,7 +81,7 @@ function recoveryInputs() {
   for (const [index, { statement, category }] of statements.entries()) {
     for (const [layout, [before, after]] of layouts(category)) {
       for (const mode of ["plain", "paired"]) {
-        const pairs = mode === "plain" ? {} : { "(": ")", "[": "]", "{": "}", '"': '"' };
+        const pairs = mode === "plain" ? {} : fixtures.recoveryFamilies.contract.pairs;
         let key = 0;
         for (const { text } of fixtures.typingStates(before, after, statement, pairs, true)) {
           add(["prefix", index, layout, mode, ++key].join("/"), text);
@@ -109,17 +106,18 @@ function recoveryInputs() {
 }
 
 function replayInputs(corpus) {
-  const inputs = [
-    ...repositoryInputs(),
-    ...validInputs(),
-    ...recoveryInputs(),
-    ...(corpus
-      ? readFileSync(corpus, "utf8")
-          .split(/\r?\n/)
-          .filter(Boolean)
-          .map(file => ({ id: file, text: readFileSync(file) }))
-      : [])
-  ];
+  const inputs = [...repositoryInputs(), ...validInputs(), ...recoveryInputs(), ...(corpus ? fileInputs(corpus) : [])];
+  return uniqueInputs(inputs);
+}
+
+function fileInputs(list) {
+  return readFileSync(list, "utf8")
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map(file => ({ id: file, text: readFileSync(file) }));
+}
+
+function uniqueInputs(inputs) {
   const seen = new Set();
   return inputs.filter(input => {
     input.bytes = Buffer.isBuffer(input.text) ? input.text : Buffer.from(input.text);
@@ -131,24 +129,15 @@ function replayInputs(corpus) {
   });
 }
 
-function sourceHash(directory) {
-  return hash(
-    readdirSync(directory, { recursive: true })
-      .filter(path => /\.[ch]$/.test(path))
-      .sort()
-      .map(path => path + "\0" + hash(readFileSync(join(directory, path))) + "\n")
-      .join("")
-  );
-}
-
-function replay({ repo, base, baseDir, corpus, inputs: suppliedInputs }) {
+function replay({ repo, base, baseDir, corpus, inputs }) {
+  if (inputs !== undefined && corpus !== undefined)
+    throw new Error("Use either --inputs <file-list> or --corpus <file-list>.");
   if (base !== undefined && baseDir !== undefined)
     throw new Error("Use either --base <revision> or --base-dir <directory>.");
   base ??= "HEAD";
   const started = performance.now();
   const candidate = resolve(repo || root);
-  const local = createRequire(join(candidate, "package.json"));
-  const runtime = join(dirname(local.resolve("tree-sitter/package.json")), "vendor/tree-sitter/lib");
+  const { directory: runtime, version: runtimeVersion } = runtimeFor(candidate);
   const directory = mkdtempSync(join(tmpdir(), "scss-scanner-replay-"));
   const compiler = process.env.CC || "cc";
   const run = (command, args) =>
@@ -185,11 +174,11 @@ function replay({ repo, base, baseDir, corpus, inputs: suppliedInputs }) {
       ])
     );
     assertSameSets(tables.base, tables.candidate);
-    const inputs = suppliedInputs || replayInputs(corpus);
+    const recordsToReplay = inputs === undefined ? replayInputs(corpus) : uniqueInputs(fileInputs(inputs));
     const packed = join(directory, "inputs");
     const fd = openSync(packed, "w");
     try {
-      for (const input of inputs) {
+      for (const input of recordsToReplay) {
         writeSync(fd, Buffer.from(new Uint32Array([input.bytes.length]).buffer));
         writeSync(fd, input.bytes);
       }
@@ -244,34 +233,40 @@ function replay({ repo, base, baseDir, corpus, inputs: suppliedInputs }) {
       .split("\n")
       .map(line => JSON.parse(line));
     const summary = records.pop();
-    const expectedCalls = inputs.reduce(
+    const expectedCalls = recordsToReplay.reduce(
       (total, input) => total + (input.bytes.length + 1) * tables.candidate.sets.length * 4,
       0
     );
-    if (summary.inputs !== inputs.length || summary.calls !== expectedCalls || summary.differences === undefined)
+    if (
+      summary.inputs !== recordsToReplay.length ||
+      summary.calls !== expectedCalls ||
+      summary.differences === undefined
+    )
       throw new Error("Incomplete scanner replay output.");
     const differences = records.map(record => {
-      const input = inputs[record.input];
+      const input = recordsToReplay[record.input];
       return {
         ...record,
         input: input.id,
         context: input.bytes.subarray(Math.max(0, record.offset - 32), record.offset + 64).toString("utf8"),
-        symbols: { base: tables.base.tokens[record.base[1]], candidate: tables.candidate.tokens[record.candidate[1]] },
+        symbols: {
+          base: tables.base.tokens[record.base[summary.resultFields.indexOf("symbol")]],
+          candidate: tables.candidate.tokens[record.candidate[summary.resultFields.indexOf("symbol")]]
+        },
         valid: record.set === tables.candidate.sets.length ? "all-valid" : tables.candidate.sets[record.set]
       };
     });
     return {
       scope:
-        "Every byte offset including EOF, nonempty external sets plus all-valid, both dialects and included-range-start flags; return, position, advances and column use always match; symbol and token end match on successful scans.",
-      resultFields: ["return", "symbol", "markEnd", "position", "advances", "usedColumn"],
+        "Every byte offset including EOF, nonempty external sets plus all-valid, both dialects and included-range-start flags; external_scanner.scan only (CSS lexer adapter excluded); return, position and advances always match; symbol, token start/end and column use match on successful scans.",
+      resultFields: summary.resultFields,
       unsetMarkEnd: 0xffffffff,
       node: process.version,
       platform: process.platform + "-" + process.arch,
       cpu: cpus()[0]?.model,
       compiler: run(compiler, ["--version"]).split("\n")[0],
-      compilerHash: hash(readFileSync(run("which", [compiler]).trim())),
       flags,
-      runtime: local("tree-sitter/package.json").version,
+      runtime: runtimeVersion,
       runtimeHash: sourceHash(runtime),
       hostHash: hash(readFileSync(host)),
       base: baseDir === undefined ? { revision: base } : { directory: resolve(baseDir) },
@@ -285,8 +280,8 @@ function replay({ repo, base, baseDir, corpus, inputs: suppliedInputs }) {
           }
         ])
       ),
-      inputs: inputs.map(input => ({ id: input.id, bytes: input.bytes.length, hash: input.hash })),
-      inputHash: hash(inputs.map(input => input.hash + "\n").join("")),
+      inputs: recordsToReplay.map(input => ({ id: input.id, bytes: input.bytes.length, hash: input.hash })),
+      inputHash: hash(recordsToReplay.map(input => input.hash + "\n").join("")),
       externalSets: tables.candidate,
       buildSeconds,
       replaySeconds,
@@ -313,7 +308,7 @@ function formatReplay(result) {
     );
   }
   lines.push(
-    `Compiler: ${result.compiler}; SHA-256 ${result.compilerHash}`,
+    `Compiler: ${result.compiler}`,
     `Tree-sitter: ${result.runtime}; SHA-256 ${result.runtimeHash}`,
     `Harness SHA-256: ${result.hostHash}; inputs SHA-256: ${result.inputHash}`
   );
@@ -342,7 +337,7 @@ if (require.main === module) {
   try {
     const { values } = parseArgs({
       options: Object.fromEntries(
-        ["repo", "base", "base-dir", "corpus", "json"].map(name => [name, { type: "string" }])
+        ["repo", "base", "base-dir", "corpus", "inputs", "json"].map(name => [name, { type: "string" }])
       )
     });
     const result = replay({ ...values, baseDir: values["base-dir"] });

@@ -1,23 +1,11 @@
 const { Buffer } = require("node:buffer");
 const { execFileSync } = require("node:child_process");
-const { createHash } = require("node:crypto");
-const { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } = require("node:fs");
-const { createRequire } = require("node:module");
+const { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } = require("node:fs");
 const { cpus, tmpdir } = require("node:os");
-const { dirname, join, resolve } = require("node:path");
+const { join, resolve } = require("node:path");
 const { parseArgs } = require("node:util");
 
-const hash = source => createHash("sha256").update(source).digest("hex");
-
-function sourceHash(directory) {
-  return hash(
-    readdirSync(directory, { recursive: true })
-      .filter(path => /\.[ch]$/.test(path))
-      .sort()
-      .map(path => `${path}\0${hash(readFileSync(join(directory, path)))}\n`)
-      .join("")
-  );
-}
+const { hash, sourceHash, runtimeFor } = require("./native-tools.js");
 
 // The scanner the ablation below was reviewed against; a new recovery decision may match none of its landmarks.
 const REVIEWED_SCANNER = "89819bf84bb5998955b9f6e19c0aaa5e693797724af56554b473f70945252d7e";
@@ -67,8 +55,7 @@ function measure({ repo, corpus, rounds = 7, repetitions = 25 }) {
   if (!Number.isSafeInteger(repetitions) || repetitions < 1 || repetitions > 10000)
     throw new Error("--repetitions must be between 1 and 10000.");
   const root = resolve(repo || join(__dirname, ".."));
-  const local = createRequire(join(root, "package.json"));
-  const runtime = join(dirname(local.resolve("tree-sitter/package.json")), "vendor/tree-sitter/lib");
+  const { directory: runtime, version: runtimeVersion } = runtimeFor(root);
   const directory = mkdtempSync(join(tmpdir(), "scss-recovery-cost-"));
   const compiler = process.env.CC || "cc";
   const run = (command, args) =>
@@ -184,7 +171,7 @@ function measure({ repo, corpus, rounds = 7, repetitions = 25 }) {
       flags,
       rounds,
       repetitions,
-      runtime: local("tree-sitter/package.json").version,
+      runtime: runtimeVersion,
       runtimeHash: sourceHash(runtime),
       parserHash: hash(readFileSync(join(directory, "src/parser.c"))),
       hostHash: hash(readFileSync(join(directory, "host.c"))),

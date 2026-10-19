@@ -73,7 +73,7 @@ test("scanner replay covers recovery documents and paired/plain typed prefixes",
   const [layout, [before, after]] = Object.entries(fixtures.contractLayouts)[0];
   assert.deepEqual(
     inputs.filter(input => input.id.startsWith(`recovery/prefix/${index}/${layout}/paired/`)).map(input => input.text),
-    [...fixtures.typingStates(before, after, statement, { "(": ")", "[": "]", "{": "}", '"': '"' }, true)].map(
+    [...fixtures.typingStates(before, after, statement, fixtures.recoveryFamilies.contract.pairs, true)].map(
       state => state.text
     )
   );
@@ -164,7 +164,11 @@ test(
       writeFileSync(join(path, "src/scanner.c"), scanner.replace("BODY", ""));
     }
     const bytes = Buffer.from([0xc3, 0xa9, 13, 10, 255]);
-    const inputs = [{ id: "synthetic", bytes, hash: createHash("sha256").update(bytes).digest("hex") }];
+    const file = join(directory, "synthetic");
+    const inputs = join(directory, "inputs.txt");
+    writeFileSync(file, bytes);
+    writeFileSync(inputs, file + "\n");
+    assert.throws(() => replay({ corpus: inputs, inputs }), /Use either --inputs/);
     assert.throws(() => replay({ base: "HEAD", baseDir: base, repo: candidate, inputs }), /Use either --base/);
     let result = replay({ baseDir: base, repo: candidate, inputs });
     assert.equal(result.summary.differences, 0);
@@ -172,10 +176,14 @@ test(
     assert.deepEqual(result.base, { directory: base });
     const json = join(directory, "replay.json");
     const invoke = (...args) =>
-      spawnSync(process.execPath, [join(__dirname, "scanner-replay.js"), "--repo", candidate, ...args], {
-        encoding: "utf8",
-        timeout: 30_000
-      });
+      spawnSync(
+        process.execPath,
+        [join(__dirname, "scanner-replay.js"), "--repo", candidate, "--inputs", inputs, ...args],
+        {
+          encoding: "utf8",
+          timeout: 30_000
+        }
+      );
     let cli = invoke("--base-dir", base, "--json", json);
     assert.equal(cli.status, 0, cli.stderr);
     const recorded = JSON.parse(readFileSync(json, "utf8"));
@@ -198,26 +206,27 @@ test(
     ].join("\n");
     writeFileSync(join(candidate, "src/scanner.c"), scanner.replace("BODY", changed));
     result = replay({ baseDir: base, repo: candidate, inputs });
-    assert.equal(result.summary.differences, result.summary.calls);
-    assert.deepEqual(result.differences[0].base, [0, 0, 0xffffffff, 0, 0, 0]);
-    assert.deepEqual(result.differences[0].candidate, [0, 1, 2, 2, 1, 1]);
-    assert.deepEqual(result.differences[1].candidate, [1, 1, 2, 2, 1, 1]);
+    assert.equal(result.summary.differences, result.summary.calls - 2, "failed EOF scans discard column use");
+    assert.deepEqual(result.differences[0].base, [0, 0, 0xffffffff, 0, 0, 0, 0]);
+    assert.deepEqual(result.differences[0].candidate, [0, 1, 2, 0, 2, 1, 1]);
+    assert.deepEqual(result.differences[1].candidate, [1, 1, 2, 0, 2, 1, 1]);
+    assert.deepEqual(result.differences[0].differingFields, ["position", "advances"]);
     assert.equal(result.differences[2].dialect, "css");
     assert.equal(result.differences[2].candidate[0], 1);
     assert.equal(result.differences[8].offset, 1);
-    assert.equal(result.differences[8].candidate[3], 2);
+    assert.equal(result.differences[8].candidate[4], 2);
     assert.equal(result.differences.length, 10);
     const output = formatReplay(result);
-    assert.match(output, /48 calls, 48 differences;/);
-    assert.match(output, /input="synthetic" offset=0 set=1 dialect=scss includedRangeStart=false/);
+    assert.match(output, /48 calls, 46 differences;/);
+    assert.match(output, /input="[^"]*synthetic" offset=0 set=1 dialect=scss includedRangeStart=false/);
     assert.match(output, /valid: ts_external_token_test/);
     assert.match(
       output,
-      /base: return=false, symbol=ts_external_token_test \(0\), markEnd=unset, position=0, advances=0, usedColumn=false/
+      /base: return=false, symbol=ts_external_token_test \(0\), markEnd=unset, tokenStart=0, position=0, advances=0, usedColumn=false/
     );
     assert.match(
       output,
-      /candidate: return=false, symbol=unknown \(1\), markEnd=2, position=2, advances=1, usedColumn=true/
+      /candidate: return=false, symbol=unknown \(1\), markEnd=2, tokenStart=0, position=2, advances=1, usedColumn=true/
     );
     assert.match(output, /context: "é\\r\\n/);
     cli = invoke("--base-dir", base);
@@ -235,14 +244,72 @@ test(
     const token = "l->result_symbol = 1; l->mark_end(l);";
     result = compare("", token);
     assert.equal(result.summary.differences, 0, "failed scans discard symbol and token end");
-    for (const change of ["l->result_symbol = 1;", "l->mark_end(l);"]) {
+    for (const change of ["l->result_symbol = 1;", "l->mark_end(l);", "l->get_column(l);"]) {
       result = compare("", change);
-      assert.equal(result.summary.differences, 0, "failed scans discard each token field independently");
-      result = compare("return true;", change + " return true;");
-      assert.equal(result.summary.differences, result.summary.calls);
-      assert.deepEqual(result.differences[0].differingFields, [change.includes("symbol") ? "symbol" : "markEnd"]);
+      assert.equal(result.summary.differences, 0, "failed scans discard token fields and column dependency");
     }
+    result = compare("return true;", "l->mark_end(l); return true;");
+    assert.equal(result.summary.differences, 0, "implicit token end equals an explicit final mark_end");
+    const toEnd = "while (!l->eof(l)) l->advance(l, false); l->mark_end(l);";
+    result = compare(`${toEnd} return true;`, `${toEnd} l->advance(l, true); return true;`);
+    assert.deepEqual(
+      [...new Set(result.differences.map(difference => difference.differingFields.join()))],
+      ["advances"],
+      "a skip advance at EOF keeps the token start"
+    );
+    for (const [baseBody, candidateBody, field] of [
+      ["return true;", "l->result_symbol = 1; return true;", "symbol"],
+      ["l->mark_end(l); l->advance(l, false); return true;", "l->advance(l, false); return true;", "markEnd"],
+      ["return true;", "l->get_column(l); return true;", "usedColumn"],
+      [
+        "l->advance(l, true); l->mark_end(l); return true;",
+        "l->advance(l, false); l->mark_end(l); return true;",
+        "tokenStart"
+      ]
+    ]) {
+      result = compare(baseBody, candidateBody);
+      assert.ok(result.summary.differences > 0, field);
+      assert.deepEqual(result.differences[0].differingFields, [field]);
+    }
+    cli = invoke("--base-dir", base);
+    assert.equal(cli.status, 1, "a skip-to-consume mutation must fail the CLI");
+    assert.match(cli.stdout, /differing fields: tokenStart/);
     writeFileSync(join(candidate, "src/scanner.c"), scanner.replace("BODY", "").replace("return 0; }", "return 1; }"));
     assert.throws(() => replay({ baseDir: base, repo: candidate, inputs }), /requires zero-byte serialization/);
   }
 );
+
+test("native replay rejects malformed counts and oversized input headers", t => {
+  const directory = directoryFor(t);
+  const source = join(directory, "driver.c");
+  const binary = join(directory, "driver");
+  const packed = join(directory, "inputs");
+  writeFileSync(
+    source,
+    `#define REPLAY_DRIVER
+#include ${JSON.stringify(join(__dirname, "scanner-replay.c"))}
+ScanResult base_probe(const uint8_t *t, uint32_t n, uint32_t o, unsigned s, unsigned d, bool r) {
+  return (ScanResult){0};
+}
+ScanResult candidate_probe(const uint8_t *t, uint32_t n, uint32_t o, unsigned s, unsigned d, bool r) {
+  return (ScanResult){0};
+}
+`
+  );
+  const built = spawnSync(
+    process.env.CC || "cc",
+    ["-std=c11", "-I" + join(__dirname, "../src"), source, "-o", binary],
+    { encoding: "utf8" }
+  );
+  assert.equal(built.status, 0, built.stderr);
+  writeFileSync(packed, "");
+  for (const count of ["", "0", "-1", "2x", "4294967295", "18446744073709551616"]) {
+    const result = spawnSync(binary, [packed, count], { encoding: "utf8" });
+    assert.equal(result.status, 2, count);
+    assert.match(result.stderr, /Invalid external-set count/);
+  }
+  writeFileSync(packed, Buffer.from([255, 255, 255, 255]));
+  const result = spawnSync(binary, [packed, "2"], { encoding: "utf8" });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /exceeds harness bounds/);
+});
