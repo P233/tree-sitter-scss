@@ -134,6 +134,12 @@ function validInputs() {
   add("value/named-argument-closed-on-its-line", ".a {\n  color: fn(\n  $b: 2);\n}", "  ", "\n");
   add("value/named-argument-closed-on-a-later-line", ".a {\n  color: fn(\n  $b: 2\n  );\n}", "  ", "\n");
   add("raw/variable-text-in-a-custom-property", ".a {\n  --x: red\n  $x: 1;\n}", "  ", "\n");
+  add("value/comment-closer-in-a-closed-call", ".a {\n  color: fn(1, // )\n    2);\n}", "  ", "\n");
+  add("header/comment-closer-in-a-media-feature", ".a {\n  @media (width: 1px // )\n  ) { .b {} }\n}", "  ", "\n");
+  add("value/protocol-relative-url", ".a {\n  background: url(//host);\n}", "  ", "\n");
+  add("value/url-containing-a-semicolon", ".a {\n  background: url(http://host/a;b);\n}", "  ", "\n");
+  add("value/comment-markers-inside-a-string", '.a {\n  content: "// ) ;";\n}', "  ", "\n");
+  add("raw/comment-markers-inside-a-raw-custom-value", ".a {\n  --x: fn(//literal);\n}", "  ", "\n");
   return inputs;
 }
 

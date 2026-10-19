@@ -805,3 +805,40 @@ test("variable lines read into values and incomplete prefixes keep their scope",
     }
   ]);
 });
+
+test("grouped comment markers keep current URL and error readings", () => {
+  assertRecoveryCases([
+    {
+      name: "a protocol-relative URL stays distinct after a missing value terminator",
+      source: ".a {\n  color: red\n  background: url(//host);\n}",
+      errorText: [],
+      properties: ["color: red", "background: url(//host);"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "a URL with a semicolon stays distinct after a missing value terminator",
+      source: ".a {\n  color: red\n  background: url(http://host/a;b);\n}",
+      errorText: [],
+      properties: ["color: red", "background: url(http://host/a;b);"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "a colon typo with a commented semicolon ends before the property",
+      source: ".a {\n  op:acity: fn(// ;)\n  width: 1px;\n}",
+      errorText: ["op:acity: fn("],
+      properties: ["width: 1px;"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "an if header with a commented closer ends before the property",
+      source: ".a {\n  @if fn(// )\n  width: 1px;\n}",
+      errorText: ["@if fn("],
+      properties: ["width: 1px;"],
+      variables: [],
+      nodes: []
+    }
+  ]);
+});
