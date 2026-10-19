@@ -85,10 +85,7 @@ const TEMPLATES = [
 
 function validInputs() {
   const inputs = [];
-  const add = (id, body, indent, newline, hasKnownError = false) => {
-    const before = `${PRELUDE}.host {\n  color: red;\n${indent}`.replaceAll("\n", newline);
-    body = body.replaceAll("\n", newline);
-    const after = "\n  height: 2px;\n}\n.after { width: 1px; }\n".replaceAll("\n", newline);
+  const addSource = (id, before, body, after, hasKnownError) => {
     inputs.push({
       id: `valid/${id}`,
       text: before + body + after,
@@ -97,6 +94,14 @@ function validInputs() {
       hasKnownError
     });
   };
+  const followingRule = "\n.after { width: 1px; }\n";
+  const add = (id, body, indent, newline, hasKnownError = false) => {
+    const before = `${PRELUDE}.host {\n  color: red;\n${indent}`.replaceAll("\n", newline);
+    body = body.replaceAll("\n", newline);
+    const after = `\n  height: 2px;\n}${followingRule}`.replaceAll("\n", newline);
+    addSource(id, before, body, after, hasKnownError);
+  };
+  const addRoot = (id, body, hasKnownError = false) => addSource(id, PRELUDE, body, followingRule, hasKnownError);
   for (const [name, template] of TEMPLATES) {
     const seen = new Set();
     for (const [gapIndex, gap] of [" ", "\n  ", "\n/* gap */\n  "].entries()) {
@@ -151,6 +156,31 @@ function validInputs() {
   );
   add("value/line-comment-before-a-variable-colon", ".a {\n  $local // todo\n  : 1;\n}", "  ", "\n");
   add("value/block-comment-before-a-variable-colon", ".a {\n  $local /* todo */\n  : 1;\n}", "  ", "\n");
+  add("value/escaped-semicolon-in-a-value", ".a {\n  q: a\\;b;\n}", "  ", "\n");
+  add("value/escaped-opening-brace-in-a-value", ".a {\n  q: a\\{b;\n}", "  ", "\n");
+  add("value/escaped-closing-brace-in-a-value", ".a {\n  q: a\\}b;\n}", "  ", "\n");
+  add("value/hexadecimal-escape-in-a-value", ".a {\n  q: a\\28 b;\n}", "  ", "\n");
+  add("value/escaped-semicolon-inside-a-string", '.a {\n  content: "a\\;b";\n}', "  ", "\n");
+  add("raw/escaped-semicolon-in-a-raw-custom-value", ".a {\n  --x: a\\;b;\n}", "  ", "\n");
+  add(
+    "selector/escaped-delimiters-in-a-name-led-nth-of-list",
+    ".x:nth-child(2n of\n  color:foo\\; bar\\{baz\n) { color: red; }",
+    "  ",
+    "\n"
+  );
+  addRoot("selector/comma-selector-escaped-semicolon", ".x,\n  a:b\\;c { color: red; }", true);
+  addRoot("selector/nested-comma-selector-escaped-semicolon", ".p {\n  .x,\n    a:b\\;c { color: red; }\n}", true);
+  addRoot("selector/selector-argument-escaped-semicolon", ".x:is(.y,\n  a:b\\;c\n) { color: red; }", true);
+  addRoot(
+    "selector/interpolated-nth-selector-escaped-delimiters",
+    "$t: a;\n.x:nth-child(2n of\n  #{$t}:foo\\; bar\\{baz\n) { color: red; }",
+    true
+  );
+  addRoot(
+    "selector/interpolated-negation-selector-escaped-delimiters",
+    "$t: a;\n.x:not(\n  #{$t}:foo\\; bar\\{baz\n) { color: red; }",
+    true
+  );
   return inputs;
 }
 
