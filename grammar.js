@@ -39,7 +39,6 @@ const CSS_STATEMENTS = [
 const CSS_DIRECTIVES = new Set([
   ...CSS_STATEMENTS,
   "media",
-  "supports",
   "container",
   "import",
   "scope",
@@ -669,9 +668,12 @@ module.exports = grammar({
     query_statement: $ => seq($._query_head, choice(";", $._block)),
     _query_head: $ =>
       choice(
-        // Sass passes `@container` through without a prelude.
-        seq(choice(directive("media"), directive("container")), optional(field("prelude", $._query_value))),
-        seq(choice(directive("supports"), directive("import")), field("prelude", $._query_value))
+        // Empty media query lists are valid CSS; Sass needs no prelude for `@container` or non-lowercase `@supports`.
+        seq(
+          choice(directive("media"), directive("container"), nonLowercaseDirective("supports")),
+          optional(field("prelude", $._query_value))
+        ),
+        seq(choice("@supports", directive("import")), field("prelude", $._query_value))
       ),
     _query_value: $ => seq(commaSep1(repeat1($._query_atom)), optional(",")),
     _query_atom: $ =>
@@ -914,6 +916,16 @@ function keyword(word, ignoreCase = false) {
 
 function directive(name) {
   return alias(token(seq("@", keyword(name, CSS_DIRECTIVES.has(name)))), `@${name}`);
+}
+
+// Tree-sitter regexes have no lookahead, so each alternative fixes the position of the first capital letter.
+function nonLowercaseDirective(name) {
+  const spellings = [...name].flatMap((letter, index) => {
+    if (letter === letter.toUpperCase()) return [];
+    const rest = name.slice(index + 1);
+    return [name.slice(0, index) + letter.toUpperCase() + (rest ? keyword(rest, true).source : "")];
+  });
+  return alias(token(seq("@", new RegExp(spellings.join("|")))), `@${name}`);
 }
 
 function moduleName($) {

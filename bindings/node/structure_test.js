@@ -345,6 +345,37 @@ test("empty media query lists preserve empty and populated bodies", () => {
   }
 });
 
+test("only non-lowercase supports directives may omit their prelude", () => {
+  for (const language of [Scss, Scss.cssLanguage]) {
+    for (let mask = 1; mask < 256; mask++) {
+      const name = [..."supports"]
+        .map((letter, index) => (mask & (1 << index) ? letter.toUpperCase() : letter))
+        .join("");
+      const statement = parse(`@${name};`, language).firstNamedChild;
+      assert.equal(statement.type, "query_statement", name);
+      assert.equal(statement.firstChild.type, "@supports", name);
+      assert.equal(statement.firstChild.text, `@${name}`, name);
+    }
+    for (const source of ["@Supports;", "@Supports {}", ".x { @Supports }"]) {
+      const statement = parse(source, language).descendantsOfType("query_statement")[0];
+      assert.ok(statement, source);
+      assert.deepEqual(fieldTexts(statement, "prelude"), [], source);
+      assert.equal(statement.childForFieldName("body"), null, source);
+    }
+    const withPrelude = parse("@Supports (display: grid) { .x {} }", language).firstNamedChild;
+    assert.deepEqual(fieldTexts(withPrelude, "prelude"), ["(display: grid)"]);
+    assert.deepEqual(fieldTexts(withPrelude, "body"), [".x {}"]);
+    const parser = new Parser();
+    parser.setLanguage(language);
+    for (const source of ["@supports;", "@supports {}", ".x { @supports }"]) {
+      assert.equal(parser.parse(source).rootNode.hasError, true, source);
+    }
+    for (const source of ["@supportsx;", "@SupportsX;", "@Supports-x;", "@Supp\\6f rts;"]) {
+      assert.equal(parse(source, language).firstNamedChild.type, "at_rule", source);
+    }
+  }
+});
+
 test("unknown at-rule statements retain the enclosing block without flattening known syntax", () => {
   for (const language of [Scss, Scss.cssLanguage]) {
     const root = parse("@future { anything(a: [b; {c:d}]); color:red; [a=b] { x:y } svg|a {} } .after {}", language);
