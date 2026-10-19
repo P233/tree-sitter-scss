@@ -1,10 +1,13 @@
 # tree-sitter-scss comparison
 
-A static page comparing `P233/tree-sitter-scss` with
-`tree-sitter-grammars/tree-sitter-scss` on the same source, published at
-https://peiwen.lu/project/tree-sitter-scss-comparison/. Both panes show the
-repository, commit, and commit date. Each uses its own grammar and highlight
-queries with the same theme and web-tree-sitter 0.27.0 runtime.
+A static page comparing `P233/tree-sitter-scss`,
+`tree-sitter-grammars/tree-sitter-scss` and the grammar and highlight query shipped
+by Zed’s SCSS & SASS extension on the same source. It is published at
+https://peiwen.lu/project/tree-sitter-scss-comparison/. Each pane shows its grammar
+repository, commit and commit date, the release version when a release tag marks
+that commit, and a query link. The Zed pane also links the extension revision and
+version. All engines use the same capture-name to role mapping, theme and
+web-tree-sitter 0.27.0 runtime; token tooltips keep the original capture names.
 
 ## Build and preview
 
@@ -15,20 +18,31 @@ pnpm install --frozen-lockfile
 git clone https://github.com/tree-sitter-grammars/tree-sitter-scss .compare/official
 git -C .compare/official checkout 5da5ba71a558b007b352c505bfcd9095ae337022
 npm --prefix .compare/official install --ignore-scripts --omit=dev
+git clone https://github.com/simeonoff/tree-sitter-scss .compare/zed
+git -C .compare/zed checkout 3f918284a73a54b53e4f326b0aa8c74ccbf4ee4d
+git clone https://github.com/bajrangCoder/zed-scss .compare/zed-scss
+git -C .compare/zed-scss checkout 18deab7712272b64a4ca24ed0950618631d77fa8
 pnpm compare:build
 pnpm compare
 ```
 
 The preview runs at `http://127.0.0.1:4174`. Use `pnpm compare --port 4175`
 for another port. The CLI compiles each generated C parser to WASM and may
-download wasi-sdk on the first build. The official grammar's checkout and
+download wasi-sdk on the first build. The grammar and extension checkouts and
 the compiler cache are build inputs; they are not deployed.
 
 Use `pnpm compare:build --official /path/to/checkout` and
 `--css-query /path/to/css/queries/highlights.scm` to override the local baseline
 paths. The CSS package's `LICENSE` must be one directory above `queries/`.
 The default baseline is the official grammar at the commit above, with its
-tree-sitter-css 0.20.0 dependency. The P233 side uses this checkout's generated `src/` and
+tree-sitter-css 0.20.0 dependency. Zed’s SCSS & SASS extension v0.2.1 at
+`18deab7712272b64a4ca24ed0950618631d77fa8` pins the grammar at
+`3f918284a73a54b53e4f326b0aa8c74ccbf4ee4d`. The build checks that pin and copies
+`languages/scss/highlights.scm` unchanged, with both MIT license files. Use
+`--zed /path/to/grammar` and `--zed-extension /path/to/extension` to override
+these inputs. All three parsers use the same CLI and WASM build flags.
+
+The P233 side uses this checkout's generated `src/` and
 `queries/`; regenerate the parser first after changing `grammar.js`.
 Uncommitted parser/query changes appear as `+ edits` beside the commit.
 
@@ -58,7 +72,7 @@ as a unit so its manifest, runtime, queries, and grammars stay together.
 
 ## Reading the comparison
 
-- The 14 examples cover CSS, Sass modules, variables, maps, mixins, interpolation,
+- The 15 examples cover CSS, Sass modules, variables, maps, mixins, interpolation,
   selectors, nested properties, query syntax, raw values, at-rules, and Unicode.
 - A highlighted line number identifies different displayed colors on that line.
   Whitespace is excluded from this comparison; capture names remain available in
@@ -66,7 +80,7 @@ as a unit so its manifest, runtime, queries, and grammars stay together.
 - `!` marks lines intersecting an `ERROR` range or a `MISSING` position. Hover the
   line number or use the diagnostic list at the bottom of the pane to inspect the position.
   Each `ERROR` includes its exact source text; `MISSING` entries show the surrounding
-  line with an inline missing-node marker. Clicking a diagnostic scrolls both
+  line with an inline missing-node marker. Clicking a diagnostic scrolls all
   panes to its source line.
 - Each pane shows its syntax tree below the code, with named nodes, fields, and
   anonymous missing nodes. All positions use 1-based lines and UTF-16 columns,
@@ -80,18 +94,33 @@ as a unit so its manifest, runtime, queries, and grammars stay together.
   color, so the difference markers are the same in either.
 
 Diagnostics come directly from each parser's tree; no Sass compiler or module
-resolver is involved. Color differences and diagnostic counts describe those
+resolver is involved. Color differences, parse times and diagnostic counts describe those
 specific revisions and inputs. The page makes no ranking or quality assessment.
 Inputs are limited to 128 Ki UTF-16 code units. Comparisons use fresh parses and
 stop their worker after 30 seconds if it does not respond.
 
+Parse times appear after the highlight results, without keeping the controls
+disabled for the measurement. Each engine gets one untimed warm-up, then batches
+of consecutive fresh parses lasting at least 10 ms each. At least 5 batches run,
+stopping at about 100 ms of timed work per engine; a slow parse forms its own
+batch. The page reports the median of the batch means, with two significant
+figures, seconds from 1 s up, and the batch and parse counts. Query execution,
+highlighting and tree cleanup are outside the timed intervals. Results describe
+warm WebAssembly parsing in the current browser, not editor or compiler latency.
+
 ## Files and checks
 
-`index.html`, `style.css`, and `app.js` own the page. `theme.js` sets the stored
-or system theme before the first paint. `worker.mjs` owns the two parsers and
-their queries. `highlight.mjs` renders captures and projects syntax tree
-diagnostics. `samples.json` owns the examples. `build.js` exports and serves the
-static assets; it reuses the repository's preview palette and pinned tools.
+- `index.html`, `style.css` and `app.js` own the page and its manifest-driven panels.
+- `theme.js` sets the stored or system theme before the first paint.
+- `worker.mjs` owns the parsers and queries. It publishes highlights before
+  timings; request IDs keep old measurements out of newer results.
+- `parse.mjs` owns batch measurement, tree cleanup and timing display formatting.
+- `highlight.mjs` owns shared capture roles, rendering, color differences and
+  syntax tree diagnostics.
+- `samples.json` owns the examples.
+- `build.js` exports provenance, query links, versions, licenses and static assets
+  and serves the preview. It reuses the repository's preview palette and tools.
+- `highlight_test.js` owns the comparison's automated regression checks.
 
 `dark-theme.json` holds the dark counterpart of each preview palette color. Each
 keeps its hue, and its OKLCH lightness is `0.95 - 0.4 × L` of the light color, so
@@ -105,6 +134,8 @@ pnpm lint
 pnpm format:check
 ```
 
+`highlight_test.js` covers N-engine differences, shared capture roles, diagnostics
+and simulated-clock timing bounds, quantization, medians and tree cleanup.
 The comparison tests also run under `pnpm test:development`. No browser test is
 automated; before deploying, check sample selection, custom source editing,
 diagnostic navigation, linked scrolling, both themes, Unicode, HTML-like input,

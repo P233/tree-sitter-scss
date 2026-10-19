@@ -19,9 +19,9 @@ const root = resolve(__dirname, "..");
 const output = join(__dirname, "dist");
 const cli = join(dirname(require.resolve("tree-sitter-cli/package.json")), "tree-sitter");
 
-function revision(directory) {
+function revision(directory, paths = ["src", "queries"]) {
   const result = spawnSync("git", ["-C", directory, "rev-parse", "HEAD"], { encoding: "utf8" });
-  const status = spawnSync("git", ["-C", directory, "status", "--porcelain", "--", "src", "queries"], {
+  const status = spawnSync("git", ["-C", directory, "status", "--porcelain", "--", ...paths], {
     encoding: "utf8"
   });
   const date = spawnSync("git", ["-C", directory, "show", "-s", "--format=%cs", "HEAD"], { encoding: "utf8" });
@@ -30,6 +30,14 @@ function revision(directory) {
     date: date.status === 0 ? date.stdout.trim() : null,
     modified: Boolean(status.stdout.trim())
   };
+}
+
+// Only a release tag on the commit names a version: package manifests can lag behind a tag or keep the last release's
+// number on later commits.
+function releaseVersion(directory) {
+  const tags = spawnSync("git", ["-C", directory, "tag", "--points-at", "HEAD"], { encoding: "utf8" });
+  const tag = tags.status === 0 ? tags.stdout.split("\n").find(name => /^v?\d+\.\d+\.\d+$/.test(name)) : undefined;
+  return tag?.replace(/^v/, "") ?? null;
 }
 
 // The page compares displayed colors by theme key, so both palettes need the same keys and no shared colors.
@@ -47,8 +55,26 @@ function loadThemes() {
   return { light, dark };
 }
 
-function build(official, cssQuery) {
-  for (const file of [join(official, "src/parser.c"), cssQuery]) {
+function build(official, cssQuery, zed, extensionDirectory) {
+  const extensionToml = readFileSync(join(extensionDirectory, "extension.toml"), "utf8");
+  const extensionField = (source, name) => {
+    const value = source.match(new RegExp(`^${name} = "([^"\\n]+)"`, "m"))?.[1];
+    if (!value) throw new Error(`Missing ${name} in ${extensionDirectory}/extension.toml.`);
+    return value;
+  };
+  const grammarToml = extensionToml.split("[grammars.scss]")[1]?.split("\n[")[0];
+  if (!grammarToml) throw new Error("Missing [grammars.scss] in extension.toml.");
+  const extension = {
+    repository: extensionField(extensionToml, "repository"),
+    version: extensionField(extensionToml, "version"),
+    ...revision(extensionDirectory, ["extension.toml", "languages/scss/highlights.scm"]),
+    query: "languages/scss/highlights.scm"
+  };
+  if (revision(zed).commit !== extensionField(grammarToml, "rev")) {
+    throw new Error("The Zed grammar checkout must match the extension's [grammars.scss] rev.");
+  }
+  const zedQuery = join(extensionDirectory, extension.query);
+  for (const file of [join(official, "src/parser.c"), cssQuery, join(zed, "src/parser.c"), zedQuery]) {
     if (!existsSync(file)) throw new Error(`Missing ${file}. See README's highlight comparison setup.`);
   }
   mkdirSync(join(root, ".compare"), { recursive: true });
@@ -59,7 +85,7 @@ function build(official, cssQuery) {
     for (const name of ["web-tree-sitter.js", "web-tree-sitter.wasm"]) {
       copyFileSync(join(runtime, name), join(staging, "vendor", name));
     }
-    for (const name of ["app.js", "theme.js", "worker.mjs", "highlight.mjs", "style.css"]) {
+    for (const name of ["app.js", "theme.js", "worker.mjs", "highlight.mjs", "parse.mjs", "style.css"]) {
       copyFileSync(join(__dirname, name), join(staging, name));
     }
     copyFileSync(join(__dirname, "index.html"), join(staging, "index.html"));
@@ -68,15 +94,54 @@ function build(official, cssQuery) {
     copyFileSync(join(root, "LICENSE"), join(staging, "LICENSE-p233.txt"));
     copyFileSync(join(official, "LICENSE"), join(staging, "LICENSE-official.txt"));
     copyFileSync(join(dirname(cssQuery), "../LICENSE"), join(staging, "LICENSE-css.txt"));
-    const engines = [root, official].map((directory, index) => {
-      const name = index === 0 ? "p233" : "official";
+    copyFileSync(join(zed, "LICENSE"), join(staging, "LICENSE-zed-grammar.txt"));
+    copyFileSync(join(extensionDirectory, "LICENSE"), join(staging, "LICENSE-zed-extension.txt"));
+    const engines = [
+      {
+        name: "p233",
+        directory: root,
+        label: "P233/tree-sitter-scss",
+        repository: "https://github.com/P233/tree-sitter-scss"
+      },
+      {
+        name: "official",
+        directory: official,
+        label: "tree-sitter-grammars/tree-sitter-scss",
+        repository: "https://github.com/tree-sitter-grammars/tree-sitter-scss"
+      },
+      {
+        name: "zed",
+        directory: zed,
+        label: "Zed SCSS & SASS extension",
+        repository: extensionField(grammarToml, "repository"),
+        extension
+      }
+    ].map(({ directory, ...engine }) => {
+      const { name } = engine;
       execFileSync(cli, ["build", "--wasm", "-o", join(staging, `${name}.wasm`), directory], {
         cwd: root,
         stdio: "inherit"
       });
-      const query = readFileSync(join(directory, "queries/highlights.scm"), "utf8");
-      writeFileSync(join(staging, `${name}.scm`), index === 0 ? query : `${readFileSync(cssQuery, "utf8")}\n${query}`);
-      return { name, ...revision(directory), wasm: `${name}.wasm`, query: `${name}.scm` };
+      if (name === "zed") copyFileSync(zedQuery, join(staging, `${name}.scm`));
+      else {
+        const query = readFileSync(join(directory, "queries/highlights.scm"), "utf8");
+        writeFileSync(
+          join(staging, `${name}.scm`),
+          name === "p233" ? query : `${readFileSync(cssQuery, "utf8")}\n${query}`
+        );
+      }
+      const rev = revision(directory);
+      return {
+        ...engine,
+        ...rev,
+        version: releaseVersion(directory),
+        queryLink:
+          name === "zed"
+            ? `${extension.repository}/blob/${extension.commit}/${extension.query}`
+            : `${engine.repository}/blob/${rev.commit}/queries/highlights.scm`,
+        wasm: `${name}.wasm`,
+        query: `${name}.scm`
+      };
     });
     writeFileSync(
       join(staging, "manifest.json"),
@@ -146,6 +211,8 @@ if (require.main === module) {
       options: {
         build: { type: "boolean" },
         official: { type: "string", default: ".compare/official" },
+        zed: { type: "string", default: ".compare/zed" },
+        "zed-extension": { type: "string", default: ".compare/zed-scss" },
         "css-query": { type: "string" },
         port: { type: "string", default: "4174" }
       }
@@ -156,7 +223,9 @@ if (require.main === module) {
         official,
         values["css-query"]
           ? resolve(values["css-query"])
-          : join(official, "node_modules/tree-sitter-css/queries/highlights.scm")
+          : join(official, "node_modules/tree-sitter-css/queries/highlights.scm"),
+        resolve(root, values.zed),
+        resolve(root, values["zed-extension"])
       );
     } else {
       const port = Number(values.port);

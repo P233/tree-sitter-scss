@@ -5,7 +5,19 @@ export function escapeHtml(value) {
   );
 }
 
+const captureRoles = {
+  "selector.class": "attribute",
+  "selector.id": "attribute",
+  "selector.pseudo": "attribute",
+  namespace: "module",
+  boolean: "constant.builtin",
+  "keyword.function": "keyword",
+  "keyword.operator": "operator",
+  embedded: "punctuation.special"
+};
+
 function themeKey(name, theme) {
+  name = captureRoles[name] || name;
   const parts = name.split(".");
   // Match tree-sitter-highlight: most matching name components, first theme entry on ties.
   return Object.keys(theme)
@@ -73,7 +85,7 @@ export function differentLines(source, results) {
   const lines = new Set();
   let line = 1;
   for (let index = 0; index < source.length; index++) {
-    if (!/\s/.test(source[index]) && maps[0][index] !== maps[1][index]) lines.add(line);
+    if (!/\s/.test(source[index]) && maps.some(map => map[index] !== maps[0][index])) lines.add(line);
     if (source[index] === "\n") line++;
   }
   return [...lines];

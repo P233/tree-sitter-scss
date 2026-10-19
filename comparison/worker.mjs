@@ -1,6 +1,7 @@
 /* global self */
 import { Parser, Language, Query } from "./vendor/web-tree-sitter.js";
 import { highlight, differentLines, describeTree } from "./highlight.mjs";
+import { parseWarm } from "./parse.mjs";
 
 let manifest;
 let engines;
@@ -24,7 +25,7 @@ try {
   self.postMessage({ type: "error", fatal: true, message: error.message });
 }
 
-self.onmessage = ({ data: source }) => {
+self.onmessage = ({ data: { id, source } }) => {
   try {
     if (typeof source !== "string" || source.length > 128 * 1024)
       throw new Error("Keep source under 128 Ki characters.");
@@ -32,7 +33,10 @@ self.onmessage = ({ data: source }) => {
       const tree = parser.parse(source);
       if (!tree) throw new Error("Parser did not return a tree.");
       try {
-        return { ...highlight(source, query.captures(tree.rootNode), manifest.themes), ...describeTree(tree.rootNode) };
+        return {
+          ...highlight(source, query.captures(tree.rootNode), manifest.themes),
+          ...describeTree(tree.rootNode)
+        };
       } finally {
         tree.delete();
       }
@@ -40,11 +44,23 @@ self.onmessage = ({ data: source }) => {
     const differences = differentLines(source, results);
     self.postMessage({
       type: "result",
+      id,
       source,
       differences,
       results: results.map(({ segments: _segments, ...result }) => result)
     });
   } catch (error) {
-    self.postMessage({ type: "error", message: error.message });
+    self.postMessage({ type: "error", id, message: error.message });
+    return;
+  }
+  try {
+    const timings = engines.map(({ parser }) => {
+      const { tree, parseTime } = parseWarm(parser, source);
+      tree.delete();
+      return parseTime;
+    });
+    self.postMessage({ type: "timing", id, timings });
+  } catch (error) {
+    self.postMessage({ type: "timing-error", id, message: error.message });
   }
 };

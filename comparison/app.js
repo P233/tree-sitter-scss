@@ -1,15 +1,17 @@
 /* global document, Worker, requestAnimationFrame, Option, getComputedStyle */
 import { diagnosticLabel, diagnosticContent, diagnosticsByLine } from "./highlight.mjs";
+import { formatParseTime } from "./parse.mjs";
 const form = document.querySelector("#compare-form");
 const controls = document.querySelector("#compare-controls");
 const source = document.querySelector("#compare-source");
 const sample = document.querySelector("#compare-sample");
 const feedback = document.querySelector("#compare-feedback");
 const focus = document.querySelector("#compare-focus");
-const panels = [...document.querySelectorAll(".compare-code")];
+const panels = [];
 const worker = new Worker("./worker.mjs", { type: "module" });
 let samples = [];
 let busy = true;
+let requestId = 0;
 let timeout;
 const editor = document.querySelector("#compare-editor");
 let customSource;
@@ -39,9 +41,9 @@ function compare() {
   busy = true;
   controls.disabled = true;
   form.setAttribute("aria-busy", "true");
-  feedback.textContent = "Parsing and highlighting with both grammars…";
+  feedback.textContent = "Parsing and highlighting with all grammars…";
   timeout = setTimeout(() => fail("Comparison timed out.", true), 30_000);
-  worker.postMessage(source.value);
+  worker.postMessage({ id: ++requestId, source: source.value });
 }
 
 function selectSample() {
@@ -62,24 +64,28 @@ function selectSample() {
 }
 
 worker.onmessage = ({ data }) => {
+  if (data.id !== undefined && data.id !== requestId) return;
   if (data.type === "ready") {
     settle();
-    document.querySelector("#compare-runtime").textContent = `Tree-sitter ${data.manifest.runtime} · shared theme`;
+    document.querySelector("#compare-runtime").textContent =
+      `Tree-sitter ${data.manifest.runtime} · shared theme (capture names map onto shared roles)`;
     samples = data.manifest.samples;
     samples.forEach((item, index) => sample.add(new Option(item.name, String(index)), sample.options.length - 1));
     const custom = sample.querySelector('option[value="custom"]');
     custom.text = `${String(samples.length + 1).padStart(2, "0")} · ${custom.text}`;
     sample.value = "0";
-    data.manifest.engines.forEach((engine, index) => {
-      const link = document.querySelector(`#compare-version-${index}`);
-      link.textContent = `${engine.commit?.slice(0, 7) || "local"}${engine.modified ? " + edits" : ""} ↗`;
-      link.title = engine.commit || "Local source";
-      if (engine.commit) link.href += `/tree/${engine.commit}`;
-      document.querySelector(`#compare-date-${index}`).textContent = engine.date || "";
-    });
+    createPanels(data.manifest.engines);
     selectSample();
   } else if (data.type === "error") {
     fail(data.message, data.fatal);
+  } else if (data.type === "timing") {
+    data.timings.forEach((time, index) => {
+      document.querySelector(`#compare-timing-${index}`).textContent = formatParseTime(time);
+    });
+  } else if (data.type === "timing-error") {
+    panels.forEach((_, index) => {
+      document.querySelector(`#compare-timing-${index}`).textContent = `Timing unavailable: ${data.message}`;
+    });
   } else if (data.type === "result") {
     const { differences } = data;
     const count = data.source.split("\n").length;
@@ -87,6 +93,7 @@ worker.onmessage = ({ data }) => {
     data.results.forEach((item, index) => {
       document.querySelector(`#compare-highlight-${index}`).innerHTML = item.html;
       document.querySelector(`#compare-status-${index}`).textContent = `${item.errors} ERROR · ${item.missing} MISSING`;
+      document.querySelector(`#compare-timing-${index}`).textContent = "Measuring parse time…";
       document.querySelector(`#compare-tree-${index}`).textContent = item.tree;
       const errors = document.querySelector(`#compare-errors-${index}`);
       const diagnosticItems = document.createDocumentFragment();
@@ -150,7 +157,7 @@ form.addEventListener("submit", event => {
 sample.addEventListener("change", selectSample);
 source.addEventListener("input", () => {
   customSource = source.value;
-  feedback.textContent = "Source edited · Compare again to update both results.";
+  feedback.textContent = "Source edited · Compare again to update all results.";
 });
 source.addEventListener("keydown", event => {
   if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
@@ -160,17 +167,55 @@ source.addEventListener("keydown", event => {
 });
 
 let scrolling = false;
-panels.forEach((panel, index) =>
-  panel.addEventListener("scroll", () => {
-    if (scrolling) return;
-    scrolling = true;
-    panels[1 - index].scrollTop = panel.scrollTop;
-    panels[1 - index].scrollLeft = panel.scrollLeft;
-    requestAnimationFrame(() => {
-      scrolling = false;
+function createPanels(engines) {
+  const template = document.querySelector("#compare-panel-template");
+  const container = document.querySelector(".compare-panels");
+  container.style.setProperty("--compare-engine-count", engines.length);
+  engines.forEach((engine, index) => {
+    const fragment = template.content.cloneNode(true);
+    const field = name => fragment.querySelector(`[data-field="${name}"]`);
+    for (const name of ["title", "version", "date", "status", "timing", "highlight", "tree", "errors"]) {
+      field(name).id = `compare-${name}-${index}`;
+    }
+    fragment.querySelector("section").setAttribute("aria-labelledby", `compare-title-${index}`);
+    field("title").textContent = engine.label;
+    const link = field("version");
+    link.textContent = `${engine.version ? `v${engine.version} · ` : ""}${engine.commit?.slice(0, 7) || "local"}${engine.modified ? " + edits" : ""} ↗`;
+    link.title = `Grammar: ${engine.commit || "Local source"}`;
+    link.href = engine.repository + (engine.commit ? `/tree/${engine.commit}` : "");
+    field("date").textContent = engine.date || "";
+    if (engine.date) field("date").dateTime = engine.date;
+    const query = field("query");
+    query.hidden = false;
+    query.textContent = engine.extension
+      ? `query · v${engine.extension.version}${engine.extension.modified ? " + edits" : ""} ↗`
+      : "query ↗";
+    query.href = engine.queryLink;
+    query.title = engine.extension ? `Extension query: ${engine.extension.commit}` : "Grammar highlight query";
+    const panel = field("code");
+    for (const [element, description] of [
+      [panel, "highlights"],
+      [field("tree"), "syntax tree"],
+      [field("errors"), "parse diagnostics"]
+    ]) {
+      element.setAttribute("aria-label", `${engine.label} ${description}`);
+    }
+    panels.push(panel);
+    panel.addEventListener("scroll", () => {
+      if (scrolling) return;
+      scrolling = true;
+      panels.forEach(other => {
+        if (other === panel) return;
+        other.scrollTop = panel.scrollTop;
+        other.scrollLeft = panel.scrollLeft;
+      });
+      requestAnimationFrame(() => {
+        scrolling = false;
+      });
     });
-  })
-);
+    container.append(fragment);
+  });
+}
 
 function jumpToLine(line) {
   document

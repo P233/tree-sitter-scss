@@ -7,7 +7,7 @@
   {
     "name": "02 · Basic CSS",
     "focus": "Selector punctuation, ordinary values, units, colors, and pseudo-elements.",
-    "source": "/* Basic CSS shared by both grammars. */\n.card, #featured {\n  display: flex;\n  gap: 1rem;\n  padding: 24px;\n  color: #242938;\n  background: linear-gradient(135deg, #fff, #eee);\n  border: 1px solid rgba(0, 0, 0, 0.1);\n  font-family: \"Inter\", sans-serif;\n}\n\n.card:hover > a::before {\n  content: \"Hello, SCSS!\";\n  opacity: 0.8;\n}\n\n@media screen and (min-width: 768px) {\n  .card { max-width: 60rem; }\n}\n"
+    "source": "/* Basic CSS shared by all grammars. */\n.card, #featured {\n  display: flex;\n  gap: 1rem;\n  padding: 24px;\n  color: #242938;\n  background: linear-gradient(135deg, #fff, #eee);\n  border: 1px solid rgba(0, 0, 0, 0.1);\n  font-family: \"Inter\", sans-serif;\n}\n\n.card:hover > a::before {\n  content: \"Hello, SCSS!\";\n  opacity: 0.8;\n}\n\n@media screen and (min-width: 768px) {\n  .card { max-width: 60rem; }\n}\n"
   },
   {
     "name": "03 · Variables, flags & maps",
@@ -66,7 +66,12 @@
   },
   {
     "name": "14 · Escapes & Unicode boundaries",
-    "focus": "CSS escape extents and exact token offsets after Unicode and emoji. Non-English identifiers here are intentional test data.",
-    "source": "$紫色: #8250df;\n$label: \"Hello 🦊\";\n\n.卡片, .caf\\e9, #item\\:one {\n  color: $紫色;\n  content: \"#{$label} / \\\"quoted\\\" / \\a new line\";\n  --escaped: \"\\1F98A\";\n  font-family: \"中文\", sans-serif;\n}\n\n/* 🦊 before the final rule tests character positions. */\n.sentinel { width: 12px; color: #abc; }\n"
+    "focus": "Compare $紫色, .卡片, .caf\\e9 and #item\\:one: Zed reports ERROR nodes while P233/tree-sitter-scss preserves their roles. Rarer .a\\}b, .\\31 23 and .颜色😀 also test escape extents and offsets after emoji.",
+    "source": "$紫色: #8250df;\n$label: \"Hello 🦊\";\n\n.卡片, .caf\\e9,\n.a\\}b, .\\31 23,\n.颜色😀, #item\\:one {\n  color: $紫色;\n  content: \"#{$label} / \\\"quoted\\\" / \\a new line\";\n  --escaped: \"\\1F98A\";\n  font-family: \"中文\", sans-serif;\n}\n\n/* 🦊 before the final rule tests character positions. */\n.sentinel { width: 12px; color: #abc; }\n"
+  },
+  {
+    "name": "15 · Hash values & nested at-rules",
+    "focus": "Compare @each … #abc, #def: Zed reports ERROR nodes while P233/tree-sitter-scss parses the list cleanly. Bodiless @container and @starting-style inside .card are Sass pass-through at-rules, not block forms of those CSS rules. @if and @layer provide nearby controls.",
+    "source": "@if #abc {\n  .enabled { color: #abc; }\n}\n@each $color in #abc, #def {\n  .swatch-#{$color} { color: $color; }\n}\n\n.card {\n  @layer components;\n  @container sidebar;\n  @starting-style;\n  color: #8250df;\n}\n"
   }
 ]

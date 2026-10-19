@@ -6,7 +6,7 @@
     <title>tree-sitter-scss comparison</title>
     <meta
       name="description"
-      content="P233/tree-sitter-scss and the official tree-sitter-scss grammar side by side: highlighting, parse errors and syntax trees for the same SCSS, parsed in your browser."
+      content="Compare P233/tree-sitter-scss, the official tree-sitter-scss, and Zed SCSS extension grammars: highlighting, parse times, errors and syntax trees in your browser."
     />
     <link
       rel="icon"
@@ -18,7 +18,7 @@
   </head>
   <body>
     <main class="compare">
-      <noscript>JavaScript is required to run the two parsers.</noscript>
+      <noscript>JavaScript is required to run the parsers.</noscript>
       <header class="compare-header">
         <div class="compare-title">
           <h1>tree-sitter-scss <span>comparison</span></h1>
@@ -31,8 +31,11 @@
           the same source with it and with the official
           <a href="https://github.com/tree-sitter-grammars/tree-sitter-scss" target="_blank" rel="noreferrer"
             >tree-sitter-grammars/tree-sitter-scss</a
-          >, each using its own grammar and highlight query at the revision shown below. Pick an example or choose
-          Custom source to paste your own. Parsing runs in your browser, and nothing is uploaded.
+          >, and the grammar and query used by Zed’s
+          <a href="https://github.com/bajrangCoder/zed-scss" target="_blank" rel="noreferrer"
+            >SCSS &amp; SASS extension</a
+          >. Each engine uses the revisions shown below. Pick an example or choose Custom source to paste your own.
+          Parsing runs in your browser, and nothing is uploaded.
         </p>
       </header>
       <form id="compare-form">
@@ -55,62 +58,35 @@
         <p id="compare-focus"></p>
         <p id="compare-feedback" role="status">Loading parsers…</p>
       </div>
-      <div class="compare-panels">
-        <section class="compare-panel" aria-labelledby="compare-title-0">
+      <div class="compare-panels"></div>
+      <template id="compare-panel-template">
+        <section class="compare-panel">
           <header class="compare-panel-header">
-            <h2 id="compare-title-0">P233/tree-sitter-scss</h2>
+            <h2 data-field="title"></h2>
             <div class="compare-meta">
-              <a id="compare-version-0" href="https://github.com/P233/tree-sitter-scss" target="_blank" rel="noreferrer"
-                >Loading revision…</a
-              >
-              <time id="compare-date-0"></time>
-              <span id="compare-status-0">Waiting for parser</span>
+              <a data-field="version" target="_blank" rel="noreferrer">Loading revision…</a>
+              <time data-field="date"></time>
+              <a data-field="query" target="_blank" rel="noreferrer" hidden></a>
+              <span data-field="status">Waiting for parser</span>
+              <span data-field="timing"></span>
             </div>
           </header>
-          <div class="compare-code" tabindex="0" role="region" aria-label="P233 highlights">
-            <pre class="compare-lines" aria-hidden="true"></pre>
-            <div id="compare-highlight-0"></div>
-          </div>
-          <div class="compare-tree" id="compare-tree-panel-0">
-            <p>Syntax tree · named nodes and fields · 1-based UTF-16 positions</p>
-            <pre id="compare-tree-0" tabindex="0" aria-label="P233 syntax tree"></pre>
-          </div>
-          <ul id="compare-errors-0" class="compare-errors" aria-label="P233 parse diagnostics" hidden></ul>
-        </section>
-        <section class="compare-panel" aria-labelledby="compare-title-1">
-          <header class="compare-panel-header">
-            <h2 id="compare-title-1">tree-sitter-grammars/tree-sitter-scss</h2>
-            <div class="compare-meta">
-              <a
-                id="compare-version-1"
-                href="https://github.com/tree-sitter-grammars/tree-sitter-scss"
-                target="_blank"
-                rel="noreferrer"
-                >Loading revision…</a
-              >
-              <time id="compare-date-1"></time>
-              <span id="compare-status-1">Waiting for parser</span>
+          <div class="compare-panel-body">
+            <div data-field="code" class="compare-code" tabindex="0" role="region">
+              <pre class="compare-lines" aria-hidden="true"></pre>
+              <div data-field="highlight"></div>
             </div>
-          </header>
-          <div class="compare-code" tabindex="0" role="region" aria-label="tree-sitter-grammars highlights">
-            <pre class="compare-lines" aria-hidden="true"></pre>
-            <div id="compare-highlight-1"></div>
+            <div class="compare-tree">
+              <p>Syntax tree · named nodes and fields · 1-based UTF-16 positions</p>
+              <pre data-field="tree" tabindex="0"></pre>
+            </div>
+            <ul data-field="errors" class="compare-errors" hidden></ul>
           </div>
-          <div class="compare-tree" id="compare-tree-panel-1">
-            <p>Syntax tree · named nodes and fields · 1-based UTF-16 positions</p>
-            <pre id="compare-tree-1" tabindex="0" aria-label="tree-sitter-grammars syntax tree"></pre>
-          </div>
-          <ul
-            id="compare-errors-1"
-            class="compare-errors"
-            aria-label="tree-sitter-grammars parse diagnostics"
-            hidden
-          ></ul>
         </section>
-      </div>
+      </template>
       <footer class="compare-footer">
         <p>
-          <span class="compare-difference-key">Highlighted line number</span>: color difference ·
+          <span class="compare-difference-key">Highlighted line number</span>: color difference between engines ·
           <span class="compare-error-key">!</span>: ERROR or MISSING · Scroll is linked · Hover tokens and line numbers
           for details
         </p>
@@ -119,12 +95,20 @@
           0.20.0 · Diagnostic ranges have an exclusive end
         </p>
         <p>
+          Parse time: median over batches of each batch’s mean warm-parse time in this browser’s WebAssembly, with N
+          batches and M parses shown per engine. After one untimed warm-up, each batch runs full parses for at least 10
+          ms; a parse taking 10 ms or more forms its own batch. At least 5 batches run, stopping at about 100 ms per
+          engine. Query, highlighting, and tree cleanup time are excluded.
+        </p>
+        <p>
           Page source:
           <a href="https://github.com/P233/tree-sitter-scss/tree/main/comparison" target="_blank" rel="noreferrer"
             >comparison/</a
           >
           · Licenses: <a href="./LICENSE-p233.txt" target="_blank">P233/tree-sitter-scss</a>,
           <a href="./LICENSE-official.txt" target="_blank">tree-sitter-grammars/tree-sitter-scss</a>,
+          <a href="./LICENSE-zed-grammar.txt" target="_blank">Zed grammar (simeonoff)</a>,
+          <a href="./LICENSE-zed-extension.txt" target="_blank">Zed extension query</a>,
           <a href="./LICENSE-css.txt" target="_blank">tree-sitter-css</a>,
           <a href="./vendor/LICENSE.txt" target="_blank">web-tree-sitter</a>
         </p>

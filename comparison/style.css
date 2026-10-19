@@ -188,11 +188,16 @@ fieldset:disabled {
 }
 .compare-panels {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--compare-engine-count), minmax(0, 1fr));
   gap: 14px;
   align-items: start;
 }
 .compare-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: subgrid;
+  grid-row: span 2;
+  row-gap: 0;
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--compare-border);
@@ -210,13 +215,14 @@ fieldset:disabled {
 }
 .compare-meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   font: 10px var(--compare-mono);
   color: var(--compare-muted);
 }
 .compare-meta span {
-  margin-left: auto;
+  flex-basis: 100%;
 }
 .compare a {
   color: inherit;
