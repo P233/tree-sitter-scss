@@ -488,15 +488,17 @@ static const LineScanPolicy HEADER_LINE = {
 
 typedef enum {
   LINE_BREAK, LINE_EOF, LINE_BUDGET, UNCLOSED_UNIT, LINE_COMMENT,
-  OPEN_BLOCK, CLOSE_BLOCK, EXCESS_CLOSE, SEMICOLON,
+  OPEN_BLOCK, BEFORE_BLOCK_CLOSE, CLOSE_BLOCK, EXCESS_CLOSE, SEMICOLON,
 } LineStop;
 
+// Delimiter stops end after their delimiter; LINE_BREAK and BEFORE_BLOCK_CLOSE end before it, LINE_COMMENT inside `//`.
+// `groups` counts the groups still open since the caller zeroed it; `header_ends_early` keeps it across lines.
 static LineStop scan_line(TSLexer *lexer, unsigned *budget, unsigned *groups, const LineScanPolicy *policy) {
   while (*budget && !lexer->eof(lexer)) {
     int32_t character = lexer->lookahead;
     if (!policy->crosses_line_breaks && line_break(character)) return LINE_BREAK;
     (*budget)--;
-    if (policy->stops_before_block_close && character == '}' && !*groups) return CLOSE_BLOCK;
+    if (policy->stops_before_block_close && character == '}' && !*groups) return BEFORE_BLOCK_CLOSE;
     lexer->advance(lexer, false);
     // An escaped delimiter belongs to its name instead of ending the walk.
     if (character == '\\') {
@@ -635,7 +637,7 @@ static bool damaged_declaration_rest(TSLexer *lexer) {
     lexer->mark_end(lexer);
     return true;
   }
-  if (stop == CLOSE_BLOCK && !groups) return true;
+  if (stop == BEFORE_BLOCK_CLOSE) return true;
   if (stop != LINE_BREAK || groups) return false;
   // The line ended without `;`: it is one error before the block's `}` or a declaration line, past comments.
   if (!skip_whitespace_and_comments(lexer, &budget).is_valid) return false;
@@ -749,11 +751,14 @@ typedef enum {
   END_MIXED_CASE_STATEMENT_AT_BLOCK_BRACE,
 } HeaderBracePolicy;
 
+// Whether a header cut off by a `}` outside groups is claimed as one error or ends its statement there.
+typedef enum { CLAIM_AT_BRACE, END_AT_BRACE } HeaderBraceDecision;
+
 // Whether a header meets a declaration line, a rule line its prelude cannot continue onto, or a `}` before its block,
 // or with `ends_at_semicolon` a `;`. The never-valid token covers the header; one that a `}` cuts off takes
 // `brace_symbol` instead.
 static bool header_ends_early(TSLexer *lexer, Prelude prelude, bool ends_at_semicolon,
-                              HeaderBracePolicy brace_policy, unsigned brace_symbol) {
+                              HeaderBraceDecision brace_decision, unsigned brace_symbol) {
   unsigned groups = 0;
   // Each later line is checked, up to one that starts a declaration; the one budget bounds the whole header.
   for (unsigned budget = LOOKAHEAD_LIMIT; budget && !lexer->eof(lexer);) {
@@ -784,7 +789,7 @@ static bool header_ends_early(TSLexer *lexer, Prelude prelude, bool ends_at_semi
     if (stop == CLOSE_BLOCK) {
       // Inside a group that closes after it, the `}` is a stray character.
       lexer->result_symbol = brace_symbol;
-      return groups ? !group_closes_ahead(lexer, &budget) : brace_policy == CLAIM_HEADER_AT_BRACE;
+      return groups ? !group_closes_ahead(lexer, &budget) : brace_decision == CLAIM_AT_BRACE;
     } else if (stop == SEMICOLON && ends_at_semicolon && !groups) {
       lexer->mark_end(lexer);
       return true;
@@ -830,7 +835,8 @@ static bool scan_unfinished_header(TSLexer *lexer, bool is_line_start, bool is_i
     // Sass's `@extend` has no block.
     {.name = "extend", .is_case_sensitive = true, .brace_policy = END_STATEMENT_AT_BRACE},
   };
-  enum { NAME_BUFFER = 15 };
+  // `starting-style` is the longest name in `headers`.
+  enum { NAME_BUFFER = sizeof("starting-style") };
   lexer->advance(lexer, false);
   char name[NAME_BUFFER];
   unsigned length = 0;
@@ -858,8 +864,8 @@ static bool scan_unfinished_header(TSLexer *lexer, bool is_line_start, bool is_i
     header->brace_policy == END_STATEMENT_AT_BRACE ||
     (is_in_block && (header->brace_policy == END_STATEMENT_AT_BLOCK_BRACE ||
                      (header->brace_policy == END_MIXED_CASE_STATEMENT_AT_BLOCK_BRACE && strcmp(name, folded) != 0)));
-  HeaderBracePolicy brace_policy = can_end_statement ? END_STATEMENT_AT_BRACE : CLAIM_HEADER_AT_BRACE;
-  return header_ends_early(lexer, header->prelude, header->ends_at_semicolon, brace_policy,
+  HeaderBraceDecision brace_decision = can_end_statement ? END_AT_BRACE : CLAIM_AT_BRACE;
+  return header_ends_early(lexer, header->prelude, header->ends_at_semicolon, brace_decision,
                            is_in_block ? HEADER_AT_BRACE : UNFINISHED_HEADER);
 }
 
@@ -970,7 +976,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     // An else header cut off by a declaration line is skipped as one error, with the trivia before it.
     lexer->mark_end(lexer);
     lexer->result_symbol = UNFINISHED_HEADER;
-    return header_ends_early(lexer, SASS_EXPRESSION, false, CLAIM_HEADER_AT_BRACE, UNFINISHED_HEADER);
+    return header_ends_early(lexer, SASS_EXPRESSION, false, CLAIM_AT_BRACE, UNFINISHED_HEADER);
   }
   // CSS text hosts keep interpolation literal. SCSS always uses the grammar's expression parser.
   // Check before skipping whitespace, which belongs to the host's content.
@@ -1067,7 +1073,7 @@ bool tree_sitter_scss_external_scanner_scan(void *payload, TSLexer *lexer, const
     has_crossed_line |= line_break(last_space);
     lexer->advance(lexer, true);
   }
-  // Only a value state is known to be outside every group.
+  // A value state is outside groups except in a feature query, where an invalid declaration break stays in the query.
   LineEnd line_end = !has_crossed_line || !(is_value_state || is_inside_statement) ? NO_LINE_END
                      : is_value_state                                             ? LINE_END
                                                                                   : LINE_END_IN_GROUP;
