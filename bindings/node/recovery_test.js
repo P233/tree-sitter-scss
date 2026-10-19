@@ -646,6 +646,16 @@ test("recovery debt stays visible", () => {
   const rules = (value, next) => parser.parse(`.a {\n  ${value}\n  ${next}\n}\n.after {}\n${tail}\n`).rootNode;
   assert.notEqual(rules('content: "a #{$b c', "width: 1px;").namedChildCount, 302);
   assert.equal(rules('content: "a #{$b c";', "color: red;").namedChildCount, 302);
+  assertRecoveryCases([
+    {
+      name: "a trailing blank after a damaged attribute swallows the following property",
+      source: ".a {\n  .b [] \n  width: 1px;\n}",
+      errorText: [".b [] \n  width: 1px;", "]"],
+      properties: [],
+      variables: [],
+      nodes: []
+    }
+  ]);
 });
 
 function assertRecoveryCases(cases) {
@@ -1044,6 +1054,59 @@ test("an unfinished extend ends before a touching colon property", () => {
       source: ".a {\n  @extend\n  color:red;\n}",
       errorText: ["@extend"],
       properties: ["color:red;"],
+      variables: [],
+      nodes: []
+    }
+  ]);
+});
+
+test("trivia and names keep current readings after damaged statements", () => {
+  assertRecoveryCases([
+    {
+      name: "a block comment keeps the damaged attribute error above the property",
+      source: ".a {\n  .b [] /* note */\n  width: 1px;\n}",
+      errorText: [".b []"],
+      properties: ["width: 1px;"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "a line comment keeps the damaged attribute error above the property",
+      source: ".a {\n  .b [] // note\n  width: 1px;\n}",
+      errorText: [".b []"],
+      properties: ["width: 1px;"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "a stray at sign leaves the plain value and following property intact",
+      source: ".a {\n  color: @ word;\n  width: 1px;\n}",
+      errorText: ["@"],
+      properties: ["color: @ word;", "width: 1px;"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "a stray at sign leaves the dashed value and following property intact",
+      source: ".a {\n  color: @ --name;\n  width: 1px;\n}",
+      errorText: ["@"],
+      properties: ["color: @ --name;", "width: 1px;"],
+      variables: [],
+      nodes: []
+    },
+    {
+      name: "a stray at sign leaves the call and following property intact",
+      source: ".a {\n  color: @ fn(1);\n  width: 1px;\n}",
+      errorText: ["@"],
+      properties: ["color: @ fn(1);", "width: 1px;"],
+      variables: [],
+      nodes: [["call_expression", "fn(1)"]]
+    },
+    {
+      name: "a stray at sign leaves the escaped value and following property intact",
+      source: ".a {\n  color: @ name\\:x;\n  width: 1px;\n}",
+      errorText: ["@"],
+      properties: ["color: @ name\\:x;", "width: 1px;"],
       variables: [],
       nodes: []
     }
