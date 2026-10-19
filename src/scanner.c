@@ -147,7 +147,7 @@ static bool skip_block_comment(TSLexer *lexer) {
   return false;
 }
 
-// Both dialects parse `//` comments as extras, so lookahead skips them too.
+// Both dialects parse `//` comments as extras, so this skips them too.
 static bool skip_trivia(TSLexer *lexer) {
   for (;;) {
     while (css_space(lexer->lookahead)) lexer->advance(lexer, false);
@@ -458,35 +458,34 @@ typedef struct {
   bool marks_token_end;
   // A block's last declaration may lack its `;`; leave the `}` to the block.
   bool stops_before_block_close;
-  LineCommentPolicy line_comment;
+  // Outside groups, own-line tests stop at `//` to keep lookahead out of its text; walks needing later lines skip it.
+  bool stops_at_line_comment;
   // Inside a group, `//` may belong to a URL, as in `url(//host)`.
   LineCommentPolicy line_comment_in_groups;
   SemicolonPolicy semicolon;
 } LineScanPolicy;
 
 static const LineScanPolicy VALUE_LINE = {
-  .line_comment = STOP_AT_COMMENT,
+  .stops_at_line_comment = true,
   .semicolon = STOP_OUTSIDE_GROUPS,
 };
 static const LineScanPolicy OPEN_GROUP = {
   .crosses_line_breaks = true,
-  .line_comment = SKIP_COMMENT,
 };
 static const LineScanPolicy RULE_LINE = {
+  .stops_at_line_comment = true,
   .semicolon = STOP_AT_SEMICOLON,
 };
 static const LineScanPolicy DAMAGED_DECLARATION = {
   .skips_escapes = true,
   .marks_token_end = true,
   .stops_before_block_close = true,
-  .line_comment = SKIP_COMMENT,
   .line_comment_in_groups = STOP_AT_COMMENT,
   .semicolon = STOP_OUTSIDE_GROUPS,
 };
 static const LineScanPolicy HEADER_LINE = {
   .skips_escapes = true,
   .marks_token_end = true,
-  .line_comment = SKIP_COMMENT,
   .line_comment_in_groups = SKIP_COMMENT,
   .semicolon = STOP_AT_SEMICOLON,
 };
@@ -514,7 +513,9 @@ static LineStop scan_line(TSLexer *lexer, unsigned *budget, unsigned *groups, co
       continue;
     }
     if (character == '/' && lexer->lookahead == '/') {
-      LineCommentPolicy comment = *groups ? policy->line_comment_in_groups : policy->line_comment;
+      LineCommentPolicy comment = *groups                        ? policy->line_comment_in_groups
+                                  : policy->stops_at_line_comment ? STOP_AT_COMMENT
+                                                                 : SKIP_COMMENT;
       if (comment == STOP_AT_COMMENT) return LINE_COMMENT;
       if (comment == SKIP_COMMENT) {
         skip_comment(lexer, budget);
@@ -875,12 +876,11 @@ static bool scan_unfinished_variable(TSLexer *lexer) {
     budget--;
     lexer->advance(lexer, false);
     lexer->mark_end(lexer);
-    for (; budget && (lexer->lookahead == ' ' || lexer->lookahead == '\t'); budget--) lexer->advance(lexer, false);
   }
-  if (!budget || !line_break(lexer->lookahead)) return false;
-  for (; budget && css_space(lexer->lookahead); budget--) lexer->advance(lexer, false);
+  Trivia trivia = skip_whitespace_and_comments(lexer, &budget);
+  if (!budget || !trivia.is_valid || !trivia.has_crossed_line) return false;
   lexer->result_symbol = UNFINISHED_HEADER;
-  return budget && declaration_name_follows(lexer, &budget);
+  return declaration_name_follows(lexer, &budget);
 }
 
 // Recovery ignores empty tokens, so this break covers the newline and indentation before a whole declaration line or a

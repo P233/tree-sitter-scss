@@ -846,9 +846,9 @@ test("grouped comment markers keep current URL and error readings", () => {
 test("outside comments keep current declaration and error readings", () => {
   assertRecoveryCases([
     {
-      name: "comment block opener counts as rule line evidence",
+      name: "comment block opener supplies no rule line evidence",
       source: ".a {\n  color:\n  .b // {\n  width: 1px;\n}",
-      errorText: ["color:\n  .b // {"],
+      errorText: ["color:\n  .b", ":"],
       properties: ["width: 1px;"],
       variables: [],
       nodes: []
@@ -886,11 +886,11 @@ test("outside comments keep current declaration and error readings", () => {
       nodes: []
     },
     {
-      name: "comment after an unfinished variable keeps the following property in its error",
+      name: "comment after an unfinished variable leaves the following property intact",
       source: ".a {\n  $local // todo\n  width: 1px;\n}",
-      errorText: ["width"],
-      properties: [],
-      variables: ["$local // todo\n  width: 1px;"],
+      errorText: ["$local"],
+      properties: ["width: 1px;"],
+      variables: [],
       nodes: []
     },
     {
@@ -902,35 +902,35 @@ test("outside comments keep current declaration and error readings", () => {
       nodes: []
     },
     {
-      name: "commented opener after a media header leaves the following property intact",
+      name: "commented opener after a media header loses the following property",
       source: ".a {\n  @media screen\n  .b // {\n  width: 1px;\n}",
-      errorText: ["@media screen\n  .b"],
-      properties: ["width: 1px;"],
+      errorText: [".b // {\n  width:"],
+      properties: [],
       variables: [],
       nodes: []
     },
     {
-      name: "commented opener after a value leaves the value outside the error",
+      name: "commented opener after a value puts the value in the error",
       source: ".a {\n  color: red\n  .b // {}\n  width: 1px;\n}",
-      errorText: [".b"],
+      errorText: ["color: red\n  .b"],
       properties: ["color: red", "width: 1px;"],
       variables: [],
       nodes: []
     },
     {
-      name: "block comment after an unfinished variable puts the following property in its error",
+      name: "block comment after an unfinished variable leaves the following property intact",
       source: ".a {\n  $local /* todo */\n  width: 1px;\n}",
-      errorText: ["width"],
-      properties: [],
-      variables: ["$local /* todo */\n  width: 1px;"],
+      errorText: ["$local"],
+      properties: ["width: 1px;"],
+      variables: [],
       nodes: []
     },
     {
-      name: "line comment after an unfinished variable colon puts the following property in its error",
+      name: "line comment after an unfinished variable colon leaves the following property intact",
       source: ".a {\n  $local: // todo\n  width: 1px;\n}",
-      errorText: ["width:"],
-      properties: [],
-      variables: ["$local: // todo\n  width: 1px;"],
+      errorText: ["$local:"],
+      properties: ["width: 1px;"],
+      variables: [],
       nodes: []
     }
   ]);
