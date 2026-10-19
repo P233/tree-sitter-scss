@@ -2,6 +2,8 @@ const assert = require("node:assert/strict");
 const { test } = require("node:test");
 const Parser = require("tree-sitter");
 const Scss = require("./index.js");
+const { recoveryFamilies } = require("../../scripts/recovery-fixtures.js");
+const { statementUnits, intactUnit } = require("../../scripts/recovery-assertions.js");
 
 // Enough later rules for the runtime to settle on one recovery, as in a real file.
 const tail = Array.from({ length: 300 }, (_, index) => `.t${index} { margin: ${index}px; }`).join("\n");
@@ -1111,4 +1113,23 @@ test("trivia and names keep current readings after damaged statements", () => {
       nodes: []
     }
   ]);
+});
+
+test("the unclosed SCSS comment prefix /* before #{1 +& .tail {} keeps later rules", () => {
+  const parser = new Parser().setLanguage(Scss);
+  const laterRules = recoveryFamilies.blockend.tail;
+  const reference = parser.parse(laterRules);
+  assert.equal(reference.rootNode.hasError, false);
+  const units = statementUnits(reference.rootNode);
+  assert.ok(units.length > 0);
+  // Recovery mode cannot consume text it cannot place in a string, comment or value host.
+  const prefix = "/* before #{1 +& .tail {}\n";
+  const root = parser.parse(prefix + laterRules).rootNode;
+  assert.equal(root.hasError, true);
+  for (const unit of units) {
+    assert.ok(
+      intactUnit(root, prefix.length + unit.start, prefix.length + unit.end, unit),
+      `tail ${unit.type}@${unit.start}`
+    );
+  }
 });
