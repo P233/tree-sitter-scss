@@ -38,5 +38,6 @@ export function formatParseTime({ medianMs, batches, parses }) {
   const value = seconds ? medianMs / 1000 : medianMs;
   const rounded = Number(value.toPrecision(2));
   const decimals = Math.max(0, 1 - Math.floor(Math.log10(rounded)));
-  return `${rounded.toFixed(decimals)} ${seconds ? "s" : "ms"} (${batches} batches · ${parses} parses)`;
+  const runs = parses.toLocaleString("en-US");
+  return `${rounded.toFixed(decimals)} ${seconds ? "s" : "ms"}/parse · ${batches} batches, ${runs} runs`;
 }

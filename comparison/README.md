@@ -103,10 +103,12 @@ Parse times appear after the highlight results, without keeping the controls
 disabled for the measurement. Each engine gets one untimed warm-up, then batches
 of consecutive fresh parses lasting at least 10 ms each. At least 5 batches run,
 stopping at about 100 ms of timed work per engine; a slow parse forms its own
-batch. The page reports the median of the batch means, with two significant
-figures, seconds from 1 s up, and the batch and parse counts. Query execution,
-highlighting and tree cleanup are outside the timed intervals. Results describe
-warm WebAssembly parsing in the current browser, not editor or compiler latency.
+batch. The page reports the median of the batch means as time per parse, with
+two significant figures and seconds from 1 s up, followed by the batch count and
+the number of timed runs. Every engine gets the same budget, so a faster parser
+completes more runs. Query execution, highlighting and tree cleanup are outside
+the timed intervals. Results describe warm WebAssembly parsing in the current
+browser, not editor or compiler latency.
 
 ## Files and checks
 

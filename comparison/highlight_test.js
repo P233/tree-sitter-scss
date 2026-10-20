@@ -239,7 +239,7 @@ test("warm parse timing cleans trees after thrown and null parses", async () => 
     measureWithClock(parseWarm, options);
 });
 
-test("parse times use two significant figures without exponents and seconds from one second", async () => {
+test("parse time labels use two significant figures, no exponents, seconds from 1 s, and grouped runs", async () => {
   const { formatParseTime } = await import("./parse.mjs");
   for (const [medianMs, text] of [
     [0.00001234, "0.000012 ms"],
@@ -252,5 +252,9 @@ test("parse times use two significant figures without exponents and seconds from
     [12345, "12 s"],
     [1234567, "1200 s"]
   ])
-    assert.equal(formatParseTime({ medianMs, batches: 5, parses: 10 }), `${text} (5 batches · 10 parses)`);
+    assert.equal(formatParseTime({ medianMs, batches: 5, parses: 10 }), `${text}/parse · 5 batches, 10 runs`);
+  assert.equal(
+    formatParseTime({ medianMs: 0.037, batches: 10, parses: 2698 }),
+    "0.037 ms/parse · 10 batches, 2,698 runs"
+  );
 });
