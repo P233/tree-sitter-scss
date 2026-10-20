@@ -106,7 +106,7 @@ function build(official, cssQuery, zed, extensionDirectory) {
       {
         name: "zed",
         directory: zed,
-        label: "Zed SCSS & SASS extension",
+        label: "simeonoff/tree-sitter-scss",
         repository: extensionField(grammarToml, "repository"),
         extension
       },

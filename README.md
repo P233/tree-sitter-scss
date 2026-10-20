@@ -12,7 +12,7 @@ The official grammar extends `tree-sitter-css`; this one serves both dialects wi
 
 Node ranges inside an `ERROR` cannot be trusted, so scss2-mode refuses structural edits there. In exchange, this project owns all CSS compatibility work, and its generated parser is nearly five times larger (3.7 MB of C against 0.76 MB). The schema and query are not interchangeable with the official ones.
 
-The [comparison page](https://peiwen.lu/project/tree-sitter-scss-comparison/) parses the same source in the browser with this grammar, the grammar and query that Zed’s SCSS & SASS extension ships, and the official grammar. It shows their highlighting, parse times, parse errors and syntax trees side by side. It includes examples, and you can paste your own SCSS.
+The [comparison page](https://peiwen.lu/project/tree-sitter-scss-comparison/) parses the same source in the browser with this grammar, [simeonoff/tree-sitter-scss](https://github.com/simeonoff/tree-sitter-scss/tree/3f918284a73a54b53e4f326b0aa8c74ccbf4ee4d) with the highlight query of Zed’s SCSS & SASS extension, and the official grammar. It shows their highlighting, timings, parse errors and syntax trees side by side. It includes examples, and you can paste your own SCSS.
 
 ## Use from source
 

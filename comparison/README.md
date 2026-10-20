@@ -1,13 +1,14 @@
 # tree-sitter-scss comparison
 
-A static page comparing `P233/tree-sitter-scss`, the grammar and highlight query
-shipped by Zed’s SCSS & SASS extension, and `tree-sitter-grammars/tree-sitter-scss`
-on the same source. It is published at
-https://peiwen.lu/project/tree-sitter-scss-comparison/. Each pane shows its grammar
-repository, commit and commit date, the release version when a release tag marks
-that commit, and a query link. The Zed pane also links the extension revision and
-version. All engines use the same capture-name to role mapping, theme and
-web-tree-sitter 0.27.0 runtime; token tooltips keep the original capture names.
+A static page comparing `P233/tree-sitter-scss`, `simeonoff/tree-sitter-scss` with
+the highlight query that Zed’s SCSS & SASS extension ships for it, and
+`tree-sitter-grammars/tree-sitter-scss` on the same source. It is published at
+https://peiwen.lu/project/tree-sitter-scss-comparison/. Each pane shows its
+grammar repository, commit and commit date, the release version when a release tag
+marks that commit, and a query link. The `simeonoff/tree-sitter-scss` pane links
+the Zed extension query instead, with the extension revision and version. All
+engines use the same capture-name to role mapping, theme and web-tree-sitter
+0.27.0 runtime; token tooltips keep the original capture names.
 
 ## Build and preview
 

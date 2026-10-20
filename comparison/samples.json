@@ -1,7 +1,7 @@
 [
   {
     "name": "01 · Modern Sass overview",
-    "focus": "Module aliases, map keys, named arguments, nested properties, and interpolated selectors. Compare @content(…), using ($accent), border: 1px solid { … }, &:nth-child(n + 2) and .#{$name}\\:hidden: Zed reports ERROR nodes while P233/tree-sitter-scss parses them.",
+    "focus": "Module aliases, map keys, named arguments, nested properties, and interpolated selectors. Compare @content(…), using ($accent), border: 1px solid { … }, &:nth-child(n + 2) and .#{$name}\\:hidden: simeonoff/tree-sitter-scss reports ERROR nodes while P233/tree-sitter-scss parses them.",
     "source": "@use \"sass:map\";\n@use \"design-tokens\" as tokens with ($radius: 12px);\n\n$palette: (ink: #242938, accent: #8250df);\n$breakpoints: (md: 768px, lg: 1024px);\n\n@mixin card($padding: 1rem, $tone: accent) {\n  padding: $padding;\n  border-radius: tokens.$radius;\n  color: map.get($palette, ink);\n  @content(map.get($palette, $tone));\n}\n\n.card {\n  @include card($padding: 1.5rem) using ($accent) {\n    border: 1px solid {\n      color: $accent;\n      left-width: 4px;\n    }\n  }\n  &:nth-child(n + 2) { margin-top: 1rem; }\n}\n\n@each $name, $width in $breakpoints {\n  @media (min-width: $width) {\n    .#{$name}\\:hidden { display: none; }\n  }\n}\n"
   },
   {
@@ -66,17 +66,17 @@
   },
   {
     "name": "14 · Escapes & Unicode boundaries",
-    "focus": "Compare $紫色, .卡片, .caf\\e9 and #item\\:one: Zed reports ERROR nodes while P233/tree-sitter-scss preserves their roles. Rarer .a\\}b, .\\31 23 and .颜色😀 also test escape extents and offsets after emoji.",
+    "focus": "Compare $紫色, .卡片, .caf\\e9 and #item\\:one: simeonoff/tree-sitter-scss reports ERROR nodes while P233/tree-sitter-scss preserves their roles. Rarer .a\\}b, .\\31 23 and .颜色😀 also test escape extents and offsets after emoji.",
     "source": "$紫色: #8250df;\n$label: \"Hello 🦊\";\n\n.卡片, .caf\\e9,\n.a\\}b, .\\31 23,\n.颜色😀, #item\\:one {\n  color: $紫色;\n  content: \"#{$label} / \\\"quoted\\\" / \\a new line\";\n  --escaped: \"\\1F98A\";\n  font-family: \"中文\", sans-serif;\n}\n\n/* 🦊 before the final rule tests character positions. */\n.sentinel { width: 12px; color: #abc; }\n"
   },
   {
     "name": "15 · Hash values & nested at-rules",
-    "focus": "Compare @each … #abc, #def: Zed reports ERROR nodes while P233/tree-sitter-scss parses the list cleanly. Bodiless @container and @starting-style inside .card are Sass pass-through at-rules, not block forms of those CSS rules. @if and @layer provide nearby controls.",
+    "focus": "Compare @each … #abc, #def: simeonoff/tree-sitter-scss reports ERROR nodes while P233/tree-sitter-scss parses the list cleanly. Bodiless @container and @starting-style inside .card are Sass pass-through at-rules, not block forms of those CSS rules. @if and @layer provide nearby controls.",
     "source": "@if #abc {\n  .enabled { color: #abc; }\n}\n@each $color in #abc, #def {\n  .swatch-#{$color} { color: $color; }\n}\n\n.card {\n  @layer components;\n  @container sidebar;\n  @starting-style;\n  color: #8250df;\n}\n"
   },
   {
     "name": "16 · Known limits",
-    "focus": "Valid code that P233/tree-sitter-scss still gets wrong, as its README and ARCHITECTURE record: a comment before a quoted url() argument, a typed attr() union and an escape inside An+B. In --hero it also colors the URL's https scheme apart from the rest. Zed's grammar parses the url() comment and the typed attr(); the official grammar parses the url() comment.",
+    "focus": "Valid code that P233/tree-sitter-scss still gets wrong, as its README and ARCHITECTURE record: a comment before a quoted url() argument, a typed attr() union and an escape inside An+B. In --hero it also colors the URL's https scheme apart from the rest. simeonoff/tree-sitter-scss parses the url() comment and the typed attr(); the official grammar parses the url() comment.",
     "source": ".hero {\n  background: url(/* 2x */ \"hero.png\");\n  width: attr(data-width type(<length> | <percentage>), 10px);\n  --hero: url(https://a.test/hero.png);\n}\n\nli:nth-child(2\\6e + 1) { color: red; }\n"
   }
 ]

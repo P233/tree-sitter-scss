@@ -194,10 +194,12 @@ function createPanels(engines) {
     const query = field("query");
     query.hidden = false;
     query.textContent = engine.extension
-      ? `query · v${engine.extension.version}${engine.extension.modified ? " + edits" : ""} ↗`
+      ? `Zed query · v${engine.extension.version}${engine.extension.modified ? " + edits" : ""} ↗`
       : "query ↗";
     query.href = engine.queryLink;
-    query.title = engine.extension ? `Extension query: ${engine.extension.commit}` : "Grammar highlight query";
+    query.title = engine.extension
+      ? `Query from Zed's SCSS & SASS extension at ${engine.extension.commit}`
+      : "Grammar highlight query";
     const panel = field("code");
     for (const [element, description] of [
       [panel, "highlights"],
