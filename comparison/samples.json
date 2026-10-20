@@ -70,13 +70,13 @@
     "source": "$紫色: #8250df;\n$label: \"Hello 🦊\";\n\n.卡片, .caf\\e9,\n.a\\}b, .\\31 23,\n.颜色😀, #item\\:one {\n  color: $紫色;\n  content: \"#{$label} / \\\"quoted\\\" / \\a new line\";\n  --escaped: \"\\1F98A\";\n  font-family: \"中文\", sans-serif;\n}\n\n/* 🦊 before the final rule tests character positions. */\n.sentinel { width: 12px; color: #abc; }\n"
   },
   {
-    "name": "15 · Known P233 limits",
-    "focus": "Valid code that P233/tree-sitter-scss still gets wrong, as its README and ARCHITECTURE record: @Import without a prelude, a comment before a quoted url() argument, a typed attr() union, a name right after an attribute selector, an escape inside An+B and a blockless @page. In --hero it also colors the URL's https scheme apart from the rest. Zed's grammar parses @Import, the url() comment and the typed attr(); the official grammar parses the first two.",
-    "source": "@Import;\n\n.hero {\n  background: url(/* 2x */ \"hero.png\");\n  width: attr(data-width type(<length> | <percentage>), 10px);\n  --hero: url(https://a.test/hero.png);\n}\n\n[data-state]a { color: red; }\nli:nth-child(2\\6e + 1) { color: red; }\n\n@page :first;\n"
-  },
-  {
-    "name": "16 · Hash values & nested at-rules",
+    "name": "15 · Hash values & nested at-rules",
     "focus": "Compare @each … #abc, #def: Zed reports ERROR nodes while P233/tree-sitter-scss parses the list cleanly. Bodiless @container and @starting-style inside .card are Sass pass-through at-rules, not block forms of those CSS rules. @if and @layer provide nearby controls.",
     "source": "@if #abc {\n  .enabled { color: #abc; }\n}\n@each $color in #abc, #def {\n  .swatch-#{$color} { color: $color; }\n}\n\n.card {\n  @layer components;\n  @container sidebar;\n  @starting-style;\n  color: #8250df;\n}\n"
+  },
+  {
+    "name": "16 · Known limits",
+    "focus": "Valid code that P233/tree-sitter-scss still gets wrong, as its README and ARCHITECTURE record: @Import without a prelude, a comment before a quoted url() argument, a typed attr() union, a name right after an attribute selector, an escape inside An+B and a blockless @page. In --hero it also colors the URL's https scheme apart from the rest. Zed's grammar parses @Import, the url() comment and the typed attr(); the official grammar parses the first two.",
+    "source": "@Import;\n\n.hero {\n  background: url(/* 2x */ \"hero.png\");\n  width: attr(data-width type(<length> | <percentage>), 10px);\n  --hero: url(https://a.test/hero.png);\n}\n\n[data-state]a { color: red; }\nli:nth-child(2\\6e + 1) { color: red; }\n\n@page :first;\n"
   }
 ]
