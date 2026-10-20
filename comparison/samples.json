@@ -76,7 +76,7 @@
   },
   {
     "name": "16 · Known limits",
-    "focus": "Valid code that P233/tree-sitter-scss still gets wrong, as its README and ARCHITECTURE record: @Import without a prelude, a comment before a quoted url() argument, a typed attr() union, a name right after an attribute selector, an escape inside An+B and a blockless @page. In --hero it also colors the URL's https scheme apart from the rest. Zed's grammar parses @Import, the url() comment and the typed attr(); the official grammar parses the first two.",
-    "source": "@Import;\n\n.hero {\n  background: url(/* 2x */ \"hero.png\");\n  width: attr(data-width type(<length> | <percentage>), 10px);\n  --hero: url(https://a.test/hero.png);\n}\n\n[data-state]a { color: red; }\nli:nth-child(2\\6e + 1) { color: red; }\n\n@page :first;\n"
+    "focus": "Valid code that P233/tree-sitter-scss still gets wrong, as its README and ARCHITECTURE record: a comment before a quoted url() argument, a typed attr() union, a name right after an attribute selector and an escape inside An+B. In --hero it also colors the URL's https scheme apart from the rest. Zed's grammar parses the url() comment and the typed attr(); the official grammar parses the url() comment.",
+    "source": ".hero {\n  background: url(/* 2x */ \"hero.png\");\n  width: attr(data-width type(<length> | <percentage>), 10px);\n  --hero: url(https://a.test/hero.png);\n}\n\n[data-state]a { color: red; }\nli:nth-child(2\\6e + 1) { color: red; }\n"
   }
 ]
