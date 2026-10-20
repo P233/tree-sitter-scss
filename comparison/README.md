@@ -1,8 +1,8 @@
 # tree-sitter-scss comparison
 
-A static page comparing `P233/tree-sitter-scss`,
-`tree-sitter-grammars/tree-sitter-scss` and the grammar and highlight query shipped
-by Zed’s SCSS & SASS extension on the same source. It is published at
+A static page comparing `P233/tree-sitter-scss`, the grammar and highlight query
+shipped by Zed’s SCSS & SASS extension, and `tree-sitter-grammars/tree-sitter-scss`
+on the same source. It is published at
 https://peiwen.lu/project/tree-sitter-scss-comparison/. Each pane shows its grammar
 repository, commit and commit date, the release version when a release tag marks
 that commit, and a query link. The Zed pane also links the extension revision and

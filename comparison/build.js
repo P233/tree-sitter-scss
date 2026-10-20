@@ -104,17 +104,17 @@ function build(official, cssQuery, zed, extensionDirectory) {
         repository: "https://github.com/P233/tree-sitter-scss"
       },
       {
-        name: "official",
-        directory: official,
-        label: "tree-sitter-grammars/tree-sitter-scss",
-        repository: "https://github.com/tree-sitter-grammars/tree-sitter-scss"
-      },
-      {
         name: "zed",
         directory: zed,
         label: "Zed SCSS & SASS extension",
         repository: extensionField(grammarToml, "repository"),
         extension
+      },
+      {
+        name: "official",
+        directory: official,
+        label: "tree-sitter-grammars/tree-sitter-scss",
+        repository: "https://github.com/tree-sitter-grammars/tree-sitter-scss"
       }
     ].map(({ directory, ...engine }) => {
       const { name } = engine;
