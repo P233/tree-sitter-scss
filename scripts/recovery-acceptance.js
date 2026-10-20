@@ -1,6 +1,7 @@
 const { execFile } = require("node:child_process");
 const { readFileSync, writeFileSync } = require("node:fs");
 const { join, resolve } = require("node:path");
+const { setImmediate: yieldToEventLoop } = require("node:timers/promises");
 const { parseArgs, promisify } = require("node:util");
 const Parser = require("tree-sitter");
 const Scss = require("../bindings/node");
@@ -16,6 +17,14 @@ function parserFor(language = Scss) {
   return parser;
 }
 
+// Tree finalizers run on the event loop, so a suite that never yields keeps every tree it parsed until it exits.
+async function* releasingTrees(states) {
+  for (const state of states) {
+    yield state;
+    await yieldToEventLoop();
+  }
+}
+
 function tailIntact(tree, family) {
   const name = new RegExp(`^\\.${family.tail.name}\\d`);
   return tree.rootNode.namedChildren.filter(
@@ -23,7 +32,7 @@ function tailIntact(tree, family) {
   ).length;
 }
 
-function contract(isPlain) {
+async function contract(isPlain) {
   const parser = parserFor();
   const family = recoveryFamilies.contract;
   const pairs = isPlain ? {} : family.pairs;
@@ -50,7 +59,9 @@ function contract(isPlain) {
           blockValid: 0,
           states: ""
         });
-        for (const { text } of typingStates(before, after, statement, pairs, family.includeOvertypes)) {
+        for await (const { text } of releasingTrees(
+          typingStates(before, after, statement, pairs, family.includeOvertypes)
+        )) {
           const root = parser.parse(text).rootNode;
           const shift = text.length - before.length - after.length;
           let isLineBroken = false;
@@ -84,7 +95,7 @@ function contract(isPlain) {
   return results;
 }
 
-function typing(isPlain) {
+async function typing(isPlain) {
   const parser = parserFor();
   const query = new Parser.Query(Scss, Scss.HIGHLIGHTS_QUERY);
   const family = recoveryFamilies.typing;
@@ -114,7 +125,9 @@ function typing(isPlain) {
         states: "",
         changedBytes: []
       });
-      for (const { text, edit } of typingStates(before, after, statement, pairs, family.includeOvertypes)) {
+      for await (const { text, edit } of releasingTrees(
+        typingStates(before, after, statement, pairs, family.includeOvertypes)
+      )) {
         tree.edit(edit);
         const next = parser.parse(text, tree);
         const changed = tree
@@ -149,7 +162,7 @@ function typing(isPlain) {
   return results;
 }
 
-function blockend(isPlain) {
+async function blockend(isPlain) {
   const family = recoveryFamilies.blockend;
   const pairs = isPlain ? {} : family.pairs;
   const layouts = family.layouts();
@@ -174,7 +187,9 @@ function blockend(isPlain) {
           freshTail: [],
           rootErrors: ""
         });
-        for (const { text, edit } of typingStates(before, after, statement, pairs, family.includeOvertypes)) {
+        for await (const { text, edit } of releasingTrees(
+          typingStates(before, after, statement, pairs, family.includeOvertypes)
+        )) {
           tree.edit(edit);
           tree = parser.parse(text, tree);
           const inc = tailIntact(tree, family);
@@ -197,7 +212,7 @@ function blockend(isPlain) {
   return results;
 }
 
-function cleanHeaders() {
+async function cleanHeaders() {
   const parser = parserFor();
   const family = recoveryFamilies.headers;
   const layouts = family.layouts();
@@ -205,7 +220,9 @@ function cleanHeaders() {
   for (const [layout, [before, after]] of Object.entries(layouts)) {
     for (const header of family.statements) {
       const row = (results[`${layout}/${header}`] = { keys: 0, broken: 0, tail: [] });
-      for (const { text } of typingStates(before, after, header, family.pairs, family.includeOvertypes)) {
+      for await (const { text } of releasingTrees(
+        typingStates(before, after, header, family.pairs, family.includeOvertypes)
+      )) {
         const intact = tailIntact(parser.parse(text), family);
         row.keys++;
         if (intact < family.tail.count) row.broken++;
@@ -216,7 +233,7 @@ function cleanHeaders() {
   return results;
 }
 
-function headersAfterUnfinished() {
+async function headersAfterUnfinished() {
   const parser = parserFor();
   const family = recoveryFamilies.unfinished;
   const layouts = family.layouts();
@@ -225,7 +242,9 @@ function headersAfterUnfinished() {
     for (const line of Object.values(family.lines).flat()) {
       for (const header of family.statements) {
         const row = (results[`${layout}/${line}/${header}`] = { keys: 0, broken: 0, tail: [] });
-        for (const { text } of typingStates(before(line), after, header, family.pairs, family.includeOvertypes)) {
+        for await (const { text } of releasingTrees(
+          typingStates(before(line), after, header, family.pairs, family.includeOvertypes)
+        )) {
           const tree = parser.parse(text);
           // An ERROR root can still hold intact rules, but the whole file is then one error.
           const intact = tree.rootNode.type === "ERROR" ? 0 : tailIntact(tree, family);
@@ -277,7 +296,7 @@ function compare(expected, actual, path) {
   for (const key of Object.keys(expected)) compare(expected[key], actual[key], `${path}/${key}`);
 }
 
-function runWorker(suite, isPlain) {
+async function runWorker(suite, isPlain) {
   if (!SUITES.includes(suite)) throw new Error(`Unknown recovery suite: ${suite}.`);
   const measure = {
     contract,
@@ -287,7 +306,7 @@ function runWorker(suite, isPlain) {
     unfinished: headersAfterUnfinished,
     typos: typoProbes
   }[suite];
-  const result = measure(isPlain);
+  const result = await measure(isPlain);
   // Exit once the pipe takes the counters; a synchronous write to it fails past its buffer, and native node finalizers
   // need not drain.
   process.stdout.write(JSON.stringify(result) + "\n", () => process.exit(0));
