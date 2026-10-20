@@ -17,7 +17,7 @@
   };
 
   apply(stored() ?? (system.matches ? "dark" : "light"));
-  // Until the reader picks a theme, follow the system setting.
+  // While no choice is stored, follow the system setting.
   system.addEventListener("change", event => {
     if (!stored()) apply(event.matches ? "dark" : "light");
   });
@@ -26,9 +26,11 @@
     document.querySelector("#compare-theme").addEventListener("click", () => {
       const theme = root.dataset.theme === "dark" ? "light" : "dark";
       try {
-        localStorage.setItem(storageKey, theme);
+        // Choosing the system's theme ends the override, so the page follows the system again.
+        if (theme === (system.matches ? "dark" : "light")) localStorage.removeItem(storageKey);
+        else localStorage.setItem(storageKey, theme);
       } catch {
-        // Without storage the choice lasts until the page is reloaded.
+        // Without storage the choice lasts until the page is reloaded or the system theme changes.
       }
       apply(theme);
     });

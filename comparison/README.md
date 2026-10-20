@@ -92,9 +92,10 @@ as a unit so its manifest, runtime, queries, and grammars stay together.
   source" opens an editor that starts from the example shown and keeps your text
   when you switch away and back; press Compare below it or Cmd/Ctrl+Enter to
   update the results.
-- The page follows the system color scheme until "Dark theme" is toggled; the
-  choice is kept in local storage. Both themes give each highlight role its own
-  color, so the difference markers are the same in either.
+- The page follows the system color scheme. Toggling "Dark theme" away from it
+  keeps the choice in local storage; toggling back to the system's scheme clears
+  it, and the page follows the system again. Both themes give each highlight role
+  its own color, so the difference markers are the same in either.
 
 Diagnostics come directly from each parser's tree; no Sass compiler or module
 resolver is involved. Color differences, times and diagnostic counts describe those
