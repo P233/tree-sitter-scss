@@ -1,8 +1,8 @@
 [
   {
     "name": "01 · Modern Sass overview",
-    "focus": "Module aliases, map keys, named arguments, nested properties, and interpolated selectors.",
-    "source": "@use \"sass:map\";\n@use \"theme\" as theme with ($radius: 12px);\n\n$space: 1rem !default;\n$palette: (ink: #242938, accent: #8250df);\n\n@mixin card($padding: $space, $radius: 12px) {\n  padding: $padding;\n  border-radius: $radius;\n  color: map.get($palette, ink);\n  @content;\n}\n\n.card {\n  @include card($padding: 1.5rem) {\n    background: #f6f3ff;\n  }\n  font: {\n    size: 1rem;\n    weight: 600;\n  }\n  &:hover { color: map.get($palette, accent); }\n}\n"
+    "focus": "Module aliases, map keys, named arguments, nested properties, and interpolated selectors. Compare @content(…), using ($accent), border: 1px solid { … }, &:nth-child(n + 2) and .#{$name}\\:hidden: Zed reports ERROR nodes while P233/tree-sitter-scss parses them.",
+    "source": "@use \"sass:map\";\n@use \"design-tokens\" as tokens with ($radius: 12px);\n\n$palette: (ink: #242938, accent: #8250df);\n$breakpoints: (md: 768px, lg: 1024px);\n\n@mixin card($padding: 1rem, $tone: accent) {\n  padding: $padding;\n  border-radius: tokens.$radius;\n  color: map.get($palette, ink);\n  @content(map.get($palette, $tone));\n}\n\n.card {\n  @include card($padding: 1.5rem) using ($accent) {\n    border: 1px solid {\n      color: $accent;\n      left-width: 4px;\n    }\n  }\n  &:nth-child(n + 2) { margin-top: 1rem; }\n}\n\n@each $name, $width in $breakpoints {\n  @media (min-width: $width) {\n    .#{$name}\\:hidden { display: none; }\n  }\n}\n"
   },
   {
     "name": "02 · Basic CSS",
