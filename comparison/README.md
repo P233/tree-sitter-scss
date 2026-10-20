@@ -72,8 +72,9 @@ as a unit so its manifest, runtime, queries, and grammars stay together.
 
 ## Reading the comparison
 
-- The 15 examples cover CSS, Sass modules, variables, maps, mixins, interpolation,
-  selectors, nested properties, query syntax, raw values, at-rules, and Unicode.
+- The 16 examples cover CSS, Sass modules, variables, maps, mixins, interpolation,
+  selectors, nested properties, query syntax, raw values, at-rules, Unicode, and
+  the known limits of P233/tree-sitter-scss.
 - A highlighted line number identifies different displayed colors on that line.
   Whitespace is excluded from this comparison; capture names remain available in
   token tooltips.
