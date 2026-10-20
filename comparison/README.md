@@ -97,21 +97,24 @@ as a unit so its manifest, runtime, queries, and grammars stay together.
   color, so the difference markers are the same in either.
 
 Diagnostics come directly from each parser's tree; no Sass compiler or module
-resolver is involved. Color differences, parse times and diagnostic counts describe those
+resolver is involved. Color differences, times and diagnostic counts describe those
 specific revisions and inputs. The page makes no ranking or quality assessment.
 Inputs are limited to 128 Ki UTF-16 code units. Comparisons use fresh parses and
 stop their worker after 30 seconds if it does not respond.
 
-Parse times appear after the highlight results, without keeping the controls
-disabled for the measurement. Each engine gets one untimed warm-up, then batches
-of consecutive fresh parses lasting at least 10 ms each. At least 5 batches run,
-stopping at about 100 ms of timed work per engine; a slow parse forms its own
-batch. The page reports the median of the batch means as time per parse, with
-two significant figures and seconds from 1 s up, followed by the batch count and
-the number of timed runs. Every engine gets the same budget, so a faster parser
-completes more runs. Query execution, highlighting and tree cleanup are outside
-the timed intervals. Results describe warm WebAssembly parsing in the current
-browser, not editor or compiler latency.
+Times appear after the highlight results, without keeping the controls disabled
+for the measurement. Each pane shows two: parse covers the parser alone, and
+highlighted adds the engine's own highlight query and building the colored
+markup from its captures, so a query that colors more tokens takes longer.
+Before any timing, every engine runs the highlighted work untimed for about 20
+ms, so the engine timed first does not absorb the runtime's warm-up. Each time
+then gets one untimed run and five batches of consecutive fresh runs, each batch
+lasting at least 10 ms; a slow run forms its own batch. The page reports the
+median of the five batch means, with two significant figures and seconds from 1
+s up; hovering the times shows how many runs were timed. Every engine gets the
+same five batches, so a faster engine completes more runs. Tree cleanup and page
+updates are outside the timed intervals. Results describe warm work in the
+current browser, not editor or compiler latency.
 
 ## Files and checks
 

@@ -131,7 +131,7 @@ test("diagnostic content preserves exact source and marks zero-width missing nod
   });
 });
 
-function measureWithClock(parseWarm, { durations, quantized = false, failAt, nullAt }) {
+function measureWithClock(measureWarm, { durations, quantized = false, failAt, nullAt }) {
   const actual = globalThis.performance;
   let clock = 0;
   let calls = 0;
@@ -176,50 +176,45 @@ function measureWithClock(parseWarm, { durations, quantized = false, failAt, nul
       };
     }
   };
+  const work = () => parser.parse("x");
   try {
     if (failAt || nullAt) {
-      assert.throws(() => parseWarm(parser, "x"), /parse failure|Parser did not return a tree/);
+      assert.throws(() => measureWarm(work), /parse failure|Parser did not return a tree/);
       assert.equal(live, 0);
       assert.equal(deleted, calls - 1);
       return;
     }
-    const { tree, parseTime } = parseWarm(parser, "x");
-    assert.equal(live, 1, "only the returned tree remains owned by the caller");
-    assert.equal(calls, parseTime.parses + 1, "warm-up is excluded");
-    tree.delete();
-    assert.equal(live, 0);
+    const result = measureWarm(work);
+    assert.equal(live, 0, "the measurement deletes every tree");
+    assert.equal(calls, result.runs + 1, "warm-up is excluded");
     assert.equal(deleted, calls);
-    assert.equal(batches.length, parseTime.batches);
+    assert.equal(batches.length, 5);
     assert.ok(batches.every(batch => batch.duration >= 10));
-    const elapsed = batches.reduce((sum, batch) => sum + batch.duration, 0);
-    assert.ok(elapsed >= 100);
-    assert.ok(parseTime.batches >= 5);
-    if (parseTime.batches > 5) assert.ok(elapsed - batches.at(-1).duration < 100);
-    assert.ok(parseTime.medianMs > 0);
-    return { ...parseTime, peak, batchesMeasured: batches };
+    assert.ok(result.medianMs > 0);
+    return { ...result, peak, batchesMeasured: batches };
   } finally {
     globalThis.performance = actual;
   }
 }
 
-test("warm parse timing uses bounded batches, the time budget and median of batch means", async t => {
-  const { parseWarm } = await import("./parse.mjs");
+test("warm timing takes the median of five batch means, each batch lasting at least 10 ms", async t => {
+  const { measureWarm } = await import("./parse.mjs");
   const cases = [
-    { durations: [5], batches: 10, parses: 20, median: 5 },
-    { durations: [10], batches: 10, parses: 10, median: 10 },
-    { durations: [9.99], batches: 6, parses: 12, median: 9.99 },
-    { durations: [25], batches: 5, parses: 5, median: 25 },
-    { durations: [1000], batches: 5, parses: 5, median: 1000 },
-    { durations: [25, 20], batches: 5, parses: 5, median: 25 },
-    { durations: [10, 30, 10, 20, 10, 20], batches: 6, parses: 6, median: 15 },
-    { durations: [2, 9, 10, 30, 2, 8, 20, 20], batches: 6, parses: 8, median: 15 },
-    { durations: [0.04], batches: 10, parses: 2500, median: 0.04, quantized: true }
+    { durations: [5], runs: 10, median: 5 },
+    { durations: [10], runs: 5, median: 10 },
+    { durations: [9.99], runs: 10, median: 9.99 },
+    { durations: [25], runs: 5, median: 25 },
+    { durations: [1000], runs: 5, median: 1000 },
+    { durations: [25, 20], runs: 5, median: 25 },
+    { durations: [10, 30, 10, 20, 10, 20], runs: 5, median: 10 },
+    { durations: [2, 9, 10, 30, 2, 8, 20, 20], runs: 7, median: 10 },
+    // On the 0.1 ms clock, floored batch starts and float error give batches of 249 to 251 runs.
+    { durations: [0.04], runs: 1251, median: 0.04, quantized: true }
   ];
   for (const item of cases) {
     await t.test(JSON.stringify(item), () => {
-      const result = measureWithClock(parseWarm, item);
-      assert.equal(result.batches, item.batches);
-      assert.equal(result.parses, item.parses);
+      const result = measureWithClock(measureWarm, item);
+      assert.equal(result.runs, item.runs);
       assert.ok(Math.abs(result.medianMs - item.median) < 1e-8);
       if (item.quantized) assert.ok(result.peak > 1);
       if (item.durations[0] >= 10) assert.ok(result.batchesMeasured.every(batch => batch.parses === 1));
@@ -227,8 +222,8 @@ test("warm parse timing uses bounded batches, the time budget and median of batc
   }
 });
 
-test("warm parse timing cleans trees after thrown and null parses", async () => {
-  const { parseWarm } = await import("./parse.mjs");
+test("warm timing cleans trees after thrown and null parses", async () => {
+  const { measureWarm } = await import("./parse.mjs");
   for (const options of [
     { durations: [1], failAt: 1 },
     { durations: [1], failAt: 8 },
@@ -236,12 +231,34 @@ test("warm parse timing cleans trees after thrown and null parses", async () => 
     { durations: [1], nullAt: 1 },
     { durations: [1], nullAt: 8 }
   ])
-    measureWithClock(parseWarm, options);
+    measureWithClock(measureWarm, options);
 });
 
-test("parse time labels use two significant figures, no exponents, seconds from 1 s, and grouped runs", async () => {
-  const { formatParseTime } = await import("./parse.mjs");
-  for (const [medianMs, text] of [
+test("warm-up runs work untimed for its duration and deletes every tree", async () => {
+  const { warmUp } = await import("./parse.mjs");
+  const actual = globalThis.performance;
+  let clock = 0;
+  let live = 0;
+  let runs = 0;
+  globalThis.performance = { now: () => clock };
+  try {
+    warmUp(() => {
+      runs++;
+      clock += 3;
+      live++;
+      return { delete: () => live-- };
+    }, 20);
+    assert.throws(() => warmUp(() => null, 20), /Parser did not return a tree/);
+  } finally {
+    globalThis.performance = actual;
+  }
+  assert.equal(runs, 7);
+  assert.equal(live, 0);
+});
+
+test("durations use two significant figures, no exponents, and seconds from 1 s", async () => {
+  const { formatDuration } = await import("./parse.mjs");
+  for (const [ms, text] of [
     [0.00001234, "0.000012 ms"],
     [0.0356, "0.036 ms"],
     [0.1, "0.10 ms"],
@@ -252,10 +269,16 @@ test("parse time labels use two significant figures, no exponents, seconds from 
     [12345, "12 s"],
     [1234567, "1200 s"]
   ])
-    assert.equal(formatParseTime({ medianMs, batches: 5, parses: 10 }), `${text}/parse · 5 batches, 10 runs`);
+    assert.equal(formatDuration(ms), text);
+});
+
+test("timing labels show both times and their details group run counts", async () => {
+  const { describeTimings, formatTimings } = await import("./parse.mjs");
+  const timings = { parse: { medianMs: 0.037, runs: 1351 }, highlighted: { medianMs: 0.074, runs: 676 } };
+  assert.equal(formatTimings(timings), "parse 0.037 ms · highlighted 0.074 ms");
   assert.equal(
-    formatParseTime({ medianMs: 0.037, batches: 10, parses: 2698 }),
-    "0.037 ms/parse · 10 batches, 2,698 runs"
+    describeTimings(timings),
+    "Parse: median of five batch means over 1,351 timed runs. Highlighted: median of five batch means over 676 timed runs."
   );
 });
 

@@ -95,11 +95,12 @@
           0.20.0 · Diagnostic ranges have an exclusive end
         </p>
         <p>
-          Parse time: median over batches of each batch’s mean warm-parse time in this browser’s WebAssembly, shown as
-          time per parse with the number of batches and timed runs. After one untimed warm-up, each batch runs full
-          parses for at least 10 ms; a parse taking 10 ms or more forms its own batch. At least 5 batches run, stopping
-          at about 100 ms per engine, so a faster parser completes more runs. Query, highlighting, and tree cleanup time
-          are excluded.
+          Times: each is the median of five batch means of warm runs in this browser. Parse covers the parser alone;
+          highlighted adds the engine’s own highlight query and building the colored markup from its captures, so a
+          query that colors more tokens takes longer. Every engine first runs untimed for about 20 ms, so the engine
+          timed first does not pay for warming up the runtime. Each batch then repeats the work for at least 10 ms, so a
+          faster engine completes more runs; a run taking 10 ms or more forms its own batch. Hover the times for their
+          run counts. Tree cleanup and page updates are excluded.
         </p>
         <p>
           Page source:

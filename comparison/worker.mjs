@@ -1,7 +1,7 @@
 /* global self */
 import { Parser, Language, Query } from "./vendor/web-tree-sitter.js";
 import { highlight, differentLines, describeTree } from "./highlight.mjs";
-import { parseWarm } from "./parse.mjs";
+import { measureWarm, warmUp } from "./parse.mjs";
 
 let manifest;
 let engines;
@@ -23,6 +23,18 @@ try {
   self.postMessage({ type: "ready", manifest });
 } catch (error) {
   self.postMessage({ type: "error", fatal: true, message: error.message });
+}
+
+function highlightedRun(parser, query, source) {
+  const tree = parser.parse(source);
+  if (!tree) return tree;
+  try {
+    highlight(source, query.captures(tree.rootNode), manifest.themes);
+  } catch (error) {
+    tree.delete();
+    throw error;
+  }
+  return tree;
 }
 
 self.onmessage = ({ data: { id, source } }) => {
@@ -54,11 +66,12 @@ self.onmessage = ({ data: { id, source } }) => {
     return;
   }
   try {
-    const timings = engines.map(({ parser }) => {
-      const { tree, parseTime } = parseWarm(parser, source);
-      tree.delete();
-      return parseTime;
-    });
+    // Without this, the engine timed first also pays for warming up the shared runtime and reads slow.
+    for (const { parser, query } of engines) warmUp(() => highlightedRun(parser, query, source), 20);
+    const timings = engines.map(({ parser, query }) => ({
+      parse: measureWarm(() => parser.parse(source)),
+      highlighted: measureWarm(() => highlightedRun(parser, query, source))
+    }));
     self.postMessage({ type: "timing", id, timings });
   } catch (error) {
     self.postMessage({ type: "timing-error", id, message: error.message });

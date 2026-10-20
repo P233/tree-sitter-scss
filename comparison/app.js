@@ -1,6 +1,6 @@
 /* global document, Worker, requestAnimationFrame, Option, getComputedStyle */
 import { diagnosticLabel, diagnosticContent, diagnosticsByLine } from "./highlight.mjs";
-import { formatParseTime } from "./parse.mjs";
+import { describeTimings, formatTimings } from "./parse.mjs";
 const form = document.querySelector("#compare-form");
 const controls = document.querySelector("#compare-controls");
 const source = document.querySelector("#compare-source");
@@ -80,11 +80,15 @@ worker.onmessage = ({ data }) => {
     fail(data.message, data.fatal);
   } else if (data.type === "timing") {
     data.timings.forEach((time, index) => {
-      document.querySelector(`#compare-timing-${index}`).textContent = formatParseTime(time);
+      const timing = document.querySelector(`#compare-timing-${index}`);
+      timing.textContent = formatTimings(time);
+      timing.title = describeTimings(time);
     });
   } else if (data.type === "timing-error") {
     panels.forEach((_, index) => {
-      document.querySelector(`#compare-timing-${index}`).textContent = `Timing unavailable: ${data.message}`;
+      const timing = document.querySelector(`#compare-timing-${index}`);
+      timing.textContent = `Timing unavailable: ${data.message}`;
+      timing.removeAttribute("title");
     });
   } else if (data.type === "result") {
     const { differences } = data;
@@ -93,7 +97,9 @@ worker.onmessage = ({ data }) => {
     data.results.forEach((item, index) => {
       document.querySelector(`#compare-highlight-${index}`).innerHTML = item.html;
       document.querySelector(`#compare-status-${index}`).textContent = `${item.errors} ERROR · ${item.missing} MISSING`;
-      document.querySelector(`#compare-timing-${index}`).textContent = "Measuring parse time…";
+      const timing = document.querySelector(`#compare-timing-${index}`);
+      timing.textContent = "Measuring times…";
+      timing.removeAttribute("title");
       document.querySelector(`#compare-tree-${index}`).textContent = item.tree;
       const errors = document.querySelector(`#compare-errors-${index}`);
       const diagnosticItems = document.createDocumentFragment();
