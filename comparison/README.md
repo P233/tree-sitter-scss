@@ -83,7 +83,9 @@ as a unit so its manifest, runtime, queries, and grammars stay together.
   line with an inline missing-node marker. Clicking a diagnostic scrolls all
   panes to its source line.
 - Each pane shows its syntax tree below the code, with named nodes, fields, and
-  anonymous missing nodes. All positions use 1-based lines and UTF-16 columns,
+  missing nodes. A missing token whose symbol the grammar hides is listed at the
+  start of its visible parent, which is exact when that parent is empty, as in
+  `@Import;`. All positions use 1-based lines and UTF-16 columns,
   with exclusive range ends.
 - Scrolling is always linked. Choosing an example compares it at once. "Custom
   source" opens an editor that starts from the example shown and keeps your text

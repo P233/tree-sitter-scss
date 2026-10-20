@@ -91,6 +91,12 @@ export function differentLines(source, results) {
   return [...lines];
 }
 
+// Tree APIs skip hidden nodes: a MISSING token with a hidden symbol shows only as its visible parent's error flag.
+function hiddenMissingTypes(node) {
+  if (!node.hasError || node.isError || node.isMissing || node.children.some(child => child.hasError)) return [];
+  return [...node.toString().matchAll(/\(MISSING (?:"([^"]*)"|([^\s()]+))/g)].map(([, quoted, name]) => quoted ?? name);
+}
+
 export function describeTree(root) {
   const cursor = root.walk();
   const lines = [];
@@ -119,6 +125,14 @@ export function describeTree(root) {
         const end = node.endPosition;
         lines.push(
           `${"  ".repeat(depth)}${field ? `${field}: ` : ""}${node.isMissing ? "MISSING " : ""}${node.type} [${start.row + 1}:${start.column + 1}–${end.row + 1}:${end.column + 1}]`
+        );
+      }
+      for (const type of hiddenMissingTypes(node)) {
+        const at = node.startPosition;
+        missing++;
+        diagnostics.push({ kind: "MISSING", type, start: node.startIndex, end: node.startIndex, from: at, to: at });
+        lines.push(
+          `${"  ".repeat(depth + 1)}MISSING ${type} [${at.row + 1}:${at.column + 1}–${at.row + 1}:${at.column + 1}]`
         );
       }
       if (cursor.gotoFirstChild()) {

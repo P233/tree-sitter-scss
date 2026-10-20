@@ -258,3 +258,92 @@ test("parse time labels use two significant figures, no exponents, seconds from 
     "0.037 ms/parse · 10 batches, 2,698 runs"
   );
 });
+
+// A tree with the node and cursor API that describeTree reads; `hidden` marks an error only the S-expression shows.
+function fakeTree(spec) {
+  const build = (item, parent) => {
+    const node = {
+      type: item.type,
+      isNamed: item.named ?? true,
+      isError: Boolean(item.error),
+      isMissing: Boolean(item.missing),
+      startIndex: item.start,
+      endIndex: item.end,
+      startPosition: { row: 0, column: item.start },
+      endPosition: { row: 0, column: item.end },
+      field: item.field ?? null,
+      parent,
+      toString: () => item.sexp ?? `(${item.type})`
+    };
+    node.children = (item.children ?? []).map(child => build(child, node));
+    node.hasError =
+      node.isError || node.isMissing || Boolean(item.hidden) || node.children.some(child => child.hasError);
+    return node;
+  };
+  const root = build(spec, null);
+  root.walk = () => {
+    let node = root;
+    const move = next => Boolean(next && (node = next));
+    return {
+      get currentNode() {
+        return node;
+      },
+      get currentFieldName() {
+        return node.field;
+      },
+      gotoFirstChild: () => move(node.children[0]),
+      gotoNextSibling: () => move(node.parent?.children[node.parent.children.indexOf(node) + 1]),
+      gotoParent: () => move(node.parent),
+      delete() {}
+    };
+  };
+  return root;
+}
+
+test("tree diagnostics count MISSING tokens with hidden symbols once, at their visible parent", async () => {
+  const { describeTree } = await import("./highlight.mjs");
+  const result = describeTree(
+    fakeTree({
+      type: "stylesheet",
+      start: 0,
+      end: 30,
+      children: [
+        {
+          type: "query_statement",
+          start: 0,
+          end: 8,
+          children: [
+            { type: "@import", named: false, start: 0, end: 7 },
+            {
+              type: "plain_value",
+              field: "prelude",
+              start: 7,
+              end: 7,
+              hidden: true,
+              sexp: "(plain_value (MISSING _identifier))"
+            },
+            { type: ";", named: false, start: 7, end: 8 }
+          ]
+        },
+        { type: "color_value", start: 12, end: 12, hidden: true, sexp: '(color_value (MISSING "color_value_token1"))' },
+        {
+          type: "block",
+          start: 20,
+          end: 30,
+          children: [{ type: "}", named: false, missing: true, start: 30, end: 30 }]
+        }
+      ]
+    })
+  );
+  assert.equal(result.errors, 0);
+  assert.equal(result.missing, 3);
+  assert.deepEqual(
+    result.diagnostics.map(({ kind, type, start, end }) => [kind, type, start, end]),
+    [
+      ["MISSING", "_identifier", 7, 7],
+      ["MISSING", "color_value_token1", 12, 12],
+      ["MISSING", "}", 30, 30]
+    ]
+  );
+  assert.match(result.tree, /prelude: plain_value \[1:8–1:8\]\n {6}MISSING _identifier \[1:8–1:8\]/);
+});
