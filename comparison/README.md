@@ -63,8 +63,8 @@ to a parsing service. Once the assets have loaded, editing and comparing require
 no network requests.
 
 The published copy lives in the peiwen.lu site's
-`public/project/tree-sitter-scss-comparison/`, whose `_headers` file sets that
-policy for the directory.
+`public/project/tree-sitter-scss-comparison/`; the site's `public/_headers` sets
+that policy for the directory.
 
 Re-run `pnpm compare:build` after editing the page, examples, queries, or parser.
 Restart the preview after rebuilding. The build replaces `dist/` only after
@@ -74,8 +74,8 @@ as a unit so its manifest, runtime, queries, and grammars stay together.
 ## Reading the comparison
 
 - The 16 examples cover CSS, Sass modules, variables, maps, mixins, interpolation,
-  selectors, nested properties, query syntax, raw values, at-rules, Unicode, and
-  the known limits of P233/tree-sitter-scss.
+  selectors, nested properties, query syntax, raw values, at-rules, Unicode and the
+  known limits of P233/tree-sitter-scss.
 - A highlighted line number identifies different displayed colors on that line.
   Whitespace is excluded from this comparison; capture names remain available in
   token tooltips.

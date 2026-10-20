@@ -1,7 +1,7 @@
 [
   {
     "name": "01 · Modern Sass overview",
-    "focus": "Module aliases, map keys, named arguments, nested properties, and interpolated selectors. Compare @content(…), using ($accent), border: 1px solid { … }, &:nth-child(n + 2) and .#{$name}\\:hidden: simeonoff/tree-sitter-scss reports ERROR nodes while P233/tree-sitter-scss parses them.",
+    "focus": "Module aliases, map keys, named arguments, nested properties and interpolated selectors. Compare @content(…), using ($accent), border: 1px solid { … }, &:nth-child(n + 2) and .#{$name}\\:hidden: simeonoff/tree-sitter-scss reports ERROR nodes while P233/tree-sitter-scss parses them.",
     "source": "@use \"sass:map\";\n@use \"design-tokens\" as tokens with ($radius: 12px);\n\n$palette: (ink: #242938, accent: #8250df);\n$breakpoints: (md: 768px, lg: 1024px);\n\n@mixin card($padding: 1rem, $tone: accent) {\n  padding: $padding;\n  border-radius: tokens.$radius;\n  color: map.get($palette, ink);\n  @content(map.get($palette, $tone));\n}\n\n.card {\n  @include card($padding: 1.5rem) using ($accent) {\n    border: 1px solid {\n      color: $accent;\n      left-width: 4px;\n    }\n  }\n  &:nth-child(n + 2) { margin-top: 1rem; }\n}\n\n@each $name, $width in $breakpoints {\n  @media (min-width: $width) {\n    .#{$name}\\:hidden { display: none; }\n  }\n}\n"
   },
   {
@@ -76,7 +76,7 @@
   },
   {
     "name": "16 · Known limits",
-    "focus": "Valid code that P233/tree-sitter-scss still gets wrong, as its README and ARCHITECTURE record: a comment before a quoted url() argument, a typed attr() union and an escape inside An+B. In --hero it also colors the URL's https scheme apart from the rest. simeonoff/tree-sitter-scss parses the url() comment and the typed attr(); the official grammar parses the url() comment.",
+    "focus": "Valid code that P233/tree-sitter-scss still gets wrong, as its README and ARCHITECTURE record: a comment before a quoted url() argument, a typed attr() union and an escape inside An+B. On line 4 it also colors the URL's https scheme apart from the rest. simeonoff/tree-sitter-scss parses the url() comment and the typed attr(); the official grammar parses the url() comment.",
     "source": ".hero {\n  background: url(/* 2x */ \"hero.png\");\n  width: attr(data-width type(<length> | <percentage>), 10px);\n  --hero: url(https://a.test/hero.png);\n}\n\nli:nth-child(2\\6e + 1) { color: red; }\n"
   }
 ]
