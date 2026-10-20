@@ -70,9 +70,9 @@
     "source": "$紫色: #8250df;\n$label: \"Hello 🦊\";\n\n.卡片, .caf\\e9,\n.a\\}b, .\\31 23,\n.颜色😀, #item\\:one {\n  color: $紫色;\n  content: \"#{$label} / \\\"quoted\\\" / \\a new line\";\n  --escaped: \"\\1F98A\";\n  font-family: \"中文\", sans-serif;\n}\n\n/* 🦊 before the final rule tests character positions. */\n.sentinel { width: 12px; color: #abc; }\n"
   },
   {
-    "name": "15 · Hash values & nested at-rules",
-    "focus": "Compare @each … #abc, #def: simeonoff/tree-sitter-scss reports ERROR nodes while P233/tree-sitter-scss parses the list cleanly. Bodiless @container and @starting-style inside .card are Sass pass-through at-rules, not block forms of those CSS rules. @if and @layer provide nearby controls.",
-    "source": "@if #abc {\n  .enabled { color: #abc; }\n}\n@each $color in #abc, #def {\n  .swatch-#{$color} { color: $color; }\n}\n\n.card {\n  @layer components;\n  @container sidebar;\n  @starting-style;\n  color: #8250df;\n}\n"
+    "name": "15 · Hash values in control flow",
+    "focus": "Compare @each … #abc, #def: simeonoff/tree-sitter-scss and the official grammar report an ERROR while P233/tree-sitter-scss parses the list cleanly. @if #abc is a nearby control that all three parse.",
+    "source": "@if #abc {\n  .enabled { color: #abc; }\n}\n@each $color in #abc, #def {\n  .swatch-#{$color} { color: $color; }\n}\n"
   },
   {
     "name": "16 · Known limits",
