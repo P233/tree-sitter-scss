@@ -6,7 +6,8 @@
   const system = matchMedia("(prefers-color-scheme: dark)");
   const stored = () => {
     try {
-      return localStorage.getItem(storageKey);
+      const theme = localStorage.getItem(storageKey);
+      return theme === "light" || theme === "dark" ? theme : null;
     } catch {
       return null;
     }
