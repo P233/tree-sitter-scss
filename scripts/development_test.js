@@ -131,7 +131,8 @@ test("generated parsers stay within the large parse state budget", t => {
   assert.ok(checkLargeStates(join(root, "src")) > 0, "The committed parser must satisfy the default budget");
 });
 
-test("CLI commands compile each checkout independently and retain failed parse diagnostics", { timeout: 30_000 }, t => {
+// Each child compiles the 3.7 MB parser: about 5 s on an idle machine and several times that under load.
+test("CLI commands compile each checkout independently and keep failed parse diagnostics", { timeout: 300_000 }, t => {
   const directory = temporaryDirectory(t);
   const checkouts = [join(directory, "first"), join(directory, "second")];
   for (const checkout of checkouts) {
@@ -159,7 +160,7 @@ test("CLI commands compile each checkout independently and retain failed parse d
     spawnSync(process.execPath, [...command, ...args], {
       cwd: checkout,
       encoding: "utf8",
-      timeout: 10_000,
+      timeout: 60_000,
       env: { ...process.env, TREE_SITTER_LIBDIR: join(directory, "shared-cache") }
     });
   for (const index of [0, 1, 0]) {
