@@ -356,7 +356,9 @@ const { values } = parseArgs({
   options: { worker: { type: "string" }, plain: { type: "boolean" }, record: { type: "string" } }
 });
 if (values.worker) {
-  runWorker(values.worker, values.plain);
+  runWorker(values.worker, values.plain).catch(error =>
+    process.stderr.write(`${error.stack ?? error}\n`, () => process.exit(1))
+  );
 } else {
   main(values).catch(error => {
     console.error(error.stderr?.toString() || error.message);
